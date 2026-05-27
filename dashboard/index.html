@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Customer AI Hub</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+<script src="_shared/config.js"></script>
+<script src="_shared/auth.js"></script>
+<script src="_shared/ui.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-variant": "#d3e4fe","surface-tint": "#006780","error-container": "#ffdad6",
+          "secondary-fixed": "#dae2fd","outline-variant": "#bdc8ce","on-secondary-fixed-variant": "#3f465c",
+          "on-error": "#ffffff","on-primary-container": "#fafdff","primary": "#00647c",
+          "tertiary-fixed": "#e0e3e5","on-surface-variant": "#3e484d","surface-container": "#e5eeff",
+          "on-tertiary": "#ffffff","inverse-primary": "#6cd3f7","error": "#ba1a1a",
+          "tertiary": "#595c5e","surface": "#f8f9ff","on-primary": "#ffffff",
+          "surface-container-low": "#eff4ff","on-tertiary-fixed-variant": "#444749",
+          "on-tertiary-container": "#fbfdff","primary-container": "#007f9d",
+          "surface-container-lowest": "#ffffff","primary-fixed": "#b7eaff",
+          "on-error-container": "#93000a","surface-container-highest": "#d3e4fe",
+          "on-primary-fixed": "#001f28","on-tertiary-fixed": "#191c1e",
+          "on-primary-fixed-variant": "#004e61","secondary": "#565e74",
+          "tertiary-container": "#727577","secondary-container": "#dae2fd",
+          "surface-bright": "#f8f9ff","primary-fixed-dim": "#6cd3f7",
+          "on-secondary": "#ffffff","on-background": "#0b1c30",
+          "surface-container-high": "#dce9ff","tertiary-fixed-dim": "#c4c7c9",
+          "on-secondary-fixed": "#131b2e","outline": "#6e797e","surface-dim": "#cbdbf5",
+          "secondary-fixed-dim": "#bec6e0","on-surface": "#0b1c30","inverse-surface": "#213145",
+          "inverse-on-surface": "#eaf1ff","background": "#f8f9ff",
+          "on-secondary-container": "#5c647a"
+        },
+        borderRadius: { "DEFAULT": "0.125rem","lg": "0.25rem","xl": "0.5rem","full": "0.75rem" },
+        spacing: { "gutter": "1.5rem","xl": "2rem","sm": "0.5rem","container-margin": "2rem","base": "4px","xs": "0.25rem","md": "1rem","lg": "1.5rem" },
+        fontFamily: { "display-lg": ["Inter"],"headline-md": ["Inter"],"headline-lg-mobile": ["Inter"],"label-md": ["Inter"],"headline-lg": ["Inter"],"body-lg": ["Inter"],"body-md": ["Inter"] },
+        fontSize: {
+          "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+          "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+          "headline-lg-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+          "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+          "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+          "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+          "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1; }
+  .hover-elevate:hover { box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); transition: all 0.2s ease-in-out; }
+  @keyframes subtle-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.1)} }
+  .ai-pulse { animation: subtle-pulse 2s infinite ease-in-out; }
+  #mobile-menu:checked ~ #sidebar { transform: translateX(0); }
+  #mobile-menu:checked ~ #overlay { opacity: 1; pointer-events: auto; }
+  .skeleton { background: linear-gradient(90deg, #e5eeff 25%, #d3e4fe 50%, #e5eeff 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* Login Modal */
+  #login-modal {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(11,28,48,0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.2s;
+  }
+  #login-modal.hidden { display: none; }
+  .login-card {
+    background: #fff;
+    border: 1px solid #bdc8ce;
+    border-radius: 1rem;
+    padding: 40px 36px;
+    width: 100%; max-width: 400px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,100,124,0.15);
+    animation: slideUp 0.25s ease-out;
+  }
+  @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+  .login-card::before {
+    content:''; position:absolute; top:-40px; left:50%; transform:translateX(-50%);
+    width:160px; height:160px;
+    background: radial-gradient(circle, rgba(0,100,124,0.12) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .btn-google {
+    width:100%; padding:13px 20px;
+    background:#f8f9ff; border:1px solid #bdc8ce; border-radius:0.5rem;
+    color:#0b1c30; font-family:'Inter',sans-serif; font-size:15px; font-weight:500;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:12px;
+    transition:all 0.2s; margin-top:8px;
+  }
+  .btn-google:hover { background:#e5eeff; border-color:#00647c; box-shadow:0 0 0 3px rgba(0,100,124,0.1); }
+  .btn-google:disabled { opacity:0.5; cursor:not-allowed; }
+  #login-error {
+    margin-top:14px; padding:10px 14px;
+    background:#ffdad6; border:1px solid #ba1a1a22; border-radius:0.5rem;
+    color:#93000a; font-size:13px; display:none; text-align:left;
+  }
+</style>
+</head>
+<body class="bg-background text-on-surface antialiased flex h-screen overflow-hidden pb-16 md:pb-0">
+
+<!-- ═══ LOGIN MODAL ═══ -->
+<!-- ═══ LOGIN MODAL ═══ -->
+<div id="login-modal" class="hidden">
+  <div class="login-card">
+    <div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-5">
+      <span class="material-symbols-outlined text-white fill" style="font-size:26px">smart_toy</span>
+    </div>
+    <h1 class="text-xl font-bold text-on-surface mb-1">AI Admin</h1>
+    <p class="text-sm text-tertiary mb-6 leading-relaxed">Đăng nhập tài khoản PocketBase</p>
+
+    <!-- Thêm 2 ô nhập này -->
+    <div class="mb-4 text-left">
+      <label class="block text-xs font-semibold text-tertiary mb-1">Email hoặc Username</label>
+      <input type="text" id="login-email" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary" placeholder="Nhập email...">
+    </div>
+    
+    <div class="mb-6 text-left">
+      <label class="block text-xs font-semibold text-tertiary mb-1">Mật khẩu</label>
+      <input type="password" id="login-password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary" placeholder="••••••••">
+    </div>
+
+    <!-- Nút đăng nhập thường -->
+    <button class="w-full bg-primary text-white font-medium py-3 px-4 rounded-lg hover:bg-primary-container transition-all" id="login-btn" onclick="doLogin()">
+      Đăng nhập
+    </button>
+
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<input class="hidden" id="mobile-menu" type="checkbox"/>
+<label class="fixed inset-0 bg-on-surface/50 z-40 opacity-0 pointer-events-none transition-opacity md:hidden" for="mobile-menu" id="overlay"></label>
+
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 bottom-0 flex flex-col p-4 bg-surface text-primary font-body-md text-body-md h-screen w-64 border-r border-outline-variant z-50 -translate-x-full md:translate-x-0 transition-transform duration-300" id="sidebar">
+  <div class="mb-8 px-4 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-on-primary-container fill">smart_toy</span>
+      </div>
+      <div>
+        <div class="font-headline-md text-headline-md font-bold text-primary">AI Admin</div>
+        <div class="text-[10px] uppercase tracking-wider text-outline" id="nav-tenant-id">—</div>
+      </div>
+    </div>
+    <label class="md:hidden p-2 -mr-2 text-on-surface-variant cursor-pointer" for="mobile-menu">
+      <span class="material-symbols-outlined">close</span>
+    </label>
+  </div>
+
+  <div class="flex-1 flex flex-col gap-2 overflow-y-auto">
+    <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-xl font-bold transition-transform" href="index.html">
+      <span class="material-symbols-outlined">dashboard</span>Overview
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="config.html">
+      <span class="material-symbols-outlined">settings</span>Bot Settings
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="knowledge.html">
+      <span class="material-symbols-outlined">auto_stories</span>Knowledge Base
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="messages.html">
+      <span class="material-symbols-outlined">forum</span>Chat Logs
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="leads.html">
+      <span class="material-symbols-outlined">people</span>Leads
+    </a>
+  </div>
+
+  <div class="mt-auto pt-4 border-t border-outline-variant/30 flex flex-col gap-2">
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="#">
+      <span class="material-symbols-outlined">help</span>Help
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors cursor-pointer" onclick="logout()">
+      <span class="material-symbols-outlined">logout</span>Logout
+    </a>
+  </div>
+</nav>
+
+<!-- Main -->
+<main class="md:ml-64 flex-1 flex flex-col h-full overflow-hidden bg-background w-full">
+
+  <!-- TopNavBar -->
+  <header class="flex justify-between items-center h-16 px-4 md:px-gutter w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
+    <div class="flex items-center gap-4">
+      <label class="md:hidden p-2 -ml-2 text-on-surface-variant cursor-pointer" for="mobile-menu">
+        <span class="material-symbols-outlined">menu</span>
+      </label>
+      <h1 class="text-on-surface hidden sm:block">Dashboard</h1>
+    </div>
+    <div class="flex-1 max-w-md ml-4 sm:ml-8 mr-auto relative">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+      <input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 pl-10 pr-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary transition-all" placeholder="Search..." type="text"/>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="p-2 text-on-surface-variant hover:text-primary transition-colors rounded-full hover:bg-surface-variant/50 hidden sm:block">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+      <!-- User Avatar -->
+      <div class="w-8 h-8 rounded-full bg-primary-container border-2 border-outline-variant overflow-hidden ml-2 shrink-0">
+        <img alt="Profile" class="w-full h-full object-cover" id="user-avatar" src=""/>
+      </div>
+      <!-- User name -->
+      <span class="text-body-md text-on-surface-variant hidden sm:block" id="user-display-name"></span>
+    </div>
+  </header>
+
+  <!-- Scrollable Canvas -->
+  <div class="flex-1 overflow-y-auto p-4 md:p-container-margin">
+
+    <!-- Welcome Header -->
+    <div class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+      <div>
+        <h2 class="font-display-lg text-display-lg text-on-surface mb-2 text-2xl md:text-4xl">Customer AI Hub</h2>
+        <p class="font-body-lg text-body-lg text-tertiary">Tổng quan hoạt động bot — <span id="tenant-label" class="font-semibold text-primary">—</span></p>
+      </div>
+      <div class="flex gap-3 w-full sm:w-auto">
+        <button class="w-full sm:w-auto justify-center bg-surface-container-lowest border border-outline-variant text-on-surface px-4 py-2 rounded-lg font-label-md text-label-md hover:bg-surface-variant transition-colors flex items-center gap-2" onclick="exportReport()">
+          <span class="material-symbols-outlined" style="font-size:18px">download</span>Export Report
+        </button>
+      </div>
+    </div>
+
+    <!-- Bento Grid -->
+    <div class="grid grid-cols-12 gap-4 md:gap-lg">
+
+      <!-- Stat: Total Messages -->
+      <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 md:p-lg hover-elevate flex flex-col justify-between">
+        <div class="flex justify-between items-start mb-4">
+          <div class="font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Tổng tin nhắn</div>
+          <div class="bg-surface-container text-primary-container px-2 py-1 rounded text-[11px] font-bold" id="badge-msg-growth">—</div>
+        </div>
+        <div>
+          <div class="font-display-lg text-display-lg text-on-surface text-3xl md:text-4xl skeleton h-10 w-24" id="stat-total-messages">—</div>
+          <div class="font-body-md text-body-md text-outline mt-1">30 ngày gần nhất</div>
+        </div>
+      </div>
+
+      <!-- Stat: Sessions -->
+      <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 md:p-lg hover-elevate flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-2xl"></div>
+        <div class="flex justify-between items-start mb-4 relative z-10">
+          <div class="font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Hội thoại</div>
+          <span class="material-symbols-outlined text-primary-container" style="font-size:20px">forum</span>
+        </div>
+        <div class="relative z-10">
+          <div class="font-display-lg text-display-lg text-on-surface text-3xl md:text-4xl" id="stat-sessions">—</div>
+          <div class="font-body-md text-body-md text-outline mt-1">Unique sessions</div>
+        </div>
+      </div>
+
+      <!-- Stat: Today -->
+      <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 md:p-lg hover-elevate flex flex-col justify-between">
+        <div class="flex justify-between items-start mb-4">
+          <div class="font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Hôm nay</div>
+          <div class="flex items-center gap-1">
+            <span class="w-2 h-2 bg-inverse-primary rounded-full ai-pulse"></span>
+            <span class="text-[11px] font-bold text-inverse-primary uppercase">Live</span>
+          </div>
+        </div>
+        <div>
+          <div class="font-display-lg text-display-lg text-on-surface text-3xl md:text-4xl" id="stat-today">—</div>
+          <div class="font-body-md text-body-md text-outline mt-1">Tin nhắn hôm nay</div>
+        </div>
+      </div>
+
+      <!-- Chart placeholder -->
+      <div class="col-span-12 md:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 md:p-lg hover-elevate">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-surface-variant/50 gap-4">
+          <h3 class="font-headline-md text-headline-md text-on-surface">Query Volume Over Time</h3>
+          <div class="flex gap-2">
+            <button class="px-3 py-1 text-[12px] bg-surface-variant text-on-surface rounded font-medium">7D</button>
+            <button class="px-3 py-1 text-[12px] text-tertiary hover:bg-surface-variant rounded font-medium">30D</button>
+          </div>
+        </div>
+        <div class="w-full h-48 md:h-64 bg-surface-container-low rounded-lg border border-outline-variant border-dashed flex items-center justify-center relative overflow-hidden">
+          <svg class="absolute inset-0 w-full h-full text-outline-variant/30" fill="none" preserveAspectRatio="none" viewBox="0 0 100 100">
+            <path d="M0,80 Q20,60 40,70 T80,30 T100,40 L100,100 L0,100 Z" fill="currentColor" opacity="0.2"></path>
+            <path d="M0,80 Q20,60 40,70 T80,30 T100,40" stroke="currentColor" stroke-width="0.5"></path>
+          </svg>
+          <span class="font-body-md text-body-md text-tertiary bg-surface/80 px-4 py-2 rounded z-10 text-sm">Chart coming soon</span>
+        </div>
+      </div>
+
+      <!-- Top Sessions -->
+      <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-0 hover-elevate overflow-hidden flex flex-col">
+        <div class="p-4 md:p-lg pb-4 border-b border-surface-variant/50 flex justify-between items-center">
+          <h3 class="font-headline-md text-headline-md text-on-surface">Khách hoạt động</h3>
+          <span class="material-symbols-outlined text-outline" style="font-size:20px">sort</span>
+        </div>
+        <div class="flex flex-col p-4 gap-4" id="top-sessions-list">
+          <!-- filled by JS -->
+          <div class="skeleton h-8 w-full rounded"></div>
+          <div class="skeleton h-8 w-full rounded"></div>
+          <div class="skeleton h-8 w-full rounded"></div>
+        </div>
+        <div class="mt-auto p-4 bg-surface-container-low border-t border-outline-variant/30 text-center">
+          <a class="font-label-md text-label-md text-primary hover:underline" href="messages.html">Xem tất cả hội thoại</a>
+        </div>
+      </div>
+
+      <!-- Bot Instances Table -->
+      <div class="col-span-12 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden hover-elevate">
+        <div class="p-4 md:p-lg border-b border-surface-variant/50 flex justify-between items-center">
+          <h3 class="font-headline-md text-headline-md text-on-surface">Bot Configuration</h3>
+          <a href="config.html" class="text-tertiary hover:text-primary transition-colors text-sm">Chỉnh sửa →</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr class="bg-surface-container-low border-b border-outline-variant/50">
+                <th class="py-3 px-4 md:px-6 font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Bot Name</th>
+                <th class="py-3 px-4 md:px-6 font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Tenant</th>
+                <th class="py-3 px-4 md:px-6 font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Status</th>
+                <th class="py-3 px-4 md:px-6 font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary">Webhook</th>
+                <th class="py-3 px-4 md:px-6 font-label-md text-label-md uppercase tracking-[0.05em] text-tertiary text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/30 font-body-md text-body-md" id="bot-table-body">
+              <tr><td colspan="5" class="py-8 text-center text-tertiary">
+                <div class="flex justify-center"><div class="skeleton h-5 w-48 rounded"></div></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- end bento grid -->
+    <div class="h-12"></div>
+  </div>
+</main>
+
+<!-- Bottom Mobile Nav -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-outline-variant z-40 flex justify-around items-center h-16 px-2">
+  <a class="flex flex-col items-center justify-center w-full h-full text-primary gap-1" href="index.html">
+    <span class="material-symbols-outlined" style="font-size:24px">dashboard</span>
+    <span class="text-[10px] font-medium">Overview</span>
+  </a>
+  <a class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary gap-1" href="config.html">
+    <span class="material-symbols-outlined" style="font-size:24px">settings</span>
+    <span class="text-[10px] font-medium">Settings</span>
+  </a>
+  <a class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary gap-1" href="knowledge.html">
+    <span class="material-symbols-outlined" style="font-size:24px">auto_stories</span>
+    <span class="text-[10px] font-medium">Knowledge</span>
+  </a>
+  <a class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary gap-1" href="messages.html">
+    <span class="material-symbols-outlined" style="font-size:24px">forum</span>
+    <span class="text-[10px] font-medium">Logs</span>
+  </a>
+</nav>
+
+<script>
+// ═══════════════════════════════════════
+// BOOT — modal-based auth
+// ═══════════════════════════════════════
+(async () => {
+  if (!PB.authStore.isValid) {
+    // Chưa login → hiện modal
+    showLoginModal();
+    return;
+  }
+
+  try {
+    // Refresh token
+    await PB.collection("tenants").authRefresh();
+  } catch {
+    PB.authStore.clear();
+    showLoginModal();
+    return;
+  }
+
+  const user = PB.authStore.model;
+  if (!user.tenant) {
+    PB.authStore.clear();
+    showLoginError("Tài khoản chưa được cấp tenant. Liên hệ admin.");
+    showLoginModal();
+    return;
+  }
+
+  window.TENANT    = user.tenant;
+  window.AUTH_USER = user;
+
+  hideLoginModal();
+  applyUserUI(user);
+
+  await Promise.all([loadStats(), loadTopSessions(), loadBotConfig()]);
+})();
+
+function showLoginModal() {
+  document.getElementById("login-modal").classList.remove("hidden");
+}
+
+function hideLoginModal() {
+  document.getElementById("login-modal").classList.add("hidden");
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById("login-error");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function applyUserUI(user) {
+  const tenant = window.TENANT;
+  document.getElementById("nav-tenant-id").textContent     = tenant;
+  document.getElementById("tenant-label").textContent      = tenant;
+  document.getElementById("user-display-name").textContent = user.name || user.email || "";
+  if (user.avatarUrl) document.getElementById("user-avatar").src = user.avatarUrl;
+}
+
+async function doLogin() {
+  const emailInput = document.getElementById("login-email").value.trim();
+  const passwordInput = document.getElementById("login-password").value;
+  const btn = document.getElementById("login-btn");
+  
+  if (!emailInput || !passwordInput) {
+    showLoginError("Vui lòng nhập đầy đủ Email và Mật khẩu");
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = 'Đang xác thực...';
+
+  try {
+    // Đổi từ authWithOAuth2 sang authWithPassword
+    await PB.collection("tenants").authWithPassword(emailInput, passwordInput);
+
+    const user = PB.authStore.model;
+    // Kiểm tra trường 'tenant' trong DB của bạn
+    if (!user.tenant) {
+      PB.authStore.clear();
+      throw new Error("Tài khoản chưa được cấp tenant. Liên hệ admin.");
+    }
+
+    window.TENANT    = user.tenant;
+    window.AUTH_USER = user;
+
+    hideLoginModal();
+    applyUserUI(user);
+
+    await Promise.all([loadStats(), loadTopSessions(), loadBotConfig()]);
+
+  } catch (err) {
+    showLoginError(err.message || "Sai tài khoản hoặc mật khẩu");
+    btn.disabled = false;
+    btn.innerHTML = "Đăng nhập";
+  }
+}
+// ═══════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════
+async function loadStats() {
+  try {
+    const rows = await PB.collection("messages").getList(1, 500, { sort: "created" });
+    const items = rows.items;
+
+    // Total messages
+    const total = items.length;
+
+    // Unique sessions
+    const sessions = new Set(items.map(m => m.session)).size;
+
+    // Today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayCount = items.filter(m => new Date(m.created) >= todayStart).length;
+
+    // Growth badge: so sánh 15 ngày đầu vs 15 ngày sau trong 30 ngày
+    const now = Date.now();
+    const d30 = now - 30 * 86400000;
+    const d15 = now - 15 * 86400000;
+    const first15 = items.filter(m => new Date(m.created) >= d30 && new Date(m.created) < d15).length;
+    const last15  = items.filter(m => new Date(m.created) >= d15).length;
+    const growth  = first15 > 0 ? Math.round(((last15 - first15) / first15) * 100) : 0;
+
+    // Render
+    const msgEl = document.getElementById("stat-total-messages");
+    msgEl.textContent = total >= 1000 ? (total / 1000).toFixed(1) + "k" : total;
+    msgEl.classList.remove("skeleton", "h-10", "w-24");
+
+    document.getElementById("stat-sessions").textContent = sessions;
+    document.getElementById("stat-today").textContent    = todayCount;
+    document.getElementById("badge-msg-growth").textContent = (growth >= 0 ? "+" : "") + growth + "%";
+
+  } catch (err) {
+    console.error("loadStats:", err);
+  }
+}
+
+// ═══════════════════════════════════════
+// TOP SESSIONS — 5 khách có nhiều tin nhắn nhất
+// ═══════════════════════════════════════
+async function loadTopSessions() {
+  const el = document.getElementById("top-sessions-list");
+  try {
+    const rows = await PB.collection("messages").getList(1, 500, {
+      sort: "-created",
+      filter: "is_bot=false"
+    });
+
+    const map = {};
+    rows.items.forEach(msg => {
+      if (!map[msg.session]) map[msg.session] = { username: msg.username || "Khách", count: 0, last: msg.created };
+      map[msg.session].count++;
+    });
+
+    const top5 = Object.values(map)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    if (!top5.length) { el.innerHTML = '<p class="text-sm text-tertiary">Chưa có dữ liệu</p>'; return; }
+
+    el.innerHTML = top5.map(u => `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded bg-primary-container/20 flex items-center justify-center text-primary-container shrink-0">
+            <span class="material-symbols-outlined" style="font-size:16px">person</span>
+          </div>
+          <div>
+            <div class="font-body-md text-body-md font-medium text-on-surface">${escHtml(u.username)}</div>
+            <div class="font-label-md text-label-md text-outline">${formatTime(u.last)}</div>
+          </div>
+        </div>
+        <div class="font-body-md text-body-md text-on-surface whitespace-nowrap ml-2">${u.count} tin</div>
+      </div>
+    `).join("");
+
+  } catch (err) {
+    el.innerHTML = '<p class="text-sm text-tertiary">Lỗi tải dữ liệu</p>';
+  }
+}
+
+// ═══════════════════════════════════════
+// BOT CONFIG TABLE
+// ═══════════════════════════════════════
+async function loadBotConfig() {
+  const tbody = document.getElementById("bot-table-body");
+  try {
+    // API Rules tự filter theo tenant_id
+    const rows = await PB.collection("bot_configs").getList(1, 50, { sort: "-created" });
+
+    if (!rows.items.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-tertiary font-body-md">Chưa có cấu hình bot nào. <a href="config.html" class="text-primary underline">Tạo ngay</a></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.items.map(bot => `
+      <tr class="hover:bg-surface transition-colors group">
+        <td class="py-4 px-4 md:px-6">
+          <div class="font-medium text-on-surface flex items-center gap-2">
+            <span>${bot.bot_avatar || "🤖"}</span>
+            ${escHtml(bot.bot_name || "Unnamed Bot")}
+          </div>
+          <div class="text-[12px] text-outline mt-0.5">ID: ${bot.id.substring(0, 8)}</div>
+        </td>
+        <td class="py-4 px-4 md:px-6 text-tertiary font-mono text-sm">${escHtml(bot.tenant_id || window.TENANT)}</td>
+        <td class="py-4 px-4 md:px-6">
+          <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-surface-container border border-outline-variant/50">
+            <span class="w-2 h-2 bg-inverse-primary rounded-full ai-pulse"></span>
+            <span class="text-[12px] font-medium text-on-surface">Live</span>
+          </div>
+        </td>
+        <td class="py-4 px-4 md:px-6 text-tertiary text-sm truncate max-w-[200px]">
+          ${bot.webhook ? `<span title="${escHtml(bot.webhook)}">${escHtml(bot.webhook.substring(0, 40))}${bot.webhook.length > 40 ? "…" : ""}</span>` : '<span class="text-outline italic">Chưa cấu hình</span>'}
+        </td>
+        <td class="py-4 px-4 md:px-6 text-right">
+          <a href="config.html" class="text-outline hover:text-primary transition-colors md:opacity-0 md:group-hover:opacity-100">
+            <span class="material-symbols-outlined" style="font-size:20px">settings</span>
+          </a>
+        </td>
+      </tr>
+    `).join("");
+
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-tertiary">Lỗi tải cấu hình</td></tr>`;
+  }
+}
+
+// ═══════════════════════════════════════
+// EXPORT (placeholder)
+// ═══════════════════════════════════════
+function exportReport() {
+  showToast("Tính năng export đang phát triển", "error");
+}
+</script>
+</body>
+</html>

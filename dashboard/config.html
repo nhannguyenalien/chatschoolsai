@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bot Configuration - Customer AI Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+<script src="_shared/config.js"></script>
+<script src="_shared/auth.js"></script>
+<script src="_shared/ui.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-variant":"#d3e4fe","surface-tint":"#006780","surface-container-high":"#dce9ff",
+          "on-secondary":"#ffffff","background":"#f8f9ff","tertiary-fixed-dim":"#c4c7c9",
+          "on-primary-fixed-variant":"#004e61","surface-dim":"#cbdbf5","secondary-fixed-dim":"#bec6e0",
+          "primary":"#00647c","on-background":"#0b1c30","on-secondary-fixed":"#131b2e",
+          "surface-container-lowest":"#ffffff","outline":"#6e797e","error-container":"#ffdad6",
+          "on-tertiary":"#ffffff","surface-container-low":"#eff4ff","outline-variant":"#bdc8ce",
+          "surface-container-highest":"#d3e4fe","tertiary-container":"#727577","on-surface":"#0b1c30",
+          "tertiary-fixed":"#e0e3e5","inverse-surface":"#213145","secondary-fixed":"#dae2fd",
+          "inverse-primary":"#6cd3f7","primary-fixed-dim":"#6cd3f7","on-error":"#ffffff",
+          "primary-fixed":"#b7eaff","on-secondary-fixed-variant":"#3f465c","secondary-container":"#dae2fd",
+          "on-primary":"#ffffff","surface-bright":"#f8f9ff","on-tertiary-fixed":"#191c1e",
+          "on-surface-variant":"#3e484d","on-secondary-container":"#5c647a","on-primary-fixed":"#001f28",
+          "secondary":"#565e74","tertiary":"#595c5e","inverse-on-surface":"#eaf1ff",
+          "on-primary-container":"#fafdff","primary-container":"#007f9d",
+          "error":"#ba1a1a","surface-container":"#e5eeff","surface":"#f8f9ff",
+          "on-error-container":"#93000a","on-tertiary-fixed-variant":"#444749",
+          "on-tertiary-container":"#fbfdff"
+        },
+        borderRadius: {"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},
+        spacing: {"container-margin":"2rem","xs":"0.25rem","xl":"2rem","md":"1rem","gutter":"1.5rem","base":"4px","sm":"0.5rem","lg":"1.5rem"},
+        fontFamily: {"label-md":["Inter"],"headline-md":["Inter"],"body-lg":["Inter"],"body-md":["Inter"],"headline-lg":["Inter"],"display-lg":["Inter"]},
+        fontSize: {
+          "label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.01em","fontWeight":"500"}],
+          "headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],
+          "body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],
+          "body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],
+          "headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],
+          "display-lg":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  .material-symbols-outlined.fill { font-variation-settings:'FILL' 1; }
+  .form-input-luminous { background-color:#ffffff; border:1px solid #bdc8ce; color:#0b1c30; transition:all 0.2s ease-in-out; }
+  .form-input-luminous:focus { border-color:#00647c; box-shadow:0 0 0 2px #b7eaff; outline:none; }
+  .form-input-luminous::placeholder { color:#6e797e; }
+  input[type=range] { -webkit-appearance:none; width:100%; background:transparent; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; height:16px; width:16px; border-radius:50%; background:#00647c; cursor:pointer; margin-top:-6px; }
+  input[type=range]::-webkit-slider-runnable-track { width:100%; height:4px; cursor:pointer; background:#d3e4fe; border-radius:2px; }
+
+  /* Toast */
+  .toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px; font-size:14px; font-weight:500; z-index:999; transform:translateY(80px); opacity:0; transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1); display:flex; align-items:center; gap:10px; }
+  .toast.show { transform:translateY(0); opacity:1; }
+  .toast.success { background:rgba(52,211,153,0.15); border:1px solid rgba(52,211,153,0.3); color:#059669; }
+  .toast.error { background:#ffdad6; border:1px solid #ba1a1a44; color:#93000a; }
+  .spinner { width:16px; height:16px; border:2px solid transparent; border-top-color:currentColor; border-radius:50%; animation:spin 0.6s linear infinite; display:inline-block; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* Live preview chat bubble */
+  .preview-bubble { background:#007f9d; color:#fff; border-radius:18px 18px 18px 4px; padding:10px 14px; font-size:13px; line-height:1.5; max-width:220px; }
+</style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col md:flex-row">
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- TopNavBar Mobile -->
+<header class="bg-surface text-primary w-full h-16 md:hidden border-b border-outline-variant flex justify-between items-center px-4">
+  <div class="flex items-center gap-2">
+    <span class="material-symbols-outlined fill">smart_toy</span>
+    <span class="font-semibold text-primary">AI Admin</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <img alt="Profile" class="w-8 h-8 rounded-full border border-outline-variant" id="user-avatar-mobile" src=""/>
+  </div>
+</header>
+
+<!-- SideNavBar Desktop -->
+<nav class="bg-surface-container-lowest text-primary font-body-md hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r border-outline-variant p-lg z-10">
+  <div class="mb-8 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container">
+      <span class="material-symbols-outlined fill">smart_toy</span>
+    </div>
+    <div>
+      <h1 class="text-headline-md font-headline-md font-bold text-primary">AI Admin</h1>
+      <p class="font-label-md text-label-md text-on-surface-variant" id="nav-tenant-id">—</p>
+    </div>
+  </div>
+
+  <div class="flex-grow flex flex-col gap-1">
+    <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container transition-all" href="index.html">
+      <span class="material-symbols-outlined">dashboard</span><span>Overview</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded text-primary font-semibold border-r-4 border-primary bg-surface-container-low" href="config.html">
+      <span class="material-symbols-outlined fill">settings</span><span>Bot Settings</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container transition-all" href="knowledge.html">
+      <span class="material-symbols-outlined">auto_stories</span><span>Knowledge Base</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container transition-all" href="messages.html">
+      <span class="material-symbols-outlined">forum</span><span>Chat Logs</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container transition-all" href="leads.html">
+      <span class="material-symbols-outlined">people</span><span>Leads</span>
+    </a>
+  </div>
+
+  <div class="mt-auto border-t border-outline-variant pt-4 flex flex-col gap-2">
+    <div class="flex items-center gap-3 px-3 py-2">
+      <img alt="Profile" class="w-8 h-8 rounded-full border border-outline-variant" id="user-avatar" src=""/>
+      <div>
+        <p class="font-label-md text-label-md font-semibold text-on-surface" id="user-name">—</p>
+        <p class="text-[10px] text-on-surface-variant" id="user-tenant">—</p>
+      </div>
+    </div>
+    <a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container transition-all cursor-pointer" onclick="logout()">
+      <span class="material-symbols-outlined">logout</span><span>Logout</span>
+    </a>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="flex-grow md:ml-64 p-4 md:p-xl pb-24 md:pb-xl max-w-[1440px] mx-auto w-full">
+
+  <!-- Breadcrumb -->
+  <div class="mb-8">
+    <div class="flex items-center gap-2 text-on-surface-variant mb-2">
+      <a href="index.html" class="font-label-md text-label-md uppercase tracking-[0.05em] hover:text-primary">Overview</a>
+      <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+      <span class="font-label-md text-label-md text-primary">Bot Configuration</span>
+    </div>
+    <h2 class="text-headline-lg font-headline-lg text-on-surface md:text-display-lg md:font-display-lg">Configure Assistant</h2>
+    <p class="text-body-lg font-body-lg text-on-surface-variant mt-2 max-w-2xl">Thiết lập nhân cách, hành vi và thông số kỹ thuật cho chatbot của bạn.</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left: Identity + Persona -->
+    <div class="lg:col-span-8 flex flex-col gap-6">
+
+      <!-- Bot Identity Card -->
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-6 border-b border-surface-container pb-4">
+          <span class="material-symbols-outlined text-primary text-[24px]">badge</span>
+          <h3 class="text-headline-md font-headline-md text-on-surface">Bot Identity</h3>
+        </div>
+        <div class="space-y-5">
+
+          <!-- Name + Avatar + Color row -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="sm:col-span-2">
+              <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">Tên Bot</label>
+              <input class="form-input-luminous w-full rounded p-3 font-body-md text-body-md" id="botName" placeholder="Vd: Trợ lý tư vấn BĐS" type="text" oninput="updatePreview()"/>
+            </div>
+            <div>
+              <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">Avatar (emoji)</label>
+              <input class="form-input-luminous w-full rounded p-3 font-body-md text-body-md text-center text-xl" id="botAvatar" placeholder="🤖" type="text" maxlength="4" oninput="updatePreview()"/>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">Màu chủ đạo</label>
+              <input class="form-input-luminous w-full rounded p-2 h-12 cursor-pointer" id="botColor" type="color" value="#007f9d" oninput="updatePreview()"/>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">Webhook URL</label>
+              <input class="form-input-luminous w-full rounded p-3 font-body-md text-body-md font-mono text-[13px]" id="botWebhook" placeholder="https://your-worker.workers.dev/chat" type="url"/>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">Tin nhắn chào</label>
+            <textarea class="form-input-luminous w-full rounded p-3 font-body-md text-body-md resize-y" id="greetingMsg" placeholder="Xin chào! Tôi có thể giúp gì cho bạn?" rows="2" oninput="updatePreview()"></textarea>
+            <p class="text-[12px] text-on-surface-variant mt-1">Tin nhắn đầu tiên hiển thị khi khách bắt đầu chat.</p>
+          </div>
+
+          <!-- Tenant ID (readonly) -->
+          <div>
+            <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">Tenant ID</label>
+            <input class="form-input-luminous w-full rounded p-3 font-body-md text-body-md bg-surface-container-low text-outline font-mono" id="tenantDisplay" disabled type="text"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- System Persona Card -->
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+        <div class="flex justify-between items-center mb-6 border-b border-surface-container pb-4">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary text-[24px]">edit_note</span>
+            <h3 class="text-headline-md font-headline-md text-on-surface">System Persona</h3>
+          </div>
+          <button class="text-primary font-label-md text-label-md flex items-center gap-1 hover:underline" onclick="insertTemplate()">
+            <span class="material-symbols-outlined text-[16px]">library_books</span>
+            Templates
+          </button>
+        </div>
+        <div>
+          <label class="block font-label-md text-label-md text-on-surface-variant mb-1 uppercase tracking-[0.05em]">System Instructions (Prompt)</label>
+          <textarea class="form-input-luminous w-full rounded p-3 font-body-md text-body-md font-mono text-[13px] bg-[#fafafa]" id="systemPrompt" placeholder="Nhập system prompt..." rows="8"></textarea>
+          <p class="text-[12px] text-on-surface-variant mt-1">Bot sẽ hành xử theo hướng dẫn này. Dùng cùng ngôn ngữ với khách hàng.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Preview + Model + Params -->
+    <div class="lg:col-span-4 flex flex-col gap-6">
+
+      <!-- Live Preview Card -->
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-4 border-b border-surface-container pb-4">
+          <span class="material-symbols-outlined text-primary text-[24px]">preview</span>
+          <h3 class="text-headline-md font-headline-md text-on-surface">Live Preview</h3>
+        </div>
+        <!-- Chat preview -->
+        <div class="bg-surface-container-low rounded-lg p-4 space-y-3">
+          <!-- Bot header -->
+          <div class="flex items-center gap-2 pb-2 border-b border-outline-variant/30">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold" id="preview-avatar" style="background:#007f9d22">🤖</div>
+            <div>
+              <div class="font-semibold text-sm text-on-surface" id="preview-name">AI Assistant</div>
+              <div class="text-[11px] text-green-600 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
+                Online
+              </div>
+            </div>
+          </div>
+          <!-- Greeting bubble -->
+          <div class="flex gap-2 items-end">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0" id="preview-bubble-avatar" style="background:#007f9d22">🤖</div>
+            <div class="preview-bubble" id="preview-greeting" style="background:#007f9d">
+              Xin chào! Tôi có thể giúp gì cho bạn?
+            </div>
+          </div>
+          <!-- User bubble -->
+          <div class="flex justify-end">
+            <div class="bg-surface-container border border-outline-variant text-on-surface rounded-[18px_18px_4px_18px] px-3 py-2 text-[13px] max-w-[180px]">
+              Tôi muốn hỏi về sản phẩm
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Model Selection Card -->
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-6 border-b border-surface-container pb-4">
+          <span class="material-symbols-outlined text-primary text-[24px]">smart_toy</span>
+          <h3 class="text-headline-md font-headline-md text-on-surface">Model Selection</h3>
+        </div>
+        <div class="space-y-3">
+          <label class="flex items-start gap-3 p-3 border border-outline-variant rounded cursor-pointer hover:bg-surface-container-low transition-colors" id="model-opt-gpt4o">
+            <input checked class="mt-1 text-primary" name="modelSelection" type="radio" value="gpt-4o-mini" onchange="selectModel(this)"/>
+            <div>
+              <div class="font-label-md text-label-md text-on-surface font-semibold flex items-center gap-2">
+                GPT-4o Mini
+                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+              </div>
+              <div class="text-[12px] text-on-surface-variant mt-0.5">Nhanh, rẻ, đủ mạnh cho tư vấn.</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 border border-outline-variant rounded cursor-pointer hover:bg-surface-container-low transition-colors">
+            <input class="mt-1 text-primary" name="modelSelection" type="radio" value="gpt-4o" onchange="selectModel(this)"/>
+            <div>
+              <div class="font-label-md text-label-md text-on-surface font-semibold">GPT-4o</div>
+              <div class="text-[12px] text-on-surface-variant mt-0.5">Mạnh nhất, phù hợp câu hỏi phức tạp.</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 border border-outline-variant rounded cursor-pointer hover:bg-surface-container-low transition-colors">
+            <input class="mt-1 text-primary" name="modelSelection" type="radio" value="claude-sonnet-4-6" onchange="selectModel(this)"/>
+            <div>
+              <div class="font-label-md text-label-md text-on-surface font-semibold">Claude Sonnet</div>
+              <div class="text-[12px] text-on-surface-variant mt-0.5">Xuất sắc về ngữ nghĩa tiếng Việt.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Advanced Parameters -->
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-6 border-b border-surface-container pb-4">
+          <span class="material-symbols-outlined text-primary text-[24px]">tune</span>
+          <h3 class="text-headline-md font-headline-md text-on-surface">Advanced Parameters</h3>
+        </div>
+        <div class="space-y-6">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-[0.05em]">Temperature</label>
+              <span class="font-body-md text-on-surface bg-surface-container px-2 py-0.5 rounded text-[12px]" id="tempValue">0.3</span>
+            </div>
+            <input id="tempSlider" max="2" min="0" step="0.1" type="range" value="0.3" oninput="document.getElementById('tempValue').innerText=this.value"/>
+            <div class="flex justify-between text-[11px] text-on-surface-variant mt-1">
+              <span>Chính xác</span><span>Sáng tạo</span>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-[0.05em]">Max Tokens</label>
+              <span class="font-body-md text-on-surface bg-surface-container px-2 py-0.5 rounded text-[12px]" id="maxTokensValue">1000</span>
+            </div>
+            <input id="maxTokensSlider" max="4000" min="200" step="100" type="range" value="1000" oninput="document.getElementById('maxTokensValue').innerText=this.value"/>
+            <div class="flex justify-between text-[11px] text-on-surface-variant mt-1">
+              <span>200</span><span>4000</span>
+            </div>
+          </div>
+          <div class="pt-4 border-t border-surface-container">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input checked class="rounded text-primary border-outline-variant" id="enableStreaming" type="checkbox"/>
+              <span class="font-label-md text-label-md text-on-surface">Enable streaming response</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-4">
+        <button class="flex-1 bg-surface-container-lowest border border-outline-variant text-on-surface font-label-md py-2.5 px-4 rounded hover:bg-surface-container transition-colors" onclick="discardChanges()">
+          Discard
+        </button>
+        <button class="flex-1 bg-primary text-on-primary font-label-md py-2.5 px-4 rounded hover:opacity-90 transition-opacity shadow-sm flex items-center justify-center gap-2" id="save-btn" onclick="saveConfig()">
+          Save Changes
+        </button>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Bottom Nav Mobile -->
+<nav class="bg-surface font-label-md text-primary fixed bottom-0 md:hidden border-t border-outline-variant left-0 w-full z-50 flex justify-around items-center px-4 py-2">
+  <a class="flex flex-col items-center text-on-surface-variant hover:text-primary px-3 py-1" href="index.html">
+    <span class="material-symbols-outlined">home</span><span class="text-[10px] mt-1">Home</span>
+  </a>
+  <a class="flex flex-col items-center bg-primary-container text-on-primary-container rounded-full px-4 py-1" href="config.html">
+    <span class="material-symbols-outlined fill">settings</span><span class="text-[10px] mt-1 font-semibold">Config</span>
+  </a>
+  <a class="flex flex-col items-center text-on-surface-variant hover:text-primary px-3 py-1" href="messages.html">
+    <span class="material-symbols-outlined">forum</span><span class="text-[10px] mt-1">Logs</span>
+  </a>
+  <a class="flex flex-col items-center text-on-surface-variant hover:text-primary px-3 py-1" href="knowledge.html">
+    <span class="material-symbols-outlined">auto_stories</span><span class="text-[10px] mt-1">Knowledge</span>
+  </a>
+</nav>
+
+<script>
+// ═══════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════
+let configRecordId = null;
+let originalData   = null;
+
+(async () => {
+  await requireAuth();
+
+  const user   = window.AUTH_USER;
+  const tenant = window.TENANT;
+
+  // Apply user info to UI
+  document.getElementById("nav-tenant-id").textContent  = tenant;
+  document.getElementById("tenantDisplay").value         = tenant;
+  document.getElementById("user-tenant").textContent     = tenant;
+  document.getElementById("user-name").textContent       = user.name || user.email || "—";
+  if (user.avatarUrl) {
+    document.getElementById("user-avatar").src        = user.avatarUrl;
+    document.getElementById("user-avatar-mobile").src = user.avatarUrl;
+  }
+
+  await loadConfig();
+})();
+
+// ═══════════════════════════════════════
+// LOAD CONFIG từ PocketBase
+// ═══════════════════════════════════════
+async function loadConfig() {
+  try {
+    // API Rules tự filter theo tenant_id — chỉ thấy config của mình
+    const r = await PB.collection("bot_configs").getFirstListItem("");
+    configRecordId = r.id;
+
+    // Điền vào form
+    document.getElementById("botName").value     = r.bot_name    || "";
+    document.getElementById("botAvatar").value   = r.bot_avatar  || "🤖";
+    document.getElementById("botColor").value    = r.color       || "#007f9d";
+    document.getElementById("botWebhook").value  = r.webhook     || "";
+    document.getElementById("greetingMsg").value = r.greeting    || "";
+    document.getElementById("systemPrompt").value = r.system_prompt || "";
+    document.getElementById("tempSlider").value  = r.temperature  || 0.3;
+    document.getElementById("tempValue").textContent = r.temperature || 0.3;
+    document.getElementById("maxTokensSlider").value = r.max_tokens || 1000;
+    document.getElementById("maxTokensValue").textContent = r.max_tokens || 1000;
+    if (r.streaming !== undefined) document.getElementById("enableStreaming").checked = r.streaming;
+
+    // Model radio
+    if (r.model) {
+      const radio = document.querySelector(`input[name="modelSelection"][value="${r.model}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    // Snapshot để detect changes
+    originalData = getFormData();
+    updatePreview();
+
+  } catch {
+    // Chưa có config — form trống, sẽ tạo mới khi save
+    updatePreview();
+  }
+}
+
+// ═══════════════════════════════════════
+// LIVE PREVIEW
+// ═══════════════════════════════════════
+function updatePreview() {
+  const name     = document.getElementById("botName").value    || "AI Assistant";
+  const avatar   = document.getElementById("botAvatar").value  || "🤖";
+  const color    = document.getElementById("botColor").value   || "#007f9d";
+  const greeting = document.getElementById("greetingMsg").value || "Xin chào! Tôi có thể giúp gì cho bạn?";
+
+  document.getElementById("preview-name").textContent    = name;
+  document.getElementById("preview-avatar").textContent  = avatar;
+  document.getElementById("preview-avatar").style.background = color + "22";
+  document.getElementById("preview-bubble-avatar").textContent = avatar;
+  document.getElementById("preview-bubble-avatar").style.background = color + "22";
+  document.getElementById("preview-greeting").textContent = greeting;
+  document.getElementById("preview-greeting").style.background = color;
+}
+
+// ═══════════════════════════════════════
+// GET FORM DATA
+// ═══════════════════════════════════════
+function getFormData() {
+  const selectedModel = document.querySelector('input[name="modelSelection"]:checked');
+  return {
+    tenant_id:     window.TENANT,
+    bot_name:      document.getElementById("botName").value.trim(),
+    bot_avatar:    document.getElementById("botAvatar").value.trim() || "🤖",
+    color:         document.getElementById("botColor").value,
+    webhook:       document.getElementById("botWebhook").value.trim(),
+    greeting:      document.getElementById("greetingMsg").value.trim(),
+    system_prompt: document.getElementById("systemPrompt").value.trim(),
+    model:         selectedModel?.value || "gpt-4o-mini",
+    temperature:   parseFloat(document.getElementById("tempSlider").value),
+    max_tokens:    parseInt(document.getElementById("maxTokensSlider").value),
+    streaming:     document.getElementById("enableStreaming").checked
+  };
+}
+
+// ═══════════════════════════════════════
+// SAVE CONFIG
+// ═══════════════════════════════════════
+async function saveConfig() {
+  const btn  = document.getElementById("save-btn");
+  const data = getFormData();
+
+  if (!data.bot_name) { showToast("Vui lòng nhập tên bot", "error"); return; }
+  if (!data.webhook)  { showToast("Vui lòng nhập Webhook URL", "error"); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Saving...';
+
+  try {
+    if (configRecordId) {
+      await PB.collection("bot_configs").update(configRecordId, data);
+    } else {
+      const r = await PB.collection("bot_configs").create(data);
+      configRecordId = r.id;
+    }
+    originalData = { ...data };
+    showToast("Đã lưu cài đặt bot!", "success");
+  } catch (err) {
+    showToast("Lỗi lưu: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "Save Changes";
+  }
+}
+
+// ═══════════════════════════════════════
+// DISCARD — reset về giá trị gốc
+// ═══════════════════════════════════════
+function discardChanges() {
+  if (!originalData) { showToast("Chưa có thay đổi nào", "error"); return; }
+  if (!confirm("Huỷ tất cả thay đổi chưa lưu?")) return;
+
+  document.getElementById("botName").value       = originalData.bot_name      || "";
+  document.getElementById("botAvatar").value     = originalData.bot_avatar    || "🤖";
+  document.getElementById("botColor").value      = originalData.color         || "#007f9d";
+  document.getElementById("botWebhook").value    = originalData.webhook       || "";
+  document.getElementById("greetingMsg").value   = originalData.greeting      || "";
+  document.getElementById("systemPrompt").value  = originalData.system_prompt || "";
+  document.getElementById("tempSlider").value    = originalData.temperature   || 0.3;
+  document.getElementById("tempValue").textContent = originalData.temperature || 0.3;
+  document.getElementById("maxTokensSlider").value = originalData.max_tokens  || 1000;
+  document.getElementById("maxTokensValue").textContent = originalData.max_tokens || 1000;
+  document.getElementById("enableStreaming").checked = originalData.streaming ?? true;
+
+  const radio = document.querySelector(`input[name="modelSelection"][value="${originalData.model}"]`);
+  if (radio) radio.checked = true;
+
+  updatePreview();
+  showToast("Đã huỷ thay đổi", "success");
+}
+
+// ═══════════════════════════════════════
+// TEMPLATE PROMPT
+// ═══════════════════════════════════════
+function insertTemplate() {
+  const templates = [
+    {
+      name: "Tư vấn BĐS",
+      prompt: `Bạn là chuyên viên tư vấn bất động sản chuyên nghiệp.
+Luôn chào hỏi lịch sự và hỏi nhu cầu cụ thể của khách.
+Tư vấn dựa trên thông tin tài liệu được cung cấp.
+Nếu không có thông tin, đề nghị khách để lại số điện thoại để được hỗ trợ trực tiếp.
+Ngôn ngữ: Thân thiện, chuyên nghiệp, tiếng Việt.`
+    },
+    {
+      name: "Hỗ trợ khách hàng",
+      prompt: `Bạn là nhân viên hỗ trợ khách hàng.
+Luôn lắng nghe và giải quyết vấn đề của khách hàng.
+Trả lời ngắn gọn, đúng trọng tâm.
+Nếu vượt quá phạm vi hỗ trợ, hướng dẫn khách liên hệ hotline.`
+    }
+  ];
+
+  const choice = prompt(`Chọn template:\n${templates.map((t,i) => `${i+1}. ${t.name}`).join("\n")}\n\nNhập số (1-${templates.length}):`);
+  const idx = parseInt(choice) - 1;
+  if (idx >= 0 && idx < templates.length) {
+    document.getElementById("systemPrompt").value = templates[idx].prompt;
+    showToast(`Đã áp dụng template "${templates[idx].name}"`, "success");
+  }
+}
+
+// ═══════════════════════════════════════
+// MODEL SELECT — highlight active
+// ═══════════════════════════════════════
+function selectModel(radio) {
+  document.querySelectorAll('input[name="modelSelection"]').forEach(r => {
+    r.closest("label").classList.remove("border-primary", "bg-surface-container-low");
+  });
+  radio.closest("label").classList.add("border-primary", "bg-surface-container-low");
+}
+</script>
+</body>
+</html>

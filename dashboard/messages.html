@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Admin - Nhật ký trò chuyện</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d3e4fe",
+                        "surface-tint": "#006780",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#dae2fd",
+                        "outline-variant": "#bdc8ce",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "on-error": "#ffffff",
+                        "on-primary-container": "#fafdff",
+                        "primary": "#00647c",
+                        "tertiary-fixed": "#e0e3e5",
+                        "on-surface-variant": "#3e484d",
+                        "surface-container": "#e5eeff",
+                        "on-tertiary": "#ffffff",
+                        "inverse-primary": "#6cd3f7",
+                        "error": "#ba1a1a",
+                        "tertiary": "#595c5e",
+                        "surface": "#f8f9ff",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#eff4ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-tertiary-container": "#fbfdff",
+                        "primary-container": "#007f9d",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#b7eaff",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary-fixed": "#001f28",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-fixed-variant": "#004e61",
+                        "secondary": "#565e74",
+                        "tertiary-container": "#727577",
+                        "secondary-container": "#dae2fd",
+                        "surface-bright": "#f8f9ff",
+                        "primary-fixed-dim": "#6cd3f7",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#0b1c30",
+                        "surface-container-high": "#dce9ff",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "on-secondary-fixed": "#131b2e",
+                        "outline": "#6e797e",
+                        "surface-dim": "#cbdbf5",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-surface": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "inverse-on-surface": "#eaf1ff",
+                        "background": "#f8f9ff",
+                        "on-secondary-container": "#5c647a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "1.5rem",
+                        "xl": "2rem",
+                        "sm": "0.5rem",
+                        "container-margin": "2rem",
+                        "base": "4px",
+                        "xs": "0.25rem",
+                        "md": "1rem",
+                        "lg": "1.5rem"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        @media (max-width: 767px) {
+            .mobile-chat-open #session-list {
+                display: none !important;
+            }
+            .mobile-chat-open #chat-view {
+                display: flex !important;
+            }
+            #chat-view {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+<script src="_shared/config.js"></script>
+<script src="_shared/auth.js"></script>
+
+<script>
+// ═══════════════════════════════════════
+// POCKETBASE
+// ═══════════════════════════════════════
+const pb =
+  window.PB ||
+  new PocketBase(window.PB_URL);
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let allMessages = [];
+let sessions = [];
+let activeSession = null;
+
+// ═══════════════════════════════════════
+// ELEMENTS
+// ═══════════════════════════════════════
+const sessionListEl =
+  document.getElementById("session-list");
+
+const chatViewEl =
+  document.getElementById("chat-view");
+
+const messagesArea =
+  chatViewEl.querySelector(
+    ".flex-1.overflow-y-auto"
+  );
+
+const titleEl =
+  chatViewEl.querySelector("h3");
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+(async function init() {
+
+  try {
+
+    if (window.requireAuth) {
+      await window.requireAuth();
+    }
+
+    await loadMessages();
+
+    await subscribeRealtime();
+
+    createAdminInput();
+
+  } catch (err) {
+
+    console.error(err);
+  }
+
+})();
+
+// ═══════════════════════════════════════
+// LOAD MESSAGES
+// ═══════════════════════════════════════
+async function loadMessages() {
+
+  try {
+
+    const result = await pb
+      .collection("messages")
+      .getList(1, 1000, {
+        sort: "-created",
+        filter: `tenant="${window.TENANT}"`
+      });
+
+    allMessages = result.items;
+
+    buildSessions();
+
+    renderSessionList();
+
+    if (sessions.length) {
+      openChat(sessions[0].session);
+    }
+
+  } catch (err) {
+
+    console.error(err);
+  }
+}
+
+// ═══════════════════════════════════════
+// BUILD SESSIONS
+// ═══════════════════════════════════════
+function buildSessions() {
+
+  const map = {};
+
+  allMessages.forEach(msg => {
+
+    if (!map[msg.session]) {
+
+      map[msg.session] = {
+        session: msg.session,
+        username: msg.username || "Khách hàng",
+        uid: msg.uid,
+        messages: [],
+        lastMessage: msg.text || "",
+        lastCreated: msg.created
+      };
+    }
+
+    map[msg.session].messages.push(msg);
+
+    if (
+      new Date(msg.created) >
+      new Date(map[msg.session].lastCreated)
+    ) {
+
+      map[msg.session].lastCreated =
+        msg.created;
+
+      map[msg.session].lastMessage =
+        msg.text || "";
+    }
+  });
+
+  sessions = Object.values(map).sort(
+    (a, b) =>
+      new Date(b.lastCreated) -
+      new Date(a.lastCreated)
+  );
+}
+
+// ═══════════════════════════════════════
+// RENDER SESSION LIST
+// ═══════════════════════════════════════
+function renderSessionList() {
+
+  const stickyHeader =
+    sessionListEl.querySelector(".sticky");
+
+  sessionListEl.innerHTML = "";
+
+  if (stickyHeader) {
+    sessionListEl.appendChild(
+      stickyHeader
+    );
+  }
+
+  sessions.forEach(session => {
+
+    const div =
+      document.createElement("div");
+
+    div.className =
+      "p-4 border-b border-outline-variant bg-surface-container-lowest cursor-pointer hover:bg-surface-container transition-colors";
+
+    div.onclick = () =>
+      openChat(session.session);
+
+    div.innerHTML = `
+      <div class="flex items-start gap-3">
+
+        <div class="w-10 h-10 rounded-full bg-tertiary-fixed overflow-hidden flex-shrink-0 flex items-center justify-center font-headline-md text-on-tertiary-fixed">
+
+          ${(session.username || "U")
+            .slice(0, 2)
+            .toUpperCase()}
+
+        </div>
+
+        <div class="flex-1 min-w-0">
+
+          <div class="flex justify-between items-baseline mb-1">
+
+            <h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">
+
+              ${escapeHtml(session.username)}
+
+            </h4>
+
+            <span class="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">
+
+              ${formatTime(
+                session.lastCreated
+              )}
+
+            </span>
+
+          </div>
+
+          <p class="font-body-md text-body-md text-on-surface-variant truncate">
+
+            ${escapeHtml(
+              session.lastMessage
+            )}
+
+          </p>
+
+          <div class="flex items-center gap-2 mt-2">
+
+            <span class="font-label-md text-label-md text-outline px-2 py-0.5 border border-outline-variant rounded-md ml-auto">
+
+              ${session.messages.length}
+              tin nhắn
+
+            </span>
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+
+    sessionListEl.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════
+// OPEN CHAT
+// ═══════════════════════════════════════
+window.openChat = async function(
+  sessionId
+) {
+
+  document.body.classList.add(
+    "mobile-chat-open"
+  );
+
+  activeSession = sessions.find(
+    s => s.session === sessionId
+  );
+
+  if (!activeSession) return;
+
+  titleEl.textContent =
+    activeSession.username;
+
+  await renderMessages();
+};
+
+// ═══════════════════════════════════════
+// RENDER CHAT
+// ═══════════════════════════════════════
+async function renderMessages() {
+
+  const sorted =
+    [...activeSession.messages]
+    .sort(
+      (a, b) =>
+        new Date(a.created) -
+        new Date(b.created)
+    );
+
+  const files =
+    await loadFiles(
+      activeSession.session
+    );
+
+  let html = `
+    <div class="text-center">
+
+      <span class="font-label-md text-label-md text-outline bg-surface px-3 py-1 rounded-full border border-outline-variant">
+
+        ${formatDate(
+          sorted[0]?.created
+        )}
+
+      </span>
+
+    </div>
+  `;
+
+  sorted.forEach(msg => {
+
+    // USER
+    if (
+      !msg.is_bot &&
+      msg.sender_type !== "admin"
+    ) {
+
+      html += `
+        <div class="flex items-end gap-2 justify-end">
+
+          <div class="max-w-[85%] md:max-w-[70%] bg-primary text-on-primary rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
+
+            <p class="font-body-md text-body-md leading-relaxed">
+
+              ${escapeHtml(
+                msg.text || ""
+              )}
+
+            </p>
+
+          </div>
+
+        </div>
+      `;
+
+      return;
+    }
+
+    // BOT / ADMIN
+    html += `
+      <div class="flex items-end gap-2 justify-start">
+
+        <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0 text-on-primary-container">
+
+          <span class="material-symbols-outlined text-[16px]">
+
+            ${
+              msg.sender_type === "admin"
+              ? "support_agent"
+              : "smart_toy"
+            }
+
+          </span>
+
+        </div>
+
+        <div class="max-w-[85%] md:max-w-[70%] bg-surface-container-lowest text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-outline-variant">
+
+          ${
+            msg.sender_type === "admin"
+            ? `
+              <div class="text-xs mb-1 text-primary font-semibold">
+                Nhân viên hỗ trợ
+              </div>
+            `
+            : ""
+          }
+
+          <p class="font-body-md text-body-md leading-relaxed">
+
+            ${escapeHtml(
+              msg.text || ""
+            )}
+
+          </p>
+
+        </div>
+
+      </div>
+    `;
+  });
+
+  // FILES
+  if (files.length) {
+
+    html += `
+      <div class="mt-6 flex flex-col gap-3">
+    `;
+
+    files.forEach(file => {
+
+      const url =
+        pb.files.getURL(
+          file,
+          file.file
+        );
+
+      const isImage =
+        file.file.match(
+          /\.(jpg|jpeg|png|webp)$/i
+        );
+
+      html += `
+        <a
+          href="${url}"
+          target="_blank"
+          class="border border-outline-variant rounded-xl p-3 bg-surface-container-lowest hover:bg-surface-container transition-colors"
+        >
+
+          <div class="flex items-center gap-3">
+
+            <span class="material-symbols-outlined">
+
+              ${
+                isImage
+                ? "image"
+                : "description"
+              }
+
+            </span>
+
+            <div class="flex-1 min-w-0">
+
+              <div class="truncate font-medium">
+
+                ${escapeHtml(
+                  file.original_name
+                )}
+
+              </div>
+
+            </div>
+
+            <span class="material-symbols-outlined">
+              open_in_new
+            </span>
+
+          </div>
+
+          ${
+            isImage
+            ? `
+              <img
+                src="${url}"
+                class="mt-3 rounded-lg max-h-48 object-cover border border-outline-variant"
+              />
+            `
+            : ""
+          }
+
+        </a>
+      `;
+    });
+
+    html += `
+      </div>
+    `;
+  }
+
+  messagesArea.innerHTML = html;
+
+  messagesArea.scrollTop =
+    messagesArea.scrollHeight;
+}
+
+// ═══════════════════════════════════════
+// LOAD FILES
+// ═══════════════════════════════════════
+async function loadFiles(sessionId) {
+
+  try {
+
+    const result = await pb
+      .collection("tai_lieu")
+      .getList(1, 100, {
+        sort: "-created",
+        filter: `
+          session="${sessionId}"
+          && tenant="${window.TENANT}"
+        `
+      });
+
+    return result.items;
+
+  } catch (err) {
+
+    console.error(err);
+
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════
+// CREATE ADMIN INPUT
+// ═══════════════════════════════════════
+function createAdminInput() {
+
+  const footer =
+    chatViewEl.querySelector(
+      ".p-4.border-t"
+    );
+
+  footer.innerHTML = `
+    <div class="flex gap-3">
+
+      <input
+        id="admin-message-input"
+        type="text"
+        placeholder="Nhập phản hồi cho khách..."
+        class="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 focus:outline-none focus:border-primary"
+      />
+
+      <button
+        id="send-admin-message"
+        class="px-5 py-3 bg-primary text-white rounded-xl hover:opacity-90"
+      >
+        Gửi
+      </button>
+
+    </div>
+  `;
+
+  document
+    .getElementById(
+      "send-admin-message"
+    )
+    .onclick = sendAdminMessage;
+
+  document
+    .getElementById(
+      "admin-message-input"
+    )
+    .addEventListener(
+      "keydown",
+      e => {
+
+        if (e.key === "Enter") {
+          sendAdminMessage();
+        }
+      }
+    );
+}
+
+// ═══════════════════════════════════════
+// SEND ADMIN MESSAGE
+// ═══════════════════════════════════════
+async function sendAdminMessage() {
+
+  const input =
+    document.getElementById(
+      "admin-message-input"
+    );
+
+  const text =
+    input.value.trim();
+
+  if (!text) return;
+
+  if (!activeSession) return;
+
+  try {
+
+    await pb
+      .collection("messages")
+      .create({
+
+        username:
+          activeSession.username,
+
+        uid:
+          activeSession.uid,
+
+        session:
+          activeSession.session,
+
+        tenant:
+          window.TENANT,
+
+        text,
+
+        is_bot: false,
+
+        sender_type: "admin"
+      });
+
+    input.value = "";
+
+  } catch (err) {
+
+    console.error(err);
+  }
+}
+
+// ═══════════════════════════════════════
+// REALTIME
+// ═══════════════════════════════════════
+async function subscribeRealtime() {
+
+  await pb
+    .collection("messages")
+    .subscribe(
+      "*",
+      async e => {
+
+        const msg = e.record;
+
+        if (
+          msg.tenant !==
+          window.TENANT
+        ) return;
+
+        allMessages.unshift(msg);
+
+        buildSessions();
+
+        renderSessionList();
+
+        if (
+          activeSession &&
+          msg.session ===
+          activeSession.session
+        ) {
+
+          activeSession =
+            sessions.find(
+              s =>
+                s.session ===
+                activeSession.session
+            );
+
+          await renderMessages();
+        }
+      }
+    );
+}
+
+// ═══════════════════════════════════════
+// MOBILE
+// ═══════════════════════════════════════
+window.closeChat = function() {
+
+  document.body.classList.remove(
+    "mobile-chat-open"
+  );
+};
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function formatTime(dateStr) {
+
+  return new Date(dateStr)
+    .toLocaleTimeString(
+      "vi-VN",
+      {
+        hour: "2-digit",
+        minute: "2-digit"
+      }
+    );
+}
+
+function formatDate(dateStr) {
+
+  return new Date(dateStr)
+    .toLocaleDateString(
+      "vi-VN"
+    );
+}
+
+function escapeHtml(str = "") {
+
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+</script>
+<body class="bg-background text-on-background flex h-screen overflow-hidden">
+<!-- Sidebar Overlay -->
+<div class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+<!-- SideNavBar -->
+<nav class="bg-surface dark:bg-surface-dim h-screen w-64 flex-col border-r border-outline-variant fixed left-0 top-0 bottom-0 flex p-4 z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-200" id="sidebar">
+<div class="mb-8 px-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-headline-md">
+<span class="material-symbols-outlined">smart_toy</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">AI Admin</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Management Suite</p>
+</div>
+</div>
+<button class="mb-6 mx-4 py-2 px-4 bg-primary text-on-primary rounded-xl font-body-md text-body-md font-semibold flex items-center justify-center gap-2 hover:bg-primary-container hover:text-on-primary-container transition-colors duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+            New Bot
+        </button>
+<div class="flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="settings_ai">settings</span>
+<span>Bot Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+<span>Knowledge Base</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-xl font-bold font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="forum" style="font-variation-settings: 'FILL' 1;">forum</span>
+<span>Chat Logs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span>Billing</span>
+</a>
+</div>
+<div class="mt-auto flex flex-col gap-2 pt-4 border-t border-outline-variant">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Help</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="md:ml-64 flex-1 flex flex-col h-screen w-full">
+<!-- TopNavBar -->
+<header class="bg-surface dark:bg-surface-dim flex justify-between items-center h-16 px-4 md:px-gutter w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
+<div class="flex items-center gap-2 md:gap-4">
+<button class="md:hidden text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center" onclick="toggleSidebar()">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h2 class="font-headline-md text-headline-md text-primary dark:text-primary-fixed-dim truncate">Nhật ký trò chuyện</h2>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-10 pr-4 py-2 border border-outline-variant rounded-full text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-64 bg-surface-container-lowest" placeholder="Tìm kiếm phiên..." type="text"/>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors hidden md:block">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden border border-outline-variant">
+<img alt="Administrator Profile" class="w-full h-full object-cover" data-alt="A professional headshot of an administrator in a corporate setting. The lighting is soft and bright, reflecting a modern, clean UI aesthetic. The background is slightly blurred, emphasizing the subject's approachable yet serious demeanor." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCneG49Bf6RnnQIFtITL3-UjtUneZZaymLUU5vZgx84m7J5NfaJd8IExH01wSs_QFk01HWAdh7fBkQMYJTbAJlnlSwZ7cy9KcXrU5JA-sEyg8pG0OqDSHjYFazscXLd3ZDGwzCjD1vh0_8i-pFT3SeescJUwNr4Fo2Du4FgsxGahGpXe1KNpOW5YDZGhR9d_HunFSCcl90xnZQxIeor-hsv96Xfc-ilGpNDFWq_cgVz15Io1UZFPRgJzDwMCRgKMmc0jC4wCdh9A"/>
+</div>
+</div>
+</header>
+<!-- Split Screen Content -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Left Sidebar: Session List -->
+<div class="w-full md:w-1/3 md:min-w-[300px] border-r border-outline-variant bg-surface-container-lowest overflow-y-auto flex flex-col" id="session-list">
+<div class="p-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-headline-md text-body-lg font-semibold text-on-surface">Phiên gần đây</h3>
+<span class="font-label-md text-label-md text-on-surface-variant bg-surface-variant px-2 py-1 rounded-full">12 Đang hoạt động</span>
+</div>
+<div class="flex gap-2 mb-2 overflow-x-auto pb-1 hide-scrollbar">
+<button class="px-3 py-1 bg-primary-container text-on-primary-container rounded-full font-label-md text-label-md whitespace-nowrap">Tất cả</button>
+<button class="px-3 py-1 bg-surface text-on-surface-variant border border-outline-variant rounded-full font-label-md text-label-md hover:bg-surface-variant transition-colors whitespace-nowrap">Cần xử lý</button>
+<button class="px-3 py-1 bg-surface text-on-surface-variant border border-outline-variant rounded-full font-label-md text-label-md hover:bg-surface-variant transition-colors whitespace-nowrap">Đã giải quyết</button>
+</div>
+</div>
+<!-- Session Item (Active) -->
+<div class="p-4 border-b border-outline-variant bg-surface-container cursor-pointer hover:bg-surface-container-high transition-colors" onclick="openChat()">
+<div class="flex items-start gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed overflow-hidden flex-shrink-0">
+<img alt="User" class="w-full h-full object-cover" data-alt="A casual portrait of a male user. Bright, modern lighting. Clean white background to match the high-key UI aesthetic. The image feels authentic and approachable." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6eYaylJjA47HScmpkB1M4nntjyQsMW2wRX3Ybg-5H51NA6DTV37F4Frb-5f6P2p142XvOf9ne_vbJa0EaYu_y9iQOA3VtXB5UpR5Mj_9EtlNbsmloXBNPLVPvmGqX-cg5b8k9z0fE7hC--XPgIlAIHhzo89YE8FpIcnEb39W3GqvK969RIwxR4PRV1o2lvVtYk7oWpU8GQZzsQBv16YglB3ImQS8xP5rg5RT9BH9IYGSHbV7s7vNIhenSucCb3Rx-1fdq_Hq9KQ"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-baseline mb-1">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">Nguyễn Văn A</h4>
+<span class="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">10:42 AM</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant truncate">Tôi cần hỗ trợ về hóa đơn tháng này.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+<span class="font-label-md text-label-md text-primary">Live</span>
+<span class="font-label-md text-label-md text-outline px-2 py-0.5 border border-outline-variant rounded-md ml-auto">Billing Bot</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Session Item 2 -->
+<div class="p-4 border-b border-outline-variant bg-surface-container-lowest cursor-pointer hover:bg-surface-container transition-colors" onclick="openChat()">
+<div class="flex items-start gap-3">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed overflow-hidden flex-shrink-0 flex items-center justify-center font-headline-md text-on-tertiary-fixed">
+                            TL
+                        </div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-baseline mb-1">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">Trần Thị Lan</h4>
+<span class="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">Hôm qua</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant truncate">Cảm ơn, mọi thứ đã ổn.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="font-label-md text-label-md text-outline px-2 py-0.5 border border-outline-variant rounded-md ml-auto">Support Bot</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Area: Chat Transcript -->
+<div class="w-full md:w-auto flex-1 bg-surface flex flex-col" id="chat-view">
+<!-- Chat Header -->
+<div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 md:px-6 bg-surface-container-lowest shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.02)] z-10">
+<div class="flex items-center gap-2 md:gap-4">
+<button class="md:hidden p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors text-on-surface-variant flex items-center justify-center" onclick="closeChat()">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-secondary-fixed overflow-hidden flex-shrink-0">
+<img alt="User" class="w-full h-full object-cover" data-alt="A casual portrait of a male user. Bright, modern lighting. Clean white background to match the high-key UI aesthetic. The image feels authentic and approachable." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5tfyITmuHWs2e7VroBQAnDRILG9NjEHmrIl8nhOjzbYY8J_Vz9keVCI0vv6K4OXi7F0ZSj0viBlsK4EKqHkD6zaRYMR0ALNeVUm3wDK_0w59XNJpk2yehgSIY9UjaLUbz5A9MpZL0reZHKJmii707LO1J4GmTlz7mGeDuGlpj6LpOy6a1MgVkAB-sWkFZ414HiCG-oix9UqMu6mJ_Xxqm4bP4JGqpGOWIGWJs2r1Jq-NNew69l_Twc_VbWB-aut3D1iG-wwyjUw"/>
+</div>
+<div>
+<h3 class="font-body-lg text-body-lg font-semibold text-on-surface line-clamp-1">Nguyễn Văn A</h3>
+<div class="flex items-center gap-2 hidden md:flex">
+<span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+<p class="font-label-md text-label-md text-on-surface-variant">Đang trò chuyện với Billing Bot</p>
+</div>
+</div>
+</div>
+<div class="flex gap-2 flex-shrink-0">
+<button class="px-3 md:px-4 py-2 bg-surface text-primary border border-outline-variant rounded-lg font-body-md text-body-md font-medium hover:bg-surface-variant transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">mobile_hand_off</span>
+<span class="hidden md:inline">Chuyển cho Nhân viên</span>
+</button>
+</div>
+</div>
+<!-- Chat Messages -->
+<div class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6" style="background-image: radial-gradient(circle at 50% 50%, #eff4ff 0%, #f8f9ff 100%);">
+<div class="text-center">
+<span class="font-label-md text-label-md text-outline bg-surface px-3 py-1 rounded-full border border-outline-variant">Hôm nay, 10:30 AM</span>
+</div>
+<!-- User Message -->
+<div class="flex items-end gap-2 justify-end">
+<div class="max-w-[85%] md:max-w-[70%] bg-primary text-on-primary rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
+<p class="font-body-md text-body-md leading-relaxed">Xin chào, tôi không hiểu tại sao hóa đơn tháng này của tôi lại cao hơn bình thường. Bạn có thể kiểm tra giúp tôi được không?</p>
+</div>
+</div>
+<!-- Bot Message -->
+<div class="flex items-end gap-2 justify-start">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0 text-on-primary-container">
+<span class="material-symbols-outlined text-[16px]">smart_toy</span>
+</div>
+<div class="max-w-[85%] md:max-w-[70%] bg-surface-container-lowest text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-outline-variant">
+<p class="font-body-md text-body-md leading-relaxed">Chào anh Nguyễn Văn A. Tôi là trợ lý ảo hỗ trợ về Hóa đơn. Để tôi kiểm tra chi tiết cước phí tháng này của anh nhé.</p>
+<p class="font-body-md text-body-md leading-relaxed mt-2 text-on-surface-variant italic">Đang truy xuất dữ liệu tài khoản...</p>
+</div>
+</div>
+<!-- Bot Message (Data Card) -->
+<div class="flex items-end gap-2 justify-start mt-[-1rem]">
+<div class="w-8 h-8 flex-shrink-0"></div> <!-- Spacer -->
+<div class="w-full max-w-[400px] bg-surface-container-lowest text-on-surface rounded-xl p-4 shadow-sm border border-outline-variant">
+<h4 class="font-body-md text-body-md font-semibold mb-2 border-b border-surface-variant pb-2">Chi tiết tăng cước</h4>
+<div class="space-y-2">
+<div class="flex justify-between font-body-md text-body-md">
+<span class="text-on-surface-variant">Gói cơ bản</span>
+<span>500,000 ₫</span>
+</div>
+<div class="flex justify-between font-body-md text-body-md text-error">
+<span>Vượt lưu lượng (20GB)</span>
+<span>+ 200,000 ₫</span>
+</div>
+<div class="flex justify-between font-body-md text-body-md font-semibold pt-2 border-t border-surface-variant">
+<span>Tổng cộng</span>
+<span>700,000 ₫</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Chat Input (Read Only view for Admin) -->
+<div class="p-4 border-t border-outline-variant bg-surface-container-lowest">
+<div class="bg-surface border border-outline-variant rounded-xl p-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-outline">visibility</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface-variant cursor-not-allowed" disabled="" placeholder="Chế độ xem: Bạn không thể gửi tin nhắn trong phiên tự động." type="text"/>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+    function openChat() {
+        document.body.classList.add('mobile-chat-open');
+    }
+    function closeChat() {
+        document.body.classList.remove('mobile-chat-open');
+    }
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        sidebar.classList.toggle('-translate-x-full');
+        overlay.classList.toggle('hidden');
+    }
+</script>
+</body></html>
