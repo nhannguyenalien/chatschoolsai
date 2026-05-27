@@ -134,6 +134,8 @@ const pb =
 let allMessages = [];
 let sessions = [];
 let activeSession = null;
+let messageIds = new Set();
+const fileCache = {};
 
 // ═══════════════════════════════════════
 // ELEMENTS
@@ -180,43 +182,36 @@ const titleEl =
 // LOAD MESSAGES
 // ═══════════════════════════════════════
 async function loadMessages() {
+  const result = await pb.collection("messages").getList(1, 1000, {
+    sort: "-created",
+    filter: `tenant="${window.TENANT}"`
+  });
 
-  try {
+  allMessages = [];
 
-    const result = await pb
-      .collection("messages")
-      .getList(1, 1000, {
-        sort: "-created",
-        filter: `tenant="${window.TENANT}"`
-      });
+  messageIds.clear();
 
-    allMessages = result.items;
+  for (const msg of result.items) {
+    if (messageIds.has(msg.id)) continue;
+    messageIds.add(msg.id);
+    allMessages.push(msg);
+  }
 
-    buildSessions();
+  buildSessions();
+  renderSessionList();
 
-    renderSessionList();
-
-    if (sessions.length) {
-      openChat(sessions[0].session);
-    }
-
-  } catch (err) {
-
-    console.error(err);
+  if (sessions.length) {
+    openChat(sessions[0].session);
   }
 }
-
 // ═══════════════════════════════════════
 // BUILD SESSIONS
 // ═══════════════════════════════════════
 function buildSessions() {
+  const map = Object.create(null);
 
-  const map = {};
-
-  allMessages.forEach(msg => {
-
+  for (const msg of allMessages) {
     if (!map[msg.session]) {
-
       map[msg.session] = {
         session: msg.session,
         username: msg.username || "Khách hàng",
@@ -229,112 +224,75 @@ function buildSessions() {
 
     map[msg.session].messages.push(msg);
 
-    if (
-      new Date(msg.created) >
-      new Date(map[msg.session].lastCreated)
-    ) {
-
-      map[msg.session].lastCreated =
-        msg.created;
-
-      map[msg.session].lastMessage =
-        msg.text || "";
+    if (new Date(msg.created) > new Date(map[msg.session].lastCreated)) {
+      map[msg.session].lastCreated = msg.created;
+      map[msg.session].lastMessage = msg.text || "";
+      map[msg.session].username = msg.username || map[msg.session].username;
     }
-  });
+  }
 
   sessions = Object.values(map).sort(
-    (a, b) =>
-      new Date(b.lastCreated) -
-      new Date(a.lastCreated)
+    (a, b) => new Date(b.lastCreated) - new Date(a.lastCreated)
   );
 }
-
 // ═══════════════════════════════════════
 // RENDER SESSION LIST
 // ═══════════════════════════════════════
 function renderSessionList() {
+  const stickyHeader = sessionListEl.querySelector(".sticky");
 
-  const stickyHeader =
-    sessionListEl.querySelector(".sticky");
+  const oldScroll = sessionListEl.scrollTop;
 
   sessionListEl.innerHTML = "";
 
-  if (stickyHeader) {
-    sessionListEl.appendChild(
-      stickyHeader
-    );
-  }
+  if (stickyHeader) sessionListEl.appendChild(stickyHeader);
 
-  sessions.forEach(session => {
+  const frag = document.createDocumentFragment();
 
-    const div =
-      document.createElement("div");
+  for (const session of sessions) {
+    const div = document.createElement("div");
 
     div.className =
       "p-4 border-b border-outline-variant bg-surface-container-lowest cursor-pointer hover:bg-surface-container transition-colors";
 
-    div.onclick = () =>
-      openChat(session.session);
+    div.onclick = () => openChat(session.session);
 
     div.innerHTML = `
       <div class="flex items-start gap-3">
-
         <div class="w-10 h-10 rounded-full bg-tertiary-fixed overflow-hidden flex-shrink-0 flex items-center justify-center font-headline-md text-on-tertiary-fixed">
-
-          ${(session.username || "U")
-            .slice(0, 2)
-            .toUpperCase()}
-
+          ${(session.username || "U").slice(0, 2).toUpperCase()}
         </div>
 
         <div class="flex-1 min-w-0">
-
           <div class="flex justify-between items-baseline mb-1">
-
-            <h4 class="font-body-md text-body-md font-semibold text-on-surface truncate">
-
+            <h4 class="font-body-md font-semibold text-on-surface truncate">
               ${escapeHtml(session.username)}
-
             </h4>
 
-            <span class="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">
-
-              ${formatTime(
-                session.lastCreated
-              )}
-
+            <span class="text-label-md text-on-surface-variant whitespace-nowrap">
+              ${formatTime(session.lastCreated)}
             </span>
-
           </div>
 
-          <p class="font-body-md text-body-md text-on-surface-variant truncate">
-
-            ${escapeHtml(
-              session.lastMessage
-            )}
-
+          <p class="text-on-surface-variant truncate">
+            ${escapeHtml(session.lastMessage)}
           </p>
 
           <div class="flex items-center gap-2 mt-2">
-
-            <span class="font-label-md text-label-md text-outline px-2 py-0.5 border border-outline-variant rounded-md ml-auto">
-
-              ${session.messages.length}
-              tin nhắn
-
+            <span class="ml-auto text-label-md border px-2 py-0.5 rounded-md">
+              ${session.messages.length} tin nhắn
             </span>
-
           </div>
-
         </div>
-
       </div>
     `;
 
-    sessionListEl.appendChild(div);
-  });
-}
+    frag.appendChild(div);
+  }
 
+  sessionListEl.appendChild(frag);
+  sessionListEl.scrollTop = oldScroll;
+}
 // ═══════════════════════════════════════
 // OPEN CHAT
 // ═══════════════════════════════════════
@@ -362,217 +320,62 @@ window.openChat = async function(
 // RENDER CHAT
 // ═══════════════════════════════════════
 async function renderMessages() {
+  if (!activeSession) return;
 
-  const sorted =
-    [...activeSession.messages]
-    .sort(
-      (a, b) =>
-        new Date(a.created) -
-        new Date(b.created)
-    );
+  const sessionCopy = activeSession;
 
-  const files =
-    await loadFiles(
-      activeSession.session
-    );
+  const sorted = [...sessionCopy.messages].sort(
+    (a, b) => new Date(a.created) - new Date(b.created)
+  );
 
-  let html = `
-    <div class="text-center">
+  const files = await loadFiles(sessionCopy.session);
 
-      <span class="font-label-md text-label-md text-outline bg-surface px-3 py-1 rounded-full border border-outline-variant">
+  let html = `...`;
 
-        ${formatDate(
-          sorted[0]?.created
-        )}
-
-      </span>
-
-    </div>
-  `;
-
-  sorted.forEach(msg => {
-
-    // USER
-    if (
-      !msg.is_bot &&
-      msg.sender_type !== "admin"
-    ) {
-
-      html += `
+    sorted.forEach(msg => {
+    if (!msg.is_bot && msg.sender_type !== "admin") {
+        html += `
         <div class="flex items-end gap-2 justify-end">
-
-          <div class="max-w-[85%] md:max-w-[70%] bg-primary text-on-primary rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
-
-            <p class="font-body-md text-body-md leading-relaxed">
-
-              ${escapeHtml(
-                msg.text || ""
-              )}
-
-            </p>
-
-          </div>
-
+            <div class="max-w-[85%] bg-primary text-on-primary rounded-2xl px-4 py-3">
+            <p>${escapeHtml(msg.text || "")}</p>
+            </div>
         </div>
-      `;
-
-      return;
+        `;
+        return;
     }
 
-    // BOT / ADMIN
     html += `
-      <div class="flex items-end gap-2 justify-start">
-
-        <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0 text-on-primary-container">
-
-          <span class="material-symbols-outlined text-[16px]">
-
-            ${
-              msg.sender_type === "admin"
-              ? "support_agent"
-              : "smart_toy"
-            }
-
-          </span>
-
+        <div class="flex items-end gap-2 justify-start">
+        <div class="w-8 h-8 rounded-full bg-primary-container"></div>
+        <div class="max-w-[85%] bg-white border rounded-2xl px-4 py-3">
+            <p>${escapeHtml(msg.text || "")}</p>
         </div>
-
-        <div class="max-w-[85%] md:max-w-[70%] bg-surface-container-lowest text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-outline-variant">
-
-          ${
-            msg.sender_type === "admin"
-            ? `
-              <div class="text-xs mb-1 text-primary font-semibold">
-                Nhân viên hỗ trợ
-              </div>
-            `
-            : ""
-          }
-
-          <p class="font-body-md text-body-md leading-relaxed">
-
-            ${escapeHtml(
-              msg.text || ""
-            )}
-
-          </p>
-
         </div>
-
-      </div>
     `;
-  });
-
-  // FILES
-  if (files.length) {
-
-    html += `
-      <div class="mt-6 flex flex-col gap-3">
-    `;
-
-    files.forEach(file => {
-
-      const url =
-        pb.files.getURL(
-          file,
-          file.file
-        );
-
-      const isImage =
-        file.file.match(
-          /\.(jpg|jpeg|png|webp)$/i
-        );
-
-      html += `
-        <a
-          href="${url}"
-          target="_blank"
-          class="border border-outline-variant rounded-xl p-3 bg-surface-container-lowest hover:bg-surface-container transition-colors"
-        >
-
-          <div class="flex items-center gap-3">
-
-            <span class="material-symbols-outlined">
-
-              ${
-                isImage
-                ? "image"
-                : "description"
-              }
-
-            </span>
-
-            <div class="flex-1 min-w-0">
-
-              <div class="truncate font-medium">
-
-                ${escapeHtml(
-                  file.original_name
-                )}
-
-              </div>
-
-            </div>
-
-            <span class="material-symbols-outlined">
-              open_in_new
-            </span>
-
-          </div>
-
-          ${
-            isImage
-            ? `
-              <img
-                src="${url}"
-                class="mt-3 rounded-lg max-h-48 object-cover border border-outline-variant"
-              />
-            `
-            : ""
-          }
-
-        </a>
-      `;
     });
-
-    html += `
-      </div>
-    `;
-  }
-
   messagesArea.innerHTML = html;
-
-  messagesArea.scrollTop =
-    messagesArea.scrollHeight;
+  messagesArea.scrollTop = messagesArea.scrollHeight;
 }
 
 // ═══════════════════════════════════════
 // LOAD FILES
 // ═══════════════════════════════════════
 async function loadFiles(sessionId) {
+  if (fileCache[sessionId]) return fileCache[sessionId];
 
   try {
+    const result = await pb.collection("tai_lieu").getList(1, 100, {
+      sort: "-created",
+      filter: `session="${sessionId}" && tenant="${window.TENANT}"`
+    });
 
-    const result = await pb
-      .collection("tai_lieu")
-      .getList(1, 100, {
-        sort: "-created",
-        filter: `
-          session="${sessionId}"
-          && tenant="${window.TENANT}"
-        `
-      });
-
+    fileCache[sessionId] = result.items;
     return result.items;
 
-  } catch (err) {
-
-    console.error(err);
-
+  } catch {
     return [];
   }
 }
-
 // ═══════════════════════════════════════
 // CREATE ADMIN INPUT
 // ═══════════════════════════════════════
@@ -678,45 +481,31 @@ async function sendAdminMessage() {
 // REALTIME
 // ═══════════════════════════════════════
 async function subscribeRealtime() {
+  await pb.collection("messages").subscribe("*", async e => {
+    const msg = e.record;
 
-  await pb
-    .collection("messages")
-    .subscribe(
-      "*",
-      async e => {
+    if (msg.tenant !== window.TENANT) return;
 
-        const msg = e.record;
+    if (messageIds.has(msg.id)) return;
+    messageIds.add(msg.id);
 
-        if (
-          msg.tenant !==
-          window.TENANT
-        ) return;
+    allMessages.unshift(msg);
 
-        allMessages.unshift(msg);
+    const prevSession = activeSession?.session;
 
-        buildSessions();
+    buildSessions();
 
-        renderSessionList();
+    renderSessionList();
 
-        if (
-          activeSession &&
-          msg.session ===
-          activeSession.session
-        ) {
+    if (prevSession) {
+      activeSession = sessions.find(s => s.session === prevSession);
+    }
 
-          activeSession =
-            sessions.find(
-              s =>
-                s.session ===
-                activeSession.session
-            );
-
-          await renderMessages();
-        }
-      }
-    );
+    if (activeSession && msg.session === activeSession.session) {
+      await renderMessages();
+    }
+  });
 }
-
 // ═══════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════
