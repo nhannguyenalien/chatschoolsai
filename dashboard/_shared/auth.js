@@ -79,7 +79,9 @@ async function requireAuth() {
   window.AUTH_USER = user;
 
   // Ẩn modal login đi (hàm này tự chạy nếu đang ở trang index)
-  hideLoginModal();
+  if (typeof hideLoginModal === "function") {
+    hideLoginModal();
+  }
 
   // Đổ thông tin tên, avatar lên sidebar
   renderUserInfo(user);

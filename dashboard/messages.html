@@ -111,44 +111,51 @@
 
 <div class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-<nav class="bg-surface dark:bg-surface-dim h-screen w-64 flex-col border-r border-outline-variant fixed left-0 top-0 bottom-0 flex p-4 z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-200" id="sidebar">
-    <div class="mb-8 px-4 flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-headline-md">
-            <span class="material-symbols-outlined">smart_toy</span>
-        </div>
-        <div>
-            <h1 class="font-headline-md text-[20px] font-bold text-primary dark:text-primary-fixed-dim">AI Admin</h1>
-            <p class="font-label-md text-[12px] text-on-surface-variant">Management Suite</p>
-        </div>
+<nav class="fixed left-0 top-0 bottom-0 flex flex-col p-4 bg-surface text-primary font-body-md text-body-md h-screen w-64 border-r border-outline-variant z-50 -translate-x-full md:translate-x-0 transition-transform duration-300" id="sidebar">
+  
+  <div class="mb-8 px-4 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-on-primary-container fill">smart_toy</span>
+      </div>
+      <div>
+        <div class="font-headline-md text-headline-md font-bold text-primary">AI Admin</div>
+        <div class="text-[10px] uppercase tracking-wider text-outline" id="nav-tenant-id">—</div>
+      </div>
     </div>
-    <button class="mb-6 mx-4 py-2 px-4 bg-primary text-on-primary rounded-xl font-body-md text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-primary-container hover:text-on-primary-container transition-colors duration-200">
-        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span> New Bot
-    </button>
-    <div class="flex-1 flex flex-col gap-2">
-        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="index.html">
-            <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span><span>Overview</span>
-        </a>
-        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="config.html">
-            <span class="material-symbols-outlined" data-icon="settings_ai">settings</span><span>Bot Settings</span>
-        </a>
-        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="knowledge.html">
-            <span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span><span>Knowledge Base</span>
-        </a>
-        <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-xl font-bold text-[14px]" href="messages.html">
-            <span class="material-symbols-outlined" data-icon="forum" style="font-variation-settings: 'FILL' 1;">forum</span><span>Chat Logs</span>
-        </a>
-        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="bill.html">
-            <span class="material-symbols-outlined" data-icon="payments">payments</span><span>Billing</span>
-        </a>
-    </div>
-    <div class="mt-auto flex flex-col gap-2 pt-4 border-t border-outline-variant">
-        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="#">
-            <span class="material-symbols-outlined" data-icon="help">help</span><span>Help</span>
-        </a>
-        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="#">
-            <span class="material-symbols-outlined" data-icon="logout">logout</span><span>Logout</span>
-        </a>
-    </div>
+    <label class="md:hidden p-2 -mr-2 text-on-surface-variant cursor-pointer" onclick="toggleSidebar()">
+      <span class="material-symbols-outlined">close</span>
+    </label>
+  </div>
+
+  <div class="flex-1 flex flex-col gap-2 overflow-y-auto">
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="index.html">
+      <span class="material-symbols-outlined">dashboard</span>Overview
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="config.html">
+      <span class="material-symbols-outlined">settings</span>Bot Settings
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="knowledge.html">
+      <span class="material-symbols-outlined">auto_stories</span>Knowledge Base
+    </a>
+    
+    <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-xl font-bold transition-transform" href="messages.html">
+      <span class="material-symbols-outlined">forum</span>Chat Logs
+    </a>
+    
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="leads.html">
+      <span class="material-symbols-outlined">people</span>Leads
+    </a>
+  </div>
+
+  <div class="mt-auto pt-4 border-t border-outline-variant/30 flex flex-col gap-2">
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="#">
+      <span class="material-symbols-outlined">help</span>Help
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors cursor-pointer" onclick="logout()">
+      <span class="material-symbols-outlined">logout</span>Logout
+    </a>
+  </div>
 </nav>
 
 <main class="md:ml-64 flex-1 flex flex-col h-screen w-full">
