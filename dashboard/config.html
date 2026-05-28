@@ -387,15 +387,17 @@ let originalData   = null;
 // ═══════════════════════════════════════
 async function loadConfig() {
   try {
-    // API Rules tự filter theo tenant_id — chỉ thấy config của mình
-    const r = await PB.collection("bot_configs").getFirstListItem("");
+    // FIX 1: Lọc đúng config của tenant đang đăng nhập
+    const r = await PB.collection("bot_configs").getFirstListItem(`tenant="${window.TENANT}"`);
     configRecordId = r.id;
 
-    // Điền vào form
+    // Điền vào form các trường có trong Schema
     document.getElementById("botName").value     = r.bot_name    || "";
     document.getElementById("botAvatar").value   = r.bot_avatar  || "🤖";
     document.getElementById("botColor").value    = r.color       || "#007f9d";
     document.getElementById("botWebhook").value  = r.webhook     || "";
+    
+    // Các trường UI (Chưa có trong DB tạm thời lấy mặc định)
     document.getElementById("greetingMsg").value = r.greeting    || "";
     document.getElementById("systemPrompt").value = r.system_prompt || "";
     document.getElementById("tempSlider").value  = r.temperature  || 0.3;
@@ -415,11 +417,10 @@ async function loadConfig() {
     updatePreview();
 
   } catch {
-    // Chưa có config — form trống, sẽ tạo mới khi save
+    // Chưa có config của Tenant này — form để trống, sẽ tạo mới khi bấm Save
     updatePreview();
   }
 }
-
 // ═══════════════════════════════════════
 // LIVE PREVIEW
 // ═══════════════════════════════════════
@@ -444,11 +445,13 @@ function updatePreview() {
 function getFormData() {
   const selectedModel = document.querySelector('input[name="modelSelection"]:checked');
   return {
-    tenant_id:     window.TENANT,
+    tenant:        window.TENANT, // FIX 2: Sửa 'tenant_id' thành 'tenant' cho khớp Schema
     bot_name:      document.getElementById("botName").value.trim(),
     bot_avatar:    document.getElementById("botAvatar").value.trim() || "🤖",
     color:         document.getElementById("botColor").value,
     webhook:       document.getElementById("botWebhook").value.trim(),
+    
+    // Các trường dưới đây form sẽ gửi đi, nếu Schema PB chưa có thì nó tự động bỏ qua, không báo lỗi
     greeting:      document.getElementById("greetingMsg").value.trim(),
     system_prompt: document.getElementById("systemPrompt").value.trim(),
     model:         selectedModel?.value || "gpt-4o-mini",
