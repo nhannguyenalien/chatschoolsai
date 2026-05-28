@@ -178,6 +178,14 @@
       <img alt="Administrator Profile" class="w-full h-full object-cover" id="admin-avatar" src="https://ui-avatars.com/api/?name=Admin&background=00647c&color=fff"/>
     </div>
   </div>
+  <div class="flex gap-2 flex-shrink-0">
+    <button onclick="document.getElementById('right-info-panel').classList.toggle('hidden')" class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors rounded-full flex items-center justify-center">
+        <span class="material-symbols-outlined text-[22px]">info</span>
+    </button>
+    
+    <button class="px-3 md:px-4 py-2 bg-surface text-primary border... ">
+        </button>
+</div>
 </header>
 
     <div class="flex-1 flex overflow-hidden">
@@ -237,6 +245,25 @@
                     <button id="send-admin-message" onclick="sendAdminMessage()" class="px-5 py-3 bg-primary text-white rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">send</span> <span class="hidden sm:inline">Gửi</span>
                     </button>
+                </div>
+            </div>
+        
+            <div class="w-72 border-l border-outline-variant bg-surface-container-lowest hidden lg:flex flex-col shrink-0" id="right-info-panel">
+                <div class="h-16 border-b border-outline-variant flex items-center px-4 shrink-0 bg-surface-container-lowest">
+                    <h3 class="font-semibold text-[16px] text-on-surface">Thông tin phiên</h3>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-4">
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Tài liệu đã nhận</h4>
+                            <span class="material-symbols-outlined text-[18px] text-outline">folder_open</span>
+                        </div>
+                        
+                        <ul class="space-y-2" id="admin-file-list">
+                            <li class="text-[13px] text-outline text-center py-4 bg-surface-variant/30 rounded-lg border border-dashed border-outline-variant">Chưa có tài liệu nào</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -401,6 +428,7 @@ function openChat(sessionId) {
     
     renderSessionList(); 
     renderMessages();
+    loadAdminFiles(sessionId);
 }
 
 function renderMessages() {
@@ -502,6 +530,56 @@ async function subscribeRealtime() {
             renderMessages();
         }
     });
+}
+
+async function loadAdminFiles(sessionId) {
+    const fileListEl = document.getElementById("admin-file-list");
+    if (!fileListEl) return; // Chống lỗi nếu UI chưa load kịp cột phải
+
+    fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4">Đang tải...</li>';
+
+    try {
+        // Query đúng vào bảng tai_lieu với 2 khóa lọc là session và tenant
+        const records = await pb.collection('tai_lieu').getList(1, 50, {
+            filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`,
+            sort: '-created'
+        });
+
+        if (records.items.length === 0) {
+            fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4 bg-surface-variant/30 rounded-lg border border-dashed border-outline-variant">Chưa có tài liệu nào</li>';
+            return;
+        }
+
+        let html = '';
+        records.items.forEach(record => {
+            // Lấy chính xác tên và URL file từ Schema của bác
+            const fileName = record.original_name || "Tài liệu đính kèm";
+            const fileUrl = pb.files.getUrl(record, record.file); 
+            
+            // Check đuôi file để đổi icon
+            const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+            const icon = isImage ? 'image' : 'description';
+            const iconColor = isImage ? 'text-green-600' : 'text-blue-600';
+            const bgColor = isImage ? 'bg-green-50' : 'bg-blue-50';
+
+            html += `
+                <li class="flex items-center gap-3 p-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm hover:border-primary cursor-pointer transition-colors" onclick="window.open('${fileUrl}', '_blank')">
+                    <div class="w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center shrink-0">
+                        <span class="material-symbols-outlined ${iconColor} text-[18px]">${icon}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[13px] font-medium text-on-surface truncate" title="${fileName}">${fileName}</p>
+                        <p class="text-[10px] text-outline">Bấm để xem</p>
+                    </div>
+                </li>
+            `;
+        });
+        
+        fileListEl.innerHTML = html;
+    } catch (error) {
+        console.error("Lỗi tải file:", error);
+        fileListEl.innerHTML = '<li class="text-[13px] text-error text-center py-4">Lỗi tải dữ liệu</li>';
+    }
 }
 
 // ═══════════════════════════════════════
