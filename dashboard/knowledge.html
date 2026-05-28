@@ -360,12 +360,14 @@ let editingDocId = null;
 async function loadDocs() {
   try {
     // API Rules tự filter theo tenant_id
-    const rows = await PB.collection("documents").getList(1, 500, { sort: "-created" });
+    const rows = await PB.collection("documents").getList(1, 500, {
+        sort: "-created",
+        filter: `tenant="${window.TENANT}"`
+        });
     allDocs = rows.items;
     filteredDocs = [...allDocs];
 
-    // Load chunk counts
-    const chunkRows = await PB.collection("chunks").getList(1, 1, {});
+    
     // Tính chunk count per doc
     await loadChunkCounts();
 
@@ -383,7 +385,8 @@ async function loadChunkCounts() {
   // Lấy chunk counts cho tất cả docs
   try {
     const chunkRows = await PB.collection("chunks").getList(1, 2000, {
-      fields: "doc_id"
+    filter: `tenant="${window.TENANT}"`,
+    fields: "doc_id"
     });
     const counts = {};
     chunkRows.items.forEach(c => {
@@ -624,7 +627,7 @@ function openEditModal(docId) {
 
   editingDocId = docId;
   document.getElementById("edit-title").value   = doc.title || "";
-  document.getElementById("edit-content").value = doc.raw_text || "";
+  document.getElementById("edit-content").value = stripHtml(doc.raw_text || "");
   document.getElementById("edit-modal").classList.remove("hidden");
 }
 
@@ -682,6 +685,12 @@ async function saveEdit() {
 document.getElementById("edit-modal").addEventListener("click", function(e) {
   if (e.target === this) closeEditModal();
 });
+
+function stripHtml(html) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || "";
+}
 </script>
 </body>
 </html>
