@@ -71,12 +71,6 @@
                         "background": "#f8f9ff",
                         "on-secondary-container": "#5c647a"
                     },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
                     "fontFamily": {
                         "display-lg": ["Inter"],
                         "headline-md": ["Inter"],
@@ -89,11 +83,11 @@
         }
     </script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; overflow: hidden; } /* Chống cuộn toàn trang */
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Formating cho Markdown trong chat */
+        /* Markdown Chat Formating */
         .prose img { max-width: 100%; border-radius: 8px; margin-top: 8px; border: 1px solid #e5e7eb; }
         .prose a { color: #00647c; text-decoration: underline; font-weight: 500;}
         .prose p { margin-bottom: 0.5rem; }
@@ -107,163 +101,109 @@
         }
     </style>
 </head>
-<body class="bg-background text-on-background flex h-screen overflow-hidden">
+<body class="bg-background text-on-background flex flex-col h-screen w-screen overflow-hidden">
 
-<div class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
-
-<nav class="fixed left-0 top-0 bottom-0 flex flex-col p-4 bg-surface text-primary font-body-md text-body-md h-screen w-64 border-r border-outline-variant z-50 -translate-x-full md:translate-x-0 transition-transform duration-300" id="sidebar">
-  
-  <div class="mb-8 px-4 flex items-center justify-between gap-3">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
-        <span class="material-symbols-outlined text-on-primary-container fill">smart_toy</span>
-      </div>
-      <div>
-        <div class="font-headline-md text-headline-md font-bold text-primary">AI Admin</div>
-        <div class="text-[10px] uppercase tracking-wider text-outline" id="nav-tenant-id">—</div>
-      </div>
-    </div>
-    <label class="md:hidden p-2 -mr-2 text-on-surface-variant cursor-pointer" onclick="toggleSidebar()">
-      <span class="material-symbols-outlined">close</span>
-    </label>
-  </div>
-
-  <div class="flex-1 flex flex-col gap-2 overflow-y-auto">
-    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="index.html">
-      <span class="material-symbols-outlined">dashboard</span>Overview
-    </a>
-    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="config.html">
-      <span class="material-symbols-outlined">settings</span>Bot Settings
-    </a>
-    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="knowledge.html">
-      <span class="material-symbols-outlined">auto_stories</span>Knowledge Base
-    </a>
-    
-    <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-xl font-bold transition-transform" href="messages.html">
-      <span class="material-symbols-outlined">forum</span>Chat Logs
-    </a>
-    
-    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="leads.html">
-      <span class="material-symbols-outlined">people</span>Leads
-    </a>
-  </div>
-
-  <div class="mt-auto pt-4 border-t border-outline-variant/30 flex flex-col gap-2">
-    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors" href="#">
-      <span class="material-symbols-outlined">help</span>Help
-    </a>
-    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors cursor-pointer" onclick="logout()">
-      <span class="material-symbols-outlined">logout</span>Logout
-    </a>
-  </div>
-</nav>
-
-<main class="md:ml-64 flex-1 flex flex-col h-screen w-full">
-    <header class="flex justify-between items-center h-16 px-4 md:px-gutter w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
-  <div class="flex items-center gap-4">
-    <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-2 -ml-2 rounded-full hover:bg-surface-container" onclick="toggleSidebar()">
-      <span class="material-symbols-outlined">menu</span>
-    </button>
-    <h1 class="text-on-surface hidden sm:block font-bold">Nhật ký trò chuyện</h1>
-  </div>
-  <div class="flex-1 max-w-md ml-4 sm:ml-8 mr-auto relative">
-    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
-    <input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 pl-10 pr-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary transition-all" placeholder="Tìm kiếm phiên..." type="text"/>
-  </div>
-  <div class="flex items-center gap-2">
-    <button class="p-2 text-on-surface-variant hover:text-primary transition-colors rounded-full hover:bg-surface-variant/50 hidden sm:block">
-      <span class="material-symbols-outlined">notifications</span>
-    </button>
-    <div class="w-8 h-8 rounded-full bg-primary-container border-2 border-outline-variant overflow-hidden ml-2 shrink-0">
-      <img alt="Administrator Profile" class="w-full h-full object-cover" id="admin-avatar" src="https://ui-avatars.com/api/?name=Admin&background=00647c&color=fff"/>
-    </div>
-  </div>
-  <div class="flex gap-2 flex-shrink-0">
-    <button onclick="document.getElementById('right-info-panel').classList.toggle('hidden')" class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors rounded-full flex items-center justify-center">
-        <span class="material-symbols-outlined text-[22px]">info</span>
-    </button>
-    
-    <button class="px-3 md:px-4 py-2 bg-surface text-primary border... ">
-        </button>
-</div>
-</header>
-    <div class="flex-1 flex overflow-hidden w-full">
+    <header class="flex justify-between items-center h-16 px-4 md:px-6 w-full shrink-0 bg-surface/90 backdrop-blur-md border-b border-outline-variant z-40">
+        <div class="flex items-center gap-4">
+            <a href="index.html" class="p-2 -ml-2 rounded-full hover:bg-surface-container transition-colors text-on-surface-variant flex items-center justify-center group" title="Trở về Trang chủ">
+                <span class="material-symbols-outlined transition-transform group-hover:-translate-x-1">arrow_back</span>
+            </a>
+            <h1 class="text-on-surface font-bold text-lg hidden sm:block">Nhật ký trò chuyện</h1>
+        </div>
         
-        <div class="w-full md:w-1/4 md:min-w-[280px] max-w-[320px] border-r border-outline-variant bg-surface-container-lowest flex flex-col shrink-0" id="session-list">
-            <div class="p-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10 shrink-0">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="font-headline-md text-[16px] font-semibold text-on-surface">Phiên gần đây</h3>
-                    <span class="font-label-md text-[12px] text-on-surface-variant bg-surface-variant px-2 py-1 rounded-full" id="active-count">0 Đang hoạt động</span>
+        <div class="flex-1 max-w-md mx-4 relative hidden sm:block">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
+            <input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 pl-10 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary transition-all" placeholder="Tìm kiếm tên, nội dung..." type="text"/>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <div class="hidden sm:block text-right mr-2">
+                <p class="text-sm font-bold text-primary leading-tight">AI Admin</p>
+                <p class="text-[10px] text-outline uppercase tracking-wider" id="nav-tenant-id">—</p>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-primary-container border border-outline-variant overflow-hidden shrink-0 shadow-sm cursor-pointer" onclick="logout()" title="Đăng xuất">
+                <img alt="Admin" class="w-full h-full object-cover" src="https://ui-avatars.com/api/?name=Ad&background=00647c&color=fff"/>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden w-full h-full relative">
+        
+        <div class="w-full md:w-1/4 md:min-w-[280px] max-w-[340px] border-r border-outline-variant bg-surface-container-lowest flex flex-col shrink-0 h-full" id="session-list">
+            <div class="p-4 border-b border-outline-variant shrink-0 bg-surface-container-lowest z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-semibold text-on-surface">Phiên gần đây</h3>
+                    <span class="text-[11px] text-primary bg-primary-fixed px-2.5 py-1 rounded-full font-medium" id="active-count">0 Hoạt động</span>
                 </div>
-                <div class="flex gap-2 mb-2 overflow-x-auto pb-1 hide-scrollbar">
-                    <button class="px-3 py-1 bg-primary-container text-on-primary-container rounded-full font-label-md text-[12px] whitespace-nowrap">Tất cả</button>
-                    <button class="px-3 py-1 bg-surface text-on-surface-variant border border-outline-variant rounded-full font-label-md text-[12px] hover:bg-surface-variant transition-colors whitespace-nowrap">Cần xử lý</button>
+                <div class="flex gap-2 overflow-x-auto hide-scrollbar">
+                    <button class="px-3 py-1.5 bg-surface-container text-on-surface rounded-full text-xs font-medium hover:bg-surface-variant transition-colors whitespace-nowrap border border-outline-variant">Tất cả</button>
+                    <button class="px-3 py-1.5 bg-transparent text-outline rounded-full text-xs hover:bg-surface-variant transition-colors whitespace-nowrap border border-transparent">Cần xử lý</button>
                 </div>
             </div>
             <div id="session-list-items" class="flex-1 overflow-y-auto bg-surface-container-lowest">
-                <div class="p-8 text-center text-on-surface-variant text-[14px]">Đang tải dữ liệu...</div>
+                <div class="p-8 text-center text-outline text-sm">Đang tải dữ liệu...</div>
             </div>
         </div>
 
-        <div class="w-full md:w-auto flex-1 min-w-0 bg-surface flex flex-col relative" id="chat-view">
+        <div class="w-full md:w-auto flex-1 min-w-0 bg-surface flex flex-col relative h-full" id="chat-view">
             
             <div id="chat-welcome" class="absolute inset-0 flex flex-col items-center justify-center bg-surface z-20">
-                <span class="material-symbols-outlined text-6xl text-outline-variant mb-4">forum</span>
-                <h3 class="text-[18px] font-semibold text-on-surface-variant">Chọn một phiên chat</h3>
-                <p class="text-[14px] text-outline mt-2">Bấm vào khách hàng bên trái để bắt đầu hỗ trợ</p>
+                <span class="material-symbols-outlined text-6xl text-outline-variant mb-4 opacity-50">forum</span>
+                <h3 class="text-lg font-semibold text-on-surface-variant">Chọn một phiên chat</h3>
+                <p class="text-sm text-outline mt-1">Bấm vào khách hàng bên trái để xem tin nhắn</p>
             </div>
 
-            <div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 md:px-6 bg-surface-container-lowest shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.02)] z-10 shrink-0">
-                <div class="flex items-center gap-2 md:gap-4">
-                    <button class="md:hidden p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors text-on-surface-variant flex items-center justify-center" onclick="closeChat()">
+            <div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 md:px-6 bg-white shadow-sm z-10 shrink-0">
+                <div class="flex items-center gap-3">
+                    <button class="md:hidden p-2 -ml-2 rounded-full hover:bg-surface-container text-on-surface-variant flex items-center justify-center" onclick="closeChat()">
                         <span class="material-symbols-outlined">arrow_back</span>
                     </button>
-                    <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-[14px]" id="chat-header-avatar">KH</div>
-                    <div>
-                        <h3 class="font-body-lg text-[16px] font-semibold text-on-surface line-clamp-1" id="chat-title">Tên Khách Hàng</h3>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                            <p class="font-label-md text-[12px] text-on-surface-variant">Đang trực tuyến</p>
+                    <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm" id="chat-header-avatar">KH</div>
+                    <div class="min-w-0">
+                        <h3 class="text-base font-semibold text-on-surface truncate" id="chat-title">Khách Hàng</h3>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                            <p class="text-xs text-outline">Đang trực tuyến</p>
                         </div>
                     </div>
                 </div>
-                <div class="flex gap-2 flex-shrink-0">
-                    <button onclick="document.getElementById('right-info-panel').classList.toggle('hidden')" class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors rounded-full flex items-center justify-center xl:hidden" title="Thông tin">
-                        <span class="material-symbols-outlined text-[22px]">info</span>
+                
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="document.getElementById('right-info-panel').classList.toggle('hidden')" class="w-10 h-10 text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors rounded-full flex items-center justify-center xl:hidden" title="Thông tin File">
+                        <span class="material-symbols-outlined">info</span>
                     </button>
-                    <button class="px-3 md:px-4 py-2 bg-surface text-primary border border-outline-variant rounded-lg font-body-md text-[14px] font-medium hover:bg-surface-variant transition-colors flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
-                        <span class="hidden md:inline">Hoàn tất</span>
+                    <button class="px-4 py-2 bg-white text-primary border border-outline-variant rounded-lg text-sm font-medium hover:bg-surface-container transition-colors hidden sm:flex items-center gap-2 shadow-sm">
+                        <span class="material-symbols-outlined text-[18px]">check_circle</span> Hoàn tất
                     </button>
                 </div>
             </div>
 
-            <div id="messages-area" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 bg-surface/50">
+            <div id="messages-area" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-5 bg-surface/40">
             </div>
 
-            <div class="p-4 border-t border-outline-variant bg-surface-container-lowest shrink-0">
-                <div class="flex gap-3">
-                    <input id="admin-message-input" type="text" placeholder="Nhập tin nhắn hỗ trợ khách..." class="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-primary" />
-                    <button id="send-admin-message" onclick="sendAdminMessage()" class="px-5 py-3 bg-primary text-white rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+            <div class="p-4 border-t border-outline-variant bg-white shrink-0">
+                <div class="flex gap-2">
+                    <input id="admin-message-input" type="text" placeholder="Nhập tin nhắn hỗ trợ khách..." class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3.5 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm" />
+                    <button id="send-admin-message" onclick="sendAdminMessage()" class="px-6 py-3.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-container transition-colors flex items-center gap-2 shadow-sm">
                         <span class="material-symbols-outlined text-[18px]">send</span> <span class="hidden sm:inline">Gửi</span>
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="w-72 xl:w-80 border-l border-outline-variant bg-surface-container-lowest hidden xl:flex flex-col shrink-0 transition-all" id="right-info-panel">
-            <div class="h-16 border-b border-outline-variant flex items-center px-5 shrink-0 bg-surface-container-lowest">
+        <div class="w-72 xl:w-[320px] border-l border-outline-variant bg-white hidden xl:flex flex-col shrink-0 transition-all h-full" id="right-info-panel">
+            <div class="h-16 border-b border-outline-variant flex items-center px-5 shrink-0 bg-white shadow-sm z-10">
                 <h3 class="font-semibold text-[15px] text-on-surface">Thông tin chi tiết</h3>
             </div>
             
-            <div class="flex-1 overflow-y-auto p-5 bg-surface/30">
+            <div class="flex-1 overflow-y-auto p-5 bg-surface/20">
                 <div class="flex items-center justify-between mb-4">
-                    <h4 class="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Tài liệu đính kèm</h4>
+                    <h4 class="text-xs font-bold text-outline uppercase tracking-wider">Tài liệu đã nhận</h4>
                     <span class="material-symbols-outlined text-[18px] text-outline">folder_open</span>
                 </div>
                 
-                <ul class="flex flex-col gap-2.5" id="admin-file-list">
-                    <li class="text-[13px] text-outline text-center py-8 bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant">
+                <ul class="flex flex-col gap-3" id="admin-file-list">
+                    <li class="text-sm text-outline text-center py-10 bg-white rounded-xl border border-dashed border-outline-variant">
                         Chưa có tài liệu nào
                     </li>
                 </ul>
@@ -271,91 +211,7 @@
         </div>
 
     </div>
-
-
-    <!-- <div class="flex-1 flex overflow-hidden">
-        
-        <div class="w-full md:w-1/4 md:min-w-[280px] max-w-[320px] border-r border-outline-variant bg-surface-container-lowest flex flex-col shrink-0" id="session-list">
-            <div class="p-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10 shrink-0">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="font-headline-md text-[16px] font-semibold text-on-surface">Phiên gần đây</h3>
-                    <span class="font-label-md text-[12px] text-on-surface-variant bg-surface-variant px-2 py-1 rounded-full" id="active-count">0 Đang hoạt động</span>
-                </div>
-                <div class="flex gap-2 mb-2 overflow-x-auto pb-1 hide-scrollbar">
-                    <button class="px-3 py-1 bg-primary-container text-on-primary-container rounded-full font-label-md text-[12px] whitespace-nowrap">Tất cả</button>
-                    <button class="px-3 py-1 bg-surface text-on-surface-variant border border-outline-variant rounded-full font-label-md text-[12px] hover:bg-surface-variant transition-colors whitespace-nowrap">Cần xử lý</button>
-                </div>
-            </div>
-            <div id="session-list-items" class="flex-1 overflow-y-auto">
-                <div class="p-8 text-center text-on-surface-variant text-[14px]">Đang tải dữ liệu...</div>
-            </div>
-        </div>
-
-        <div class="w-full md:w-auto flex-1 min-w-0 bg-surface flex flex-col relative" id="chat-view">
-            
-            <div id="chat-welcome" class="absolute inset-0 flex flex-col items-center justify-center bg-surface z-20">
-                <span class="material-symbols-outlined text-6xl text-outline-variant mb-4">forum</span>
-                <h3 class="text-[18px] font-semibold text-on-surface-variant">Chọn một phiên chat</h3>
-                <p class="text-[14px] text-outline mt-2">Bấm vào khách hàng bên trái để bắt đầu hỗ trợ</p>
-            </div>
-
-            <div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 md:px-6 bg-surface-container-lowest shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.02)] z-10 shrink-0">
-                <div class="flex items-center gap-2 md:gap-4">
-                    <button class="md:hidden p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors text-on-surface-variant flex items-center justify-center" onclick="closeChat()">
-                        <span class="material-symbols-outlined">arrow_back</span>
-                    </button>
-                    <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-[14px]" id="chat-header-avatar">KH</div>
-                    <div>
-                        <h3 class="font-body-lg text-[16px] font-semibold text-on-surface line-clamp-1" id="chat-title">Tên Khách Hàng</h3>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                            <p class="font-label-md text-[12px] text-on-surface-variant">Đang trực tuyến</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex gap-2 flex-shrink-0">
-                    <button class="px-3 md:px-4 py-2 bg-surface text-primary border border-outline-variant rounded-lg font-body-md text-[14px] font-medium hover:bg-surface-variant transition-colors flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
-                        <span class="hidden md:inline">Hoàn tất</span>
-                    </button>
-                </div>
-            </div>
-
-            <div id="messages-area" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6" style="background-image: radial-gradient(circle at 50% 50%, #eff4ff 0%, #f8f9ff 100%);">
-                </div>
-
-            <div class="p-4 border-t border-outline-variant bg-surface-container-lowest shrink-0">
-                <div class="flex gap-3">
-                    <input id="admin-message-input" type="text" placeholder="Nhập tin nhắn hỗ trợ khách..." class="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-primary" />
-                    <button id="send-admin-message" onclick="sendAdminMessage()" class="px-5 py-3 bg-primary text-white rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[18px]">send</span> <span class="hidden sm:inline">Gửi</span>
-                    </button>
-                </div>
-            </div>
-        
-            <div class="w-72 border-l border-outline-variant bg-surface-container-lowest hidden lg:flex flex-col shrink-0" id="right-info-panel">
-                <div class="h-16 border-b border-outline-variant flex items-center px-4 shrink-0 bg-surface-container-lowest">
-                    <h3 class="font-semibold text-[16px] text-on-surface">Thông tin phiên</h3>
-                </div>
-                
-                <div class="flex-1 overflow-y-auto p-4">
-                    <div class="mb-6">
-                        <div class="flex items-center justify-between mb-3">
-                            <h4 class="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Tài liệu đã nhận</h4>
-                            <span class="material-symbols-outlined text-[18px] text-outline">folder_open</span>
-                        </div>
-                        
-                        <ul class="space-y-2" id="admin-file-list">
-                            <li class="text-[13px] text-outline text-center py-4 bg-surface-variant/30 rounded-lg border border-dashed border-outline-variant">Chưa có tài liệu nào</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div> -->
-</main>
-
-<script>
+    <script>
 // ═══════════════════════════════════════
 // CẤU HÌNH & TRẠNG THÁI
 // ═══════════════════════════════════════
@@ -374,38 +230,42 @@ const chatAvatarEl = document.getElementById("chat-header-avatar");
 const chatWelcomeEl = document.getElementById("chat-welcome");
 const adminInput = document.getElementById("admin-message-input");
 
+// Tắt tự xuống dòng của Marked.js để UI gọn gàng
+marked.setOptions({ breaks: true });
+
 // ═══════════════════════════════════════
 // KHỞI TẠO
 // ═══════════════════════════════════════
 (async function init() {
     try {
+        // Tắt lỗi hiển thị Modal do không dùng nav
+        window.hideLoginModal = window.hideLoginModal || function() {};
+        
         if (window.requireAuth) await window.requireAuth();
 
-        // ƯU TIÊN 1: Lấy tenant từ AuthStore của Admin (Chính xác 100% tài khoản nào xem dữ liệu đó)
-        // ƯU TIÊN 2: Lấy từ window.TENANT (nếu có dùng config.js)
-        // ƯU TIÊN 3: Lấy từ URL (?bot=...)
         CURRENT_TENANT = pb.authStore.model?.tenant || window.TENANT || new URLSearchParams(window.location.search).get("bot") || "bds";
+        const tenantLabel = document.getElementById("nav-tenant-id");
+        if (tenantLabel) tenantLabel.textContent = CURRENT_TENANT;
 
         await loadMessages();
         await subscribeRealtime();
         
-        // Bắt sự kiện Enter để gửi
         adminInput.addEventListener("keypress", e => {
             if (e.key === "Enter") sendAdminMessage();
         });
     } catch (err) {
         console.error("Lỗi khởi tạo:", err);
-        sessionListItemsEl.innerHTML = '<div class="p-8 text-center text-error text-[14px]">Lỗi kết nối máy chủ!</div>';
+        sessionListItemsEl.innerHTML = '<div class="p-8 text-center text-error text-sm">Lỗi kết nối máy chủ!</div>';
     }
 })();
 
 // ═══════════════════════════════════════
-// XỬ LÝ DỮ LIỆU
+// XỬ LÝ DỮ LIỆU CHAT
 // ═══════════════════════════════════════
 async function loadMessages() {
     const result = await pb.collection("messages").getList(1, 1000, {
         sort: "-created",
-        filter: `tenant="${CURRENT_TENANT}"` // Lọc chuẩn xác theo Tenant
+        filter: `tenant="${CURRENT_TENANT}"` 
     });
 
     allMessages = [];
@@ -428,7 +288,7 @@ function buildSessions() {
         if (!map[msg.session]) {
             map[msg.session] = {
                 session: msg.session,
-                username: msg.username || "Khách hàng",
+                username: "Khách hàng",
                 messages: [],
                 lastMessage: msg.text || "Đã gửi tệp",
                 lastCreated: msg.created
@@ -437,20 +297,19 @@ function buildSessions() {
         
         map[msg.session].messages.push(msg);
 
-        // Update thông tin mới nhất
         if (new Date(msg.created) > new Date(map[msg.session].lastCreated)) {
             map[msg.session].lastCreated = msg.created;
             map[msg.session].lastMessage = msg.text || "Đã gửi tệp";
-            
-            // Nếu là tin nhắn của user thì mới lấy tên để cập nhật (tránh việc lấy nhầm tên Bot làm tên phiên)
-            if (!msg.is_bot && msg.username !== "Admin") {
-                map[msg.session].username = msg.username;
-            }
+        }
+
+        // Lấy tên khách hàng (Loại trừ Bot và Admin)
+        if (!msg.is_bot && msg.username !== "Admin") {
+            map[msg.session].username = msg.username;
         }
     }
 
     sessions = Object.values(map).sort((a, b) => new Date(b.lastCreated) - new Date(a.lastCreated));
-    document.getElementById("active-count").textContent = `${sessions.length} Đang hoạt động`;
+    document.getElementById("active-count").textContent = `${sessions.length} Hoạt động`;
 }
 
 // ═══════════════════════════════════════
@@ -460,7 +319,7 @@ function renderSessionList() {
     sessionListItemsEl.innerHTML = "";
 
     if (sessions.length === 0) {
-        sessionListItemsEl.innerHTML = '<div class="p-8 text-center text-on-surface-variant text-[14px]">Chưa có phiên trò chuyện nào</div>';
+        sessionListItemsEl.innerHTML = '<div class="p-8 text-center text-outline text-sm">Chưa có dữ liệu chat</div>';
         return;
     }
 
@@ -468,31 +327,34 @@ function renderSessionList() {
 
     for (const session of sessions) {
         const div = document.createElement("div");
-        // Style chuẩn giao diện gốc của bác
-        div.className = "p-4 border-b border-outline-variant bg-surface-container-lowest cursor-pointer hover:bg-surface-container transition-colors";
+        div.className = "p-4 border-b border-outline-variant cursor-pointer transition-colors";
         
         if (activeSession && activeSession.session === session.session) {
-            div.classList.replace("bg-surface-container-lowest", "bg-surface-container");
-            div.classList.add("border-l-4", "border-l-primary");
+            div.classList.add("bg-surface-container", "border-l-4", "border-l-primary");
+        } else {
+            div.classList.add("bg-surface-container-lowest", "hover:bg-surface-container-low");
         }
 
         div.onclick = () => openChat(session.session);
 
         const time = new Date(session.lastCreated).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
         const avatarChar = (session.username || "KH").slice(0, 2).toUpperCase();
+        
+        // Gọt sạch HTML cho phần xem trước
         let previewText = (session.lastMessage || "").replace(/<\/?[^>]+(>|$)/g, "").replace(/\*\*/g, "");
+        if (previewText.length > 40) previewText = previewText.substring(0, 40) + "...";
 
         div.innerHTML = `
             <div class="flex items-start gap-3">
-                <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex-shrink-0 flex items-center justify-center font-bold text-[14px]">
+                <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-sm border border-outline-variant">
                     ${avatarChar}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-baseline mb-1">
-                        <h4 class="font-semibold text-[14px] text-on-surface truncate">${escapeHtml(session.username)}</h4>
-                        <span class="text-[12px] text-on-surface-variant whitespace-nowrap">${time}</span>
+                        <h4 class="font-semibold text-sm text-on-surface truncate pr-2">${escapeHtml(session.username)}</h4>
+                        <span class="text-[11px] text-outline whitespace-nowrap">${time}</span>
                     </div>
-                    <p class="text-[14px] text-on-surface-variant truncate">${previewText}</p>
+                    <p class="text-xs text-on-surface-variant truncate">${previewText}</p>
                 </div>
             </div>
         `;
@@ -522,41 +384,38 @@ function renderMessages() {
     const sorted = [...activeSession.messages].sort((a, b) => new Date(a.created) - new Date(b.created));
     let html = '';
 
-    // Lặp qua từng tin nhắn, áp dụng style bubble chat chuẩn của bác
     sorted.forEach(msg => {
         const time = new Date(msg.created).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-        const cleanText = DOMPurify.sanitize(marked.parse(msg.text || ""));
+        const cleanText = DOMPurify.sanitize(marked.parse(msg.text || ""), { ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt'] });
 
         if (!msg.is_bot) {
-            // KHÁCH HÀNG (Hiển thị bên TRÁI màu Trắng/Surface)
             html += `
-                <div class="flex items-end gap-2 justify-start">
-                    <div class="w-8 h-8 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center flex-shrink-0 font-bold text-[10px]">
+                <div class="flex items-end gap-2.5 justify-start w-full">
+                    <div class="w-8 h-8 rounded-full bg-secondary-fixed border border-outline-variant text-on-secondary-fixed flex items-center justify-center flex-shrink-0 font-bold text-[10px] shadow-sm">
                         ${(msg.username || "KH").slice(0,2).toUpperCase()}
                     </div>
-                    <div class="max-w-[85%] md:max-w-[70%] bg-surface-container-lowest text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-outline-variant break-words overflow-hidden">
-                        <p class="text-[11px] font-semibold text-on-surface-variant mb-1">${escapeHtml(msg.username)}</p>
-                        <div class="text-[14px] leading-relaxed prose max-w-none">${cleanText}</div>
-                        <span class="text-[10px] text-on-surface-variant mt-1 block">${time}</span>
+                    <div class="max-w-[85%] md:max-w-[75%] bg-white text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-outline-variant break-words overflow-hidden">
+                        <p class="text-[11px] font-bold text-outline mb-1.5">${escapeHtml(msg.username)}</p>
+                        <div class="text-sm leading-relaxed prose max-w-none text-on-surface">${cleanText}</div>
+                        <span class="text-[10px] text-outline mt-1.5 block">${time}</span>
                     </div>
                 </div>
             `;
         } else {
-            // ADMIN / BOT (Hiển thị bên PHẢI màu Primary)
             const isAdmin = msg.username === "Admin";
-            const bgClass = isAdmin ? "bg-[#137333]" : "bg-primary"; // Màu xanh lá cho Admin, Xanh lam cho Bot
+            const bgClass = isAdmin ? "bg-[#137333]" : "bg-primary"; 
             const icon = isAdmin ? "support_agent" : "smart_toy";
-            const displayName = isAdmin ? "Nhân viên hỗ trợ" : escapeHtml(msg.username);
+            const displayName = isAdmin ? "Admin (Bạn)" : escapeHtml(msg.username);
             
             html += `
-                <div class="flex items-end gap-2 justify-end">
-                    <div class="max-w-[85%] md:max-w-[70%] ${bgClass} text-on-primary rounded-2xl rounded-br-sm px-4 py-3 shadow-sm break-words overflow-hidden">
-                        <div class="flex items-center gap-1.5 mb-1 opacity-90 justify-end">
+                <div class="flex items-end gap-2.5 justify-end w-full">
+                    <div class="max-w-[85%] md:max-w-[75%] ${bgClass} text-on-primary rounded-2xl rounded-br-sm px-4 py-3 shadow-sm break-words overflow-hidden">
+                        <div class="flex items-center gap-1.5 mb-1.5 opacity-90 justify-end">
                             <span class="material-symbols-outlined text-[14px]">${icon}</span>
-                            <p class="text-[11px] font-semibold">${displayName}</p>
+                            <p class="text-[11px] font-bold tracking-wide">${displayName}</p>
                         </div>
-                        <div class="text-[14px] leading-relaxed prose prose-invert max-w-none text-white">${cleanText}</div>
-                        <span class="text-[10px] opacity-70 mt-1 block text-right text-white">${time}</span>
+                        <div class="text-sm leading-relaxed prose prose-invert max-w-none">${cleanText}</div>
+                        <span class="text-[10px] opacity-70 mt-1.5 block text-right">${time}</span>
                     </div>
                 </div>
             `;
@@ -568,7 +427,7 @@ function renderMessages() {
 }
 
 // ═══════════════════════════════════════
-// ADMIN GỬI TIN NHẮN
+// ADMIN GỬI TIN & LOAD FILE
 // ═══════════════════════════════════════
 async function sendAdminMessage() {
     const text = adminInput.value.trim();
@@ -579,28 +438,59 @@ async function sendAdminMessage() {
 
     try {
         await pb.collection("messages").create({
-            session: activeSession.session,
-            tenant: CURRENT_TENANT,
-            username: "Admin", 
-            text: text,
-            is_bot: true 
+            session: activeSession.session, tenant: CURRENT_TENANT, username: "Admin", text: text, is_bot: true 
         });
     } catch (err) {
-        console.error("Lỗi gửi tin:", err);
         alert("Lỗi khi gửi tin nhắn!");
     } finally {
-        adminInput.disabled = false;
-        adminInput.focus();
+        adminInput.disabled = false; adminInput.focus();
     }
 }
 
-// ═══════════════════════════════════════
-// REALTIME LISTENER
-// ═══════════════════════════════════════
+async function loadAdminFiles(sessionId) {
+    const fileListEl = document.getElementById("admin-file-list");
+    if (!fileListEl) return; 
+
+    fileListEl.innerHTML = '<li class="text-sm text-outline text-center py-10">Đang tìm tài liệu...</li>';
+
+    try {
+        const records = await pb.collection('tai_lieu').getList(1, 50, {
+            filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`, sort: '-created'
+        });
+
+        if (records.items.length === 0) {
+            fileListEl.innerHTML = '<li class="text-sm text-outline text-center py-10 bg-white rounded-xl border border-dashed border-outline-variant">Khách chưa gửi file nào</li>';
+            return;
+        }
+
+        let html = '';
+        records.items.forEach(record => {
+            const fileName = record.original_name || "Tài liệu đính kèm";
+            const fileUrl = pb.files.getUrl(record, record.file); 
+            const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+            const icon = isImage ? 'image' : 'description';
+            
+            html += `
+                <li class="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl shadow-sm hover:border-primary hover:shadow-md cursor-pointer transition-all group" onclick="window.open('${fileUrl}', '_blank')">
+                    <div class="w-10 h-10 rounded-lg bg-surface-variant flex items-center justify-center shrink-0 border border-outline-variant group-hover:bg-primary-container transition-colors">
+                        <span class="material-symbols-outlined text-primary group-hover:text-white text-[20px] transition-colors">${icon}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[13px] font-semibold text-on-surface truncate" title="${fileName}">${fileName}</p>
+                        <p class="text-[11px] text-outline mt-0.5">Bấm để tải về</p>
+                    </div>
+                </li>
+            `;
+        });
+        fileListEl.innerHTML = html;
+    } catch (error) {
+        fileListEl.innerHTML = '<li class="text-sm text-error text-center py-10">Lỗi tải dữ liệu</li>';
+    }
+}
+
 async function subscribeRealtime() {
     await pb.collection("messages").subscribe("*", e => {
         const msg = e.record;
-
         if (msg.tenant !== CURRENT_TENANT) return;
         if (messageIds.has(msg.id)) return;
         
@@ -616,119 +506,9 @@ async function subscribeRealtime() {
         }
     });
 }
-async function loadAdminFiles(sessionId) {
-    const fileListEl = document.getElementById("admin-file-list");
-    if (!fileListEl) return; 
 
-    fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-8">Đang tải...</li>';
-
-    try {
-        const records = await pb.collection('tai_lieu').getList(1, 50, {
-            filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`,
-            sort: '-created'
-        });
-
-        if (records.items.length === 0) {
-            fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-8 bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant">Chưa có tài liệu nào</li>';
-            return;
-        }
-
-        let html = '';
-        records.items.forEach(record => {
-            const fileName = record.original_name || "Tài liệu đính kèm";
-            const fileUrl = pb.files.getUrl(record, record.file); 
-            
-            const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
-            const icon = isImage ? 'image' : 'description';
-            
-            // Render giao diện File dạng thẻ (Card)
-            html += `
-                <li class="flex items-center gap-3 p-3 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm hover:border-primary hover:shadow-md cursor-pointer transition-all" onclick="window.open('${fileUrl}', '_blank')">
-                    <div class="w-10 h-10 rounded-lg bg-surface-variant flex items-center justify-center shrink-0">
-                        <span class="material-symbols-outlined text-primary text-[20px]">${icon}</span>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-[13px] font-medium text-on-surface truncate" title="${fileName}">${fileName}</p>
-                        <p class="text-[11px] text-outline mt-0.5">Bấm để xem</p>
-                    </div>
-                </li>
-            `;
-        });
-        
-        fileListEl.innerHTML = html;
-    } catch (error) {
-        console.error("Lỗi tải file:", error);
-        fileListEl.innerHTML = '<li class="text-[13px] text-error text-center py-8">Lỗi tải dữ liệu</li>';
-    }
-}
-
-// async function loadAdminFiles(sessionId) {
-//     const fileListEl = document.getElementById("admin-file-list");
-//     if (!fileListEl) return; // Chống lỗi nếu UI chưa load kịp cột phải
-
-//     fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4">Đang tải...</li>';
-
-//     try {
-//         // Query đúng vào bảng tai_lieu với 2 khóa lọc là session và tenant
-//         const records = await pb.collection('tai_lieu').getList(1, 50, {
-//             filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`,
-//             sort: '-created'
-//         });
-
-//         if (records.items.length === 0) {
-//             fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4 bg-surface-variant/30 rounded-lg border border-dashed border-outline-variant">Chưa có tài liệu nào</li>';
-//             return;
-//         }
-
-//         let html = '';
-//         records.items.forEach(record => {
-//             // Lấy chính xác tên và URL file từ Schema của bác
-//             const fileName = record.original_name || "Tài liệu đính kèm";
-//             const fileUrl = pb.files.getUrl(record, record.file); 
-            
-//             // Check đuôi file để đổi icon
-//             const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
-//             const icon = isImage ? 'image' : 'description';
-//             const iconColor = isImage ? 'text-green-600' : 'text-blue-600';
-//             const bgColor = isImage ? 'bg-green-50' : 'bg-blue-50';
-
-//             html += `
-//                 <li class="flex items-center gap-3 p-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm hover:border-primary cursor-pointer transition-colors" onclick="window.open('${fileUrl}', '_blank')">
-//                     <div class="w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center shrink-0">
-//                         <span class="material-symbols-outlined ${iconColor} text-[18px]">${icon}</span>
-//                     </div>
-//                     <div class="flex-1 min-w-0">
-//                         <p class="text-[13px] font-medium text-on-surface truncate" title="${fileName}">${fileName}</p>
-//                         <p class="text-[10px] text-outline">Bấm để xem</p>
-//                     </div>
-//                 </li>
-//             `;
-//         });
-        
-//         fileListEl.innerHTML = html;
-//     } catch (error) {
-//         console.error("Lỗi tải file:", error);
-//         fileListEl.innerHTML = '<li class="text-[13px] text-error text-center py-4">Lỗi tải dữ liệu</li>';
-//     }
-// }
-
-// ═══════════════════════════════════════
-// UI HELPERS
-// ═══════════════════════════════════════
-function closeChat() {
-    document.body.classList.remove("mobile-chat-open");
-}
-
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-    sidebar.classList.toggle('-translate-x-full');
-    overlay.classList.toggle('hidden');
-}
-
-function escapeHtml(str = "") {
-    return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
+function closeChat() { document.body.classList.remove("mobile-chat-open"); }
+function escapeHtml(str = "") { return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"); }
 </script>
 </body>
 </html>
