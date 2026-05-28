@@ -187,8 +187,93 @@
         </button>
 </div>
 </header>
+    <div class="flex-1 flex overflow-hidden w-full">
+        
+        <div class="w-full md:w-1/4 md:min-w-[280px] max-w-[320px] border-r border-outline-variant bg-surface-container-lowest flex flex-col shrink-0" id="session-list">
+            <div class="p-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10 shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-headline-md text-[16px] font-semibold text-on-surface">Phiên gần đây</h3>
+                    <span class="font-label-md text-[12px] text-on-surface-variant bg-surface-variant px-2 py-1 rounded-full" id="active-count">0 Đang hoạt động</span>
+                </div>
+                <div class="flex gap-2 mb-2 overflow-x-auto pb-1 hide-scrollbar">
+                    <button class="px-3 py-1 bg-primary-container text-on-primary-container rounded-full font-label-md text-[12px] whitespace-nowrap">Tất cả</button>
+                    <button class="px-3 py-1 bg-surface text-on-surface-variant border border-outline-variant rounded-full font-label-md text-[12px] hover:bg-surface-variant transition-colors whitespace-nowrap">Cần xử lý</button>
+                </div>
+            </div>
+            <div id="session-list-items" class="flex-1 overflow-y-auto bg-surface-container-lowest">
+                <div class="p-8 text-center text-on-surface-variant text-[14px]">Đang tải dữ liệu...</div>
+            </div>
+        </div>
 
-    <div class="flex-1 flex overflow-hidden">
+        <div class="w-full md:w-auto flex-1 min-w-0 bg-surface flex flex-col relative" id="chat-view">
+            
+            <div id="chat-welcome" class="absolute inset-0 flex flex-col items-center justify-center bg-surface z-20">
+                <span class="material-symbols-outlined text-6xl text-outline-variant mb-4">forum</span>
+                <h3 class="text-[18px] font-semibold text-on-surface-variant">Chọn một phiên chat</h3>
+                <p class="text-[14px] text-outline mt-2">Bấm vào khách hàng bên trái để bắt đầu hỗ trợ</p>
+            </div>
+
+            <div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 md:px-6 bg-surface-container-lowest shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.02)] z-10 shrink-0">
+                <div class="flex items-center gap-2 md:gap-4">
+                    <button class="md:hidden p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors text-on-surface-variant flex items-center justify-center" onclick="closeChat()">
+                        <span class="material-symbols-outlined">arrow_back</span>
+                    </button>
+                    <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-[14px]" id="chat-header-avatar">KH</div>
+                    <div>
+                        <h3 class="font-body-lg text-[16px] font-semibold text-on-surface line-clamp-1" id="chat-title">Tên Khách Hàng</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                            <p class="font-label-md text-[12px] text-on-surface-variant">Đang trực tuyến</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button onclick="document.getElementById('right-info-panel').classList.toggle('hidden')" class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors rounded-full flex items-center justify-center xl:hidden" title="Thông tin">
+                        <span class="material-symbols-outlined text-[22px]">info</span>
+                    </button>
+                    <button class="px-3 md:px-4 py-2 bg-surface text-primary border border-outline-variant rounded-lg font-body-md text-[14px] font-medium hover:bg-surface-variant transition-colors flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                        <span class="hidden md:inline">Hoàn tất</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="messages-area" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 bg-surface/50">
+            </div>
+
+            <div class="p-4 border-t border-outline-variant bg-surface-container-lowest shrink-0">
+                <div class="flex gap-3">
+                    <input id="admin-message-input" type="text" placeholder="Nhập tin nhắn hỗ trợ khách..." class="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-primary" />
+                    <button id="send-admin-message" onclick="sendAdminMessage()" class="px-5 py-3 bg-primary text-white rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">send</span> <span class="hidden sm:inline">Gửi</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-72 xl:w-80 border-l border-outline-variant bg-surface-container-lowest hidden xl:flex flex-col shrink-0 transition-all" id="right-info-panel">
+            <div class="h-16 border-b border-outline-variant flex items-center px-5 shrink-0 bg-surface-container-lowest">
+                <h3 class="font-semibold text-[15px] text-on-surface">Thông tin chi tiết</h3>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-5 bg-surface/30">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Tài liệu đính kèm</h4>
+                    <span class="material-symbols-outlined text-[18px] text-outline">folder_open</span>
+                </div>
+                
+                <ul class="flex flex-col gap-2.5" id="admin-file-list">
+                    <li class="text-[13px] text-outline text-center py-8 bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant">
+                        Chưa có tài liệu nào
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- <div class="flex-1 flex overflow-hidden">
         
         <div class="w-full md:w-1/4 md:min-w-[280px] max-w-[320px] border-r border-outline-variant bg-surface-container-lowest flex flex-col shrink-0" id="session-list">
             <div class="p-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10 shrink-0">
@@ -267,7 +352,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> -->
 </main>
 
 <script>
@@ -531,45 +616,40 @@ async function subscribeRealtime() {
         }
     });
 }
-
 async function loadAdminFiles(sessionId) {
     const fileListEl = document.getElementById("admin-file-list");
-    if (!fileListEl) return; // Chống lỗi nếu UI chưa load kịp cột phải
+    if (!fileListEl) return; 
 
-    fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4">Đang tải...</li>';
+    fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-8">Đang tải...</li>';
 
     try {
-        // Query đúng vào bảng tai_lieu với 2 khóa lọc là session và tenant
         const records = await pb.collection('tai_lieu').getList(1, 50, {
             filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`,
             sort: '-created'
         });
 
         if (records.items.length === 0) {
-            fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4 bg-surface-variant/30 rounded-lg border border-dashed border-outline-variant">Chưa có tài liệu nào</li>';
+            fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-8 bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant">Chưa có tài liệu nào</li>';
             return;
         }
 
         let html = '';
         records.items.forEach(record => {
-            // Lấy chính xác tên và URL file từ Schema của bác
             const fileName = record.original_name || "Tài liệu đính kèm";
             const fileUrl = pb.files.getUrl(record, record.file); 
             
-            // Check đuôi file để đổi icon
             const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
             const icon = isImage ? 'image' : 'description';
-            const iconColor = isImage ? 'text-green-600' : 'text-blue-600';
-            const bgColor = isImage ? 'bg-green-50' : 'bg-blue-50';
-
+            
+            // Render giao diện File dạng thẻ (Card)
             html += `
-                <li class="flex items-center gap-3 p-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm hover:border-primary cursor-pointer transition-colors" onclick="window.open('${fileUrl}', '_blank')">
-                    <div class="w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center shrink-0">
-                        <span class="material-symbols-outlined ${iconColor} text-[18px]">${icon}</span>
+                <li class="flex items-center gap-3 p-3 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm hover:border-primary hover:shadow-md cursor-pointer transition-all" onclick="window.open('${fileUrl}', '_blank')">
+                    <div class="w-10 h-10 rounded-lg bg-surface-variant flex items-center justify-center shrink-0">
+                        <span class="material-symbols-outlined text-primary text-[20px]">${icon}</span>
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-[13px] font-medium text-on-surface truncate" title="${fileName}">${fileName}</p>
-                        <p class="text-[10px] text-outline">Bấm để xem</p>
+                        <p class="text-[11px] text-outline mt-0.5">Bấm để xem</p>
                     </div>
                 </li>
             `;
@@ -578,9 +658,59 @@ async function loadAdminFiles(sessionId) {
         fileListEl.innerHTML = html;
     } catch (error) {
         console.error("Lỗi tải file:", error);
-        fileListEl.innerHTML = '<li class="text-[13px] text-error text-center py-4">Lỗi tải dữ liệu</li>';
+        fileListEl.innerHTML = '<li class="text-[13px] text-error text-center py-8">Lỗi tải dữ liệu</li>';
     }
 }
+
+// async function loadAdminFiles(sessionId) {
+//     const fileListEl = document.getElementById("admin-file-list");
+//     if (!fileListEl) return; // Chống lỗi nếu UI chưa load kịp cột phải
+
+//     fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4">Đang tải...</li>';
+
+//     try {
+//         // Query đúng vào bảng tai_lieu với 2 khóa lọc là session và tenant
+//         const records = await pb.collection('tai_lieu').getList(1, 50, {
+//             filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`,
+//             sort: '-created'
+//         });
+
+//         if (records.items.length === 0) {
+//             fileListEl.innerHTML = '<li class="text-[13px] text-outline text-center py-4 bg-surface-variant/30 rounded-lg border border-dashed border-outline-variant">Chưa có tài liệu nào</li>';
+//             return;
+//         }
+
+//         let html = '';
+//         records.items.forEach(record => {
+//             // Lấy chính xác tên và URL file từ Schema của bác
+//             const fileName = record.original_name || "Tài liệu đính kèm";
+//             const fileUrl = pb.files.getUrl(record, record.file); 
+            
+//             // Check đuôi file để đổi icon
+//             const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+//             const icon = isImage ? 'image' : 'description';
+//             const iconColor = isImage ? 'text-green-600' : 'text-blue-600';
+//             const bgColor = isImage ? 'bg-green-50' : 'bg-blue-50';
+
+//             html += `
+//                 <li class="flex items-center gap-3 p-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm hover:border-primary cursor-pointer transition-colors" onclick="window.open('${fileUrl}', '_blank')">
+//                     <div class="w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center shrink-0">
+//                         <span class="material-symbols-outlined ${iconColor} text-[18px]">${icon}</span>
+//                     </div>
+//                     <div class="flex-1 min-w-0">
+//                         <p class="text-[13px] font-medium text-on-surface truncate" title="${fileName}">${fileName}</p>
+//                         <p class="text-[10px] text-outline">Bấm để xem</p>
+//                     </div>
+//                 </li>
+//             `;
+//         });
+        
+//         fileListEl.innerHTML = html;
+//     } catch (error) {
+//         console.error("Lỗi tải file:", error);
+//         fileListEl.innerHTML = '<li class="text-[13px] text-error text-center py-4">Lỗi tải dữ liệu</li>';
+//     }
+// }
 
 // ═══════════════════════════════════════
 // UI HELPERS
