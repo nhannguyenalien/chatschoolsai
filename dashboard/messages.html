@@ -5,37 +5,83 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>AI Admin - Nhật ký trò chuyện</title>
     
-    <!-- Tailwind & Fonts -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     
-    <!-- Thư viện bắt buộc (PocketBase, Markdown, DOMPurify) -->
     <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
 
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
-                    colors: {
-                        "primary": "#00647c",
-                        "primary-container": "#007f9d",
-                        "on-primary": "#ffffff",
-                        "on-primary-container": "#fafdff",
-                        "surface": "#f8f9ff",
+                    "colors": {
                         "surface-variant": "#d3e4fe",
-                        "on-surface": "#0b1c30",
-                        "on-surface-variant": "#3e484d",
+                        "surface-tint": "#006780",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#dae2fd",
                         "outline-variant": "#bdc8ce",
-                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "on-error": "#ffffff",
+                        "on-primary-container": "#fafdff",
+                        "primary": "#00647c",
+                        "tertiary-fixed": "#e0e3e5",
+                        "on-surface-variant": "#3e484d",
                         "surface-container": "#e5eeff",
-                        "surface-container-high": "#dce9ff"
+                        "on-tertiary": "#ffffff",
+                        "inverse-primary": "#6cd3f7",
+                        "error": "#ba1a1a",
+                        "tertiary": "#595c5e",
+                        "surface": "#f8f9ff",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#eff4ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-tertiary-container": "#fbfdff",
+                        "primary-container": "#007f9d",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#b7eaff",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary-fixed": "#001f28",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-fixed-variant": "#004e61",
+                        "secondary": "#565e74",
+                        "tertiary-container": "#727577",
+                        "secondary-container": "#dae2fd",
+                        "surface-bright": "#f8f9ff",
+                        "primary-fixed-dim": "#6cd3f7",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#0b1c30",
+                        "surface-container-high": "#dce9ff",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "on-secondary-fixed": "#131b2e",
+                        "outline": "#6e797e",
+                        "surface-dim": "#cbdbf5",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-surface": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "inverse-on-surface": "#eaf1ff",
+                        "background": "#f8f9ff",
+                        "on-secondary-container": "#5c647a"
                     },
-                    fontFamily: {
-                        sans: ["Inter", "sans-serif"]
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"]
                     }
                 }
             }
@@ -46,129 +92,165 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Hiển thị Markdown trong chat */
-        .prose img { max-width: 100%; border-radius: 8px; margin-top: 8px; }
-        .prose a { color: #2563eb; text-decoration: underline; }
+        /* Formating cho Markdown trong chat */
+        .prose img { max-width: 100%; border-radius: 8px; margin-top: 8px; border: 1px solid #e5e7eb; }
+        .prose a { color: #00647c; text-decoration: underline; font-weight: 500;}
+        .prose p { margin-bottom: 0.5rem; }
+        .prose p:last-child { margin-bottom: 0; }
+        .prose strong { font-weight: 600; }
 
         @media (max-width: 767px) {
-            .mobile-chat-open #sidebar-session { display: none !important; }
+            .mobile-chat-open #session-list { display: none !important; }
             .mobile-chat-open #chat-view { display: flex !important; }
             #chat-view { display: none; }
         }
     </style>
 </head>
-<body class="bg-surface text-on-surface flex h-screen overflow-hidden">
+<body class="bg-background text-on-background flex h-screen overflow-hidden">
 
-    <!-- Mobile Sidebar Overlay -->
-    <div class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
-    
-    <!-- Left Menu Navbar -->
-    <nav class="bg-surface border-r border-outline-variant fixed left-0 top-0 bottom-0 w-20 flex flex-col items-center py-4 z-50 md:relative transform -translate-x-full md:translate-x-0 transition-transform duration-200" id="sidebar">
-        <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white mb-8 shadow-md">
+<div class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<nav class="bg-surface dark:bg-surface-dim h-screen w-64 flex-col border-r border-outline-variant fixed left-0 top-0 bottom-0 flex p-4 z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-200" id="sidebar">
+    <div class="mb-8 px-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-headline-md">
             <span class="material-symbols-outlined">smart_toy</span>
         </div>
-        <div class="flex-1 flex flex-col gap-4 w-full px-2">
-            <a href="#" class="w-full flex justify-center py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors">
-                <span class="material-symbols-outlined">dashboard</span>
-            </a>
-            <a href="#" class="w-full flex justify-center py-3 bg-primary-container text-white rounded-xl shadow-sm">
-                <span class="material-symbols-outlined">forum</span>
-            </a>
-            <a href="#" class="w-full flex justify-center py-3 text-on-surface-variant hover:bg-surface-container rounded-xl transition-colors">
-                <span class="material-symbols-outlined">settings_ai</span>
-            </a>
+        <div>
+            <h1 class="font-headline-md text-[20px] font-bold text-primary dark:text-primary-fixed-dim">AI Admin</h1>
+            <p class="font-label-md text-[12px] text-on-surface-variant">Management Suite</p>
         </div>
-    </nav>
+    </div>
+    <button class="mb-6 mx-4 py-2 px-4 bg-primary text-on-primary rounded-xl font-body-md text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-primary-container hover:text-on-primary-container transition-colors duration-200">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span> New Bot
+    </button>
+    <div class="flex-1 flex flex-col gap-2">
+        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="index.html">
+            <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span><span>Overview</span>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="config.html">
+            <span class="material-symbols-outlined" data-icon="settings_ai">settings</span><span>Bot Settings</span>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="knowledge.html">
+            <span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span><span>Knowledge Base</span>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-xl font-bold text-[14px]" href="messages.html">
+            <span class="material-symbols-outlined" data-icon="forum" style="font-variation-settings: 'FILL' 1;">forum</span><span>Chat Logs</span>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="bill.html">
+            <span class="material-symbols-outlined" data-icon="payments">payments</span><span>Billing</span>
+        </a>
+    </div>
+    <div class="mt-auto flex flex-col gap-2 pt-4 border-t border-outline-variant">
+        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="#">
+            <span class="material-symbols-outlined" data-icon="help">help</span><span>Help</span>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-xl transition-colors duration-200 text-[14px]" href="#">
+            <span class="material-symbols-outlined" data-icon="logout">logout</span><span>Logout</span>
+        </a>
+    </div>
+</nav>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-screen w-full min-w-0">
+<main class="md:ml-64 flex-1 flex flex-col h-screen w-full">
+    <header class="bg-surface dark:bg-surface-dim flex justify-between items-center h-16 px-4 md:px-gutter w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant shrink-0">
+        <div class="flex items-center gap-2 md:gap-4">
+            <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center" onclick="toggleSidebar()">
+                <span class="material-symbols-outlined">menu</span>
+            </button>
+            <h2 class="font-headline-md text-[20px] font-bold text-primary dark:text-primary-fixed-dim truncate">Nhật ký trò chuyện</h2>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="relative hidden md:block">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+                <input class="pl-10 pr-4 py-2 border border-outline-variant rounded-full text-[14px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-64 bg-surface-container-lowest" placeholder="Tìm kiếm phiên..." type="text"/>
+            </div>
+            <button class="text-on-surface-variant hover:text-primary transition-colors">
+                <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+            </button>
+            <div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden border border-outline-variant">
+                <img alt="Administrator Profile" class="w-full h-full object-cover" id="admin-avatar" src="https://ui-avatars.com/api/?name=Admin&background=00647c&color=fff"/>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
         
-        <!-- Header -->
-        <header class="bg-surface flex justify-between items-center h-16 px-4 border-b border-outline-variant shrink-0">
-            <div class="flex items-center gap-3">
-                <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors" onclick="toggleSidebar()">
-                    <span class="material-symbols-outlined">menu</span>
-                </button>
-                <h2 class="text-lg font-bold text-primary truncate">Quản lý Chat (Admin)</h2>
+        <div class="w-full md:w-1/3 md:min-w-[320px] border-r border-outline-variant bg-surface-container-lowest flex flex-col" id="session-list">
+            <div class="p-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10 shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-headline-md text-[16px] font-semibold text-on-surface">Phiên gần đây</h3>
+                    <span class="font-label-md text-[12px] text-on-surface-variant bg-surface-variant px-2 py-1 rounded-full" id="active-count">0 Đang hoạt động</span>
+                </div>
+                <div class="flex gap-2 mb-2 overflow-x-auto pb-1 hide-scrollbar">
+                    <button class="px-3 py-1 bg-primary-container text-on-primary-container rounded-full font-label-md text-[12px] whitespace-nowrap">Tất cả</button>
+                    <button class="px-3 py-1 bg-surface text-on-surface-variant border border-outline-variant rounded-full font-label-md text-[12px] hover:bg-surface-variant transition-colors whitespace-nowrap">Cần xử lý</button>
+                </div>
             </div>
-        </header>
+            <div id="session-list-items" class="flex-1 overflow-y-auto">
+                <div class="p-8 text-center text-on-surface-variant text-[14px]">Đang tải dữ liệu...</div>
+            </div>
+        </div>
 
-        <!-- Split Screen -->
-        <div class="flex-1 flex overflow-hidden">
+        <div class="w-full md:w-auto flex-1 bg-surface flex flex-col relative" id="chat-view">
             
-            <!-- Session List (Cột trái) -->
-            <div class="w-full md:w-1/3 md:min-w-[320px] max-w-[400px] border-r border-outline-variant bg-surface-container-lowest flex flex-col" id="sidebar-session">
-                <div class="p-4 border-b border-outline-variant bg-surface-container-lowest z-10 shrink-0">
-                    <h3 class="text-base font-semibold text-on-surface mb-3">Phiên hoạt động</h3>
-                    <input type="text" class="w-full px-4 py-2 border border-outline-variant rounded-full text-sm focus:border-primary focus:ring-1 focus:ring-primary bg-surface" placeholder="Tìm kiếm khách hàng...">
-                </div>
-                <!-- Danh sách khách hàng sẽ render vào đây -->
-                <div id="session-list-items" class="flex-1 overflow-y-auto">
-                    <div class="p-8 text-center text-gray-400 text-sm">Đang tải dữ liệu...</div>
-                </div>
+            <div id="chat-welcome" class="absolute inset-0 flex flex-col items-center justify-center bg-surface z-20">
+                <span class="material-symbols-outlined text-6xl text-outline-variant mb-4">forum</span>
+                <h3 class="text-[18px] font-semibold text-on-surface-variant">Chọn một phiên chat</h3>
+                <p class="text-[14px] text-outline mt-2">Bấm vào khách hàng bên trái để bắt đầu hỗ trợ</p>
             </div>
 
-            <!-- Chat View (Cột phải) -->
-            <div class="w-full md:w-auto flex-1 bg-surface-container flex flex-col relative" id="chat-view">
-                
-                <!-- Khung Welcome ban đầu -->
-                <div id="chat-welcome" class="absolute inset-0 flex flex-col items-center justify-center bg-surface-container z-20">
-                    <span class="material-symbols-outlined text-6xl text-outline-variant mb-4">forum</span>
-                    <h3 class="text-lg font-semibold text-on-surface-variant">Chọn một phiên chat</h3>
-                    <p class="text-sm text-outline">Bấm vào khách hàng bên trái để bắt đầu hỗ trợ</p>
-                </div>
-
-                <!-- Chat Header -->
-                <div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 bg-surface-container-lowest shrink-0">
-                    <div class="flex items-center gap-3">
-                        <button class="md:hidden p-2 -ml-2 text-on-surface-variant" onclick="closeChat()">
-                            <span class="material-symbols-outlined">arrow_back</span>
-                        </button>
-                        <div>
-                            <h3 id="chat-title" class="text-base font-semibold text-on-surface">Tên Khách Hàng</h3>
-                            <p class="text-xs text-green-600 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
-                            </p>
+            <div class="h-16 border-b border-outline-variant flex items-center justify-between px-4 md:px-6 bg-surface-container-lowest shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.02)] z-10 shrink-0">
+                <div class="flex items-center gap-2 md:gap-4">
+                    <button class="md:hidden p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors text-on-surface-variant flex items-center justify-center" onclick="closeChat()">
+                        <span class="material-symbols-outlined">arrow_back</span>
+                    </button>
+                    <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-[14px]" id="chat-header-avatar">KH</div>
+                    <div>
+                        <h3 class="font-body-lg text-[16px] font-semibold text-on-surface line-clamp-1" id="chat-title">Tên Khách Hàng</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                            <p class="font-label-md text-[12px] text-on-surface-variant">Đang trực tuyến</p>
                         </div>
                     </div>
                 </div>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button class="px-3 md:px-4 py-2 bg-surface text-primary border border-outline-variant rounded-lg font-body-md text-[14px] font-medium hover:bg-surface-variant transition-colors flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                        <span class="hidden md:inline">Hoàn tất</span>
+                    </button>
+                </div>
+            </div>
 
-                <!-- Chat Messages -->
-                <div id="messages-area" class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-                    <!-- Tin nhắn render ở đây -->
+            <div id="messages-area" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6" style="background-image: radial-gradient(circle at 50% 50%, #eff4ff 0%, #f8f9ff 100%);">
                 </div>
 
-                <!-- Chat Input Admin -->
-                <div class="p-4 border-t border-outline-variant bg-surface-container-lowest shrink-0">
-                    <div class="flex gap-3">
-                        <input id="admin-message-input" type="text" placeholder="Nhập tin nhắn hỗ trợ khách..." class="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary" />
-                        <button id="send-admin-message" onclick="sendAdminMessage()" class="px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-container transition-colors flex items-center gap-2">
-                            <span class="material-symbols-outlined text-sm">send</span> Gửi
-                        </button>
-                    </div>
+            <div class="p-4 border-t border-outline-variant bg-surface-container-lowest shrink-0">
+                <div class="flex gap-3">
+                    <input id="admin-message-input" type="text" placeholder="Nhập tin nhắn hỗ trợ khách..." class="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-primary" />
+                    <button id="send-admin-message" onclick="sendAdminMessage()" class="px-5 py-3 bg-primary text-white rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">send</span> <span class="hidden sm:inline">Gửi</span>
+                    </button>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+</main>
 
 <script>
 // ═══════════════════════════════════════
 // CẤU HÌNH & TRẠNG THÁI
 // ═══════════════════════════════════════
-const pb = new PocketBase("https://nhannguyen123-chat.hf.space");
-
-// Ưu tiên lấy Tenant từ URL, nếu không có mặc định là 'bds'
-const urlParams = new URLSearchParams(window.location.search);
-const TENANT = urlParams.get("bot") || "bds"; 
+const pb = window.PB || new PocketBase("https://nhannguyen123-chat.hf.space");
+let CURRENT_TENANT = ""; 
 
 let allMessages = [];
 let sessions = [];
 let activeSession = null;
 let messageIds = new Set();
 
-const sessionListEl = document.getElementById("session-list-items");
+const sessionListItemsEl = document.getElementById("session-list-items");
 const messagesArea = document.getElementById("messages-area");
 const chatTitleEl = document.getElementById("chat-title");
+const chatAvatarEl = document.getElementById("chat-header-avatar");
 const chatWelcomeEl = document.getElementById("chat-welcome");
 const adminInput = document.getElementById("admin-message-input");
 
@@ -177,16 +259,23 @@ const adminInput = document.getElementById("admin-message-input");
 // ═══════════════════════════════════════
 (async function init() {
     try {
+        if (window.requireAuth) await window.requireAuth();
+
+        // ƯU TIÊN 1: Lấy tenant từ AuthStore của Admin (Chính xác 100% tài khoản nào xem dữ liệu đó)
+        // ƯU TIÊN 2: Lấy từ window.TENANT (nếu có dùng config.js)
+        // ƯU TIÊN 3: Lấy từ URL (?bot=...)
+        CURRENT_TENANT = pb.authStore.model?.tenant || window.TENANT || new URLSearchParams(window.location.search).get("bot") || "bds";
+
         await loadMessages();
         await subscribeRealtime();
         
-        // Enter để gửi
+        // Bắt sự kiện Enter để gửi
         adminInput.addEventListener("keypress", e => {
             if (e.key === "Enter") sendAdminMessage();
         });
     } catch (err) {
         console.error("Lỗi khởi tạo:", err);
-        sessionListEl.innerHTML = '<div class="p-4 text-center text-red-500 text-sm">Lỗi kết nối máy chủ!</div>';
+        sessionListItemsEl.innerHTML = '<div class="p-8 text-center text-error text-[14px]">Lỗi kết nối máy chủ!</div>';
     }
 })();
 
@@ -196,7 +285,7 @@ const adminInput = document.getElementById("admin-message-input");
 async function loadMessages() {
     const result = await pb.collection("messages").getList(1, 1000, {
         sort: "-created",
-        filter: `tenant="${TENANT}"`
+        filter: `tenant="${CURRENT_TENANT}"` // Lọc chuẩn xác theo Tenant
     });
 
     allMessages = [];
@@ -228,11 +317,12 @@ function buildSessions() {
         
         map[msg.session].messages.push(msg);
 
-        // Cập nhật tin nhắn mới nhất
+        // Update thông tin mới nhất
         if (new Date(msg.created) > new Date(map[msg.session].lastCreated)) {
             map[msg.session].lastCreated = msg.created;
             map[msg.session].lastMessage = msg.text || "Đã gửi tệp";
-            // Chỉ lấy tên user (tránh lấy nhầm tên Bot làm tên phiên)
+            
+            // Nếu là tin nhắn của user thì mới lấy tên để cập nhật (tránh việc lấy nhầm tên Bot làm tên phiên)
             if (!msg.is_bot) {
                 map[msg.session].username = msg.username || map[msg.session].username;
             }
@@ -240,16 +330,17 @@ function buildSessions() {
     }
 
     sessions = Object.values(map).sort((a, b) => new Date(b.lastCreated) - new Date(a.lastCreated));
+    document.getElementById("active-count").textContent = `${sessions.length} Đang hoạt động`;
 }
 
 // ═══════════════════════════════════════
-// GIAO DIỆN
+// RENDER GIAO DIỆN
 // ═══════════════════════════════════════
 function renderSessionList() {
-    sessionListEl.innerHTML = "";
+    sessionListItemsEl.innerHTML = "";
 
     if (sessions.length === 0) {
-        sessionListEl.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm">Chưa có phiên chat nào</div>';
+        sessionListItemsEl.innerHTML = '<div class="p-8 text-center text-on-surface-variant text-[14px]">Chưa có phiên trò chuyện nào</div>';
         return;
     }
 
@@ -257,89 +348,93 @@ function renderSessionList() {
 
     for (const session of sessions) {
         const div = document.createElement("div");
+        // Style chuẩn giao diện gốc của bác
         div.className = "p-4 border-b border-outline-variant bg-surface-container-lowest cursor-pointer hover:bg-surface-container transition-colors";
         
-        // Highlight phiên đang mở
         if (activeSession && activeSession.session === session.session) {
-            div.classList.add("bg-surface-container", "border-l-4", "border-l-primary");
+            div.classList.replace("bg-surface-container-lowest", "bg-surface-container");
+            div.classList.add("border-l-4", "border-l-primary");
         }
 
         div.onclick = () => openChat(session.session);
 
         const time = new Date(session.lastCreated).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+        const avatarChar = (session.username || "KH").slice(0, 2).toUpperCase();
 
         div.innerHTML = `
             <div class="flex items-start gap-3">
-                <div class="w-10 h-10 rounded-full bg-primary-container text-white flex-shrink-0 flex items-center justify-center font-bold text-sm">
-                    ${(session.username || "KH").slice(0, 2).toUpperCase()}
+                <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex-shrink-0 flex items-center justify-center font-bold text-[14px]">
+                    ${avatarChar}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-baseline mb-1">
-                        <h4 class="text-sm font-semibold text-on-surface truncate">${escapeHtml(session.username)}</h4>
-                        <span class="text-xs text-on-surface-variant whitespace-nowrap">${time}</span>
+                        <h4 class="font-semibold text-[14px] text-on-surface truncate">${escapeHtml(session.username)}</h4>
+                        <span class="text-[12px] text-on-surface-variant whitespace-nowrap">${time}</span>
                     </div>
-                    <p class="text-xs text-on-surface-variant truncate">${escapeHtml(session.lastMessage)}</p>
+                    <p class="text-[14px] text-on-surface-variant truncate">${escapeHtml(session.lastMessage)}</p>
                 </div>
             </div>
         `;
         frag.appendChild(div);
     }
-    sessionListEl.appendChild(frag);
+    sessionListItemsEl.appendChild(frag);
 }
 
 function openChat(sessionId) {
     document.body.classList.add("mobile-chat-open");
-    chatWelcomeEl.classList.add("hidden"); // Ẩn màn hình Welcome
+    chatWelcomeEl.classList.add("hidden"); 
 
     activeSession = sessions.find(s => s.session === sessionId);
     if (!activeSession) return;
 
     chatTitleEl.textContent = activeSession.username;
+    chatAvatarEl.textContent = (activeSession.username || "KH").slice(0, 2).toUpperCase();
     
-    // Cập nhật lại list để hiện Highlight
-    renderSessionList();
+    renderSessionList(); 
     renderMessages();
 }
 
 function renderMessages() {
     if (!activeSession) return;
 
-    // Sắp xếp tin nhắn cũ -> mới
     const sorted = [...activeSession.messages].sort((a, b) => new Date(a.created) - new Date(b.created));
-    
     let html = '';
 
+    // Lặp qua từng tin nhắn, áp dụng style bubble chat chuẩn của bác
     sorted.forEach(msg => {
         const time = new Date(msg.created).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
         const cleanText = DOMPurify.sanitize(marked.parse(msg.text || ""));
 
         if (!msg.is_bot) {
-            // Tin nhắn Khách (Bên trái đối với Admin)
+            // KHÁCH HÀNG (Hiển thị bên TRÁI màu Trắng/Surface)
             html += `
                 <div class="flex items-end gap-2 justify-start">
-                    <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-600">KH</div>
-                    <div class="max-w-[85%] md:max-w-[75%] bg-white text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-gray-200">
-                        <p class="text-xs font-semibold text-gray-500 mb-1">${escapeHtml(msg.username)}</p>
-                        <div class="text-sm leading-relaxed prose max-w-none">${cleanText}</div>
-                        <span class="text-[10px] text-gray-400 mt-1 block">${time}</span>
+                    <div class="w-8 h-8 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center flex-shrink-0 font-bold text-[10px]">
+                        ${(msg.username || "KH").slice(0,2).toUpperCase()}
+                    </div>
+                    <div class="max-w-[85%] md:max-w-[70%] bg-surface-container-lowest text-on-surface rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-outline-variant">
+                        <p class="text-[11px] font-semibold text-on-surface-variant mb-1">${escapeHtml(msg.username)}</p>
+                        <div class="text-[14px] leading-relaxed prose max-w-none">${cleanText}</div>
+                        <span class="text-[10px] text-on-surface-variant mt-1 block">${time}</span>
                     </div>
                 </div>
             `;
         } else {
-            // Tin nhắn Bot / Admin (Bên phải đối với Admin)
+            // ADMIN / BOT (Hiển thị bên PHẢI màu Primary)
             const isAdmin = msg.username === "Admin";
-            const bgClass = isAdmin ? "bg-green-600" : "bg-primary";
+            const bgClass = isAdmin ? "bg-[#137333]" : "bg-primary"; // Màu xanh lá cho Admin, Xanh lam cho Bot
             const icon = isAdmin ? "support_agent" : "smart_toy";
+            const displayName = isAdmin ? "Nhân viên hỗ trợ" : escapeHtml(msg.username);
             
             html += `
                 <div class="flex items-end gap-2 justify-end">
-                    <div class="max-w-[85%] md:max-w-[75%] ${bgClass} text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
-                        <div class="flex items-center gap-1 mb-1 opacity-80 justify-end">
+                    <div class="max-w-[85%] md:max-w-[70%] ${bgClass} text-on-primary rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
+                        <div class="flex items-center gap-1.5 mb-1 opacity-90 justify-end">
                             <span class="material-symbols-outlined text-[14px]">${icon}</span>
-                            <p class="text-xs font-semibold">${escapeHtml(msg.username)}</p>
+                            <p class="text-[11px] font-semibold">${displayName}</p>
                         </div>
-                        <div class="text-sm leading-relaxed prose prose-invert max-w-none">${cleanText}</div>
-                        <span class="text-[10px] opacity-70 mt-1 block text-right">${time}</span>
+                        <div class="text-[14px] leading-relaxed prose prose-invert max-w-none text-white">${cleanText}</div>
+                        <span class="text-[10px] opacity-70 mt-1 block text-right text-white">${time}</span>
                     </div>
                 </div>
             `;
@@ -363,10 +458,10 @@ async function sendAdminMessage() {
     try {
         await pb.collection("messages").create({
             session: activeSession.session,
-            tenant: TENANT,
+            tenant: CURRENT_TENANT,
             username: "Admin", 
             text: text,
-            is_bot: true // Quy ước mọi tin trả lời từ Admin/Bot đều là true để UI khách hàng phân biệt
+            is_bot: true 
         });
     } catch (err) {
         console.error("Lỗi gửi tin:", err);
@@ -378,13 +473,13 @@ async function sendAdminMessage() {
 }
 
 // ═══════════════════════════════════════
-// REALTIME
+// REALTIME LISTENER
 // ═══════════════════════════════════════
 async function subscribeRealtime() {
     await pb.collection("messages").subscribe("*", e => {
         const msg = e.record;
 
-        if (msg.tenant !== TENANT) return;
+        if (msg.tenant !== CURRENT_TENANT) return;
         if (messageIds.has(msg.id)) return;
         
         messageIds.add(msg.id);
@@ -394,7 +489,6 @@ async function subscribeRealtime() {
         renderSessionList();
 
         if (activeSession && msg.session === activeSession.session) {
-            // Nếu đang xem đúng phiên có tin nhắn tới, render lại chat
             activeSession = sessions.find(s => s.session === activeSession.session);
             renderMessages();
         }
@@ -402,7 +496,7 @@ async function subscribeRealtime() {
 }
 
 // ═══════════════════════════════════════
-// TIỆN ÍCH
+// UI HELPERS
 // ═══════════════════════════════════════
 function closeChat() {
     document.body.classList.remove("mobile-chat-open");
