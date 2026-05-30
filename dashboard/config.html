@@ -443,21 +443,14 @@ function updatePreview() {
 // GET FORM DATA
 // ═══════════════════════════════════════
 function getFormData() {
-  const selectedModel = document.querySelector('input[name="modelSelection"]:checked');
   return {
-    tenant:        window.TENANT, // FIX 2: Sửa 'tenant_id' thành 'tenant' cho khớp Schema
+    tenant:        window.TENANT, 
     bot_name:      document.getElementById("botName").value.trim(),
     bot_avatar:    document.getElementById("botAvatar").value.trim() || "🤖",
     color:         document.getElementById("botColor").value,
     webhook:       document.getElementById("botWebhook").value.trim(),
-    
-    // Các trường dưới đây form sẽ gửi đi, nếu Schema PB chưa có thì nó tự động bỏ qua, không báo lỗi
     greeting:      document.getElementById("greetingMsg").value.trim(),
-    system_prompt: document.getElementById("systemPrompt").value.trim(),
-    model:         selectedModel?.value || "gpt-4o-mini",
-    temperature:   parseFloat(document.getElementById("tempSlider").value),
-    max_tokens:    parseInt(document.getElementById("maxTokensSlider").value),
-    streaming:     document.getElementById("enableStreaming").checked
+    system_prompt: document.getElementById("systemPrompt").value.trim()
   };
 }
 

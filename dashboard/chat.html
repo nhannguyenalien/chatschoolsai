@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+    <title>AI Assistant</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb', /* Màu xanh gốc của bạn */
+                        surface: '#ffffff',
+                        'surface-variant': '#f8f9fa',
+                        'on-surface': '#212529',
+                        'outline-variant': '#e5e7eb'
+                    },
+                    fontFamily: {
+                        sans: ['"Nunito Sans"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Nunito Sans', sans-serif; }
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Chat Bubbles */
+        .chat-bubble-ai {
+            background-color: theme('colors.surface');
+            color: theme('colors.on-surface');
+            border-radius: 1rem; border-top-left-radius: 0.25rem;
+            border: 1px solid theme('colors.outline-variant');
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+        .chat-bubble-user {
+            background-color: #eff6ff;
+            color: #1e3a8a;
+            border-radius: 1rem; border-top-right-radius: 0.25rem;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+
+        /* Markdown Styles within Bubbles */
+        .chat-bubble-ai p, .chat-bubble-user p { margin-bottom: 0.5rem; }
+        .chat-bubble-ai p:last-child, .chat-bubble-user p:last-child { margin-bottom: 0; }
+        .chat-bubble-ai a { color: #2563eb; text-decoration: underline; }
+        .chat-bubble-ai pre { background: #1e293b; color: #f8fafc; padding: 10px; border-radius: 8px; overflow-x: auto; margin-top: 8px; }
+        .chat-bubble-ai code { font-family: monospace; background: #e2e8f0; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; color: #b91c1c;}
+        .chat-bubble-ai pre code { background: transparent; padding: 0; color: inherit;}
+
+        /* Typing Animation */
+        .typing-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: #64748b;
+            animation: typing 1.2s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); opacity: 0.35; }
+            50% { transform: translateY(-4px); opacity: 1; }
+        }
+
+        /* Mobile Sidebar Transitions */
+        #sidebar { transition: transform 0.3s ease-in-out; }
+        @media (max-width: 768px) {
+            #sidebar.open { transform: translateX(0); }
+            #sidebar.closed { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-on-surface h-screen flex justify-center items-center sm:p-4 md:p-8 overflow-hidden">
+
+<main class="w-full h-full max-w-[1200px] bg-surface sm:rounded-2xl sm:shadow-xl sm:border sm:border-outline-variant flex relative overflow-hidden">
+    
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+    <aside id="sidebar" class="absolute md:relative z-50 w-72 md:w-80 h-full border-r border-outline-variant bg-surface flex flex-col shrink-0 closed md:transform-none">
+        <div class="p-6 border-b border-outline-variant bg-gray-50/50">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px] text-yellow-600">lightbulb</span>
+                    Ghi chú quan trọng
+                </h2>
+                <button class="md:hidden text-gray-500" onclick="toggleSidebar()">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <p class="text-sm text-gray-600 leading-relaxed">
+                Chào mừng <span id="uname-sidebar" class="font-bold text-primary"></span> đến với hệ thống AI. Vui lòng gửi tin nhắn để bắt đầu.
+            </p>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <label class="text-xs font-bold text-gray-700 block mb-1.5">🔗 Lưu phiên chat sang máy khác:</label>
+          <div class="flex items-center bg-white border border-gray-300 rounded-md overflow-hidden focus-within:border-primary transition-colors">
+              <input 
+                  type="text" 
+                  id="session-url" 
+                  readonly 
+                  class="flex-1 bg-transparent text-xs text-gray-500 border-none focus:ring-0 px-2.5 py-2 w-full outline-none truncate cursor-text" 
+              />
+              <button 
+                  onclick="copySessionUrl()" 
+                  class="px-2.5 py-2 bg-gray-50 hover:bg-gray-200 border-l border-gray-300 text-gray-600 transition-colors flex items-center justify-center"
+                  title="Copy đường dẫn">
+                  <span class="material-symbols-outlined text-[16px]" id="copy-icon">content_copy</span>
+              </button>
+          </div>
+      </div>
+
+        <div class="p-6 flex-1 overflow-y-auto">
+            <h2 class="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px] text-blue-600">folder_open</span>
+                Tài liệu đã tải lên
+            </h2>
+            <ul class="space-y-3" id="file-list">
+                <li class="text-xs text-gray-400 italic text-center">Chưa có tài liệu nào</li>
+            </ul>
+        </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col min-w-0 h-full bg-surface-variant relative">
+        
+        <header class="h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-4 md:px-6 shrink-0 shadow-sm z-10">
+            <div class="flex items-center gap-3">
+                <button class="md:hidden p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors" onclick="toggleSidebar()">
+                    <span class="material-symbols-outlined text-[24px]">menu</span>
+                </button>
+                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 text-xl" id="bot-avatar">
+                    🤖
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-gray-900 leading-tight" id="bot-name">AI Assistant</h1>
+                    <p class="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 block animate-pulse"></span>
+                        Online
+                    </p>
+                </div>
+            </div>
+            <div class="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hidden sm:block" id="uname-header">
+                👤 Tên
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4" id="chat-history">
+            </div>
+
+        <div id="typing-indicator" class="hidden px-4 md:px-6 pb-2 mb-2">
+            <div class="flex gap-3 max-w-[85%]">
+                <div class="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-1 text-sm" id="typing-avatar">🤖</div>
+                <div class="chat-bubble-ai py-3 px-4 flex items-center gap-1.5">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-3 md:p-4 bg-surface border-t border-outline-variant shrink-0">
+            <div class="bg-gray-50 rounded-2xl border border-outline-variant p-1.5 flex items-end gap-2 transition-shadow focus-within:shadow-md focus-within:border-primary focus-within:bg-white">
+                
+                <label class="p-2 text-gray-400 hover:text-primary hover:bg-blue-50 rounded-full transition-colors shrink-0 mb-0.5 cursor-pointer" title="Đính kèm file">
+                    <span class="material-symbols-outlined text-[22px]">attach_file</span>
+                    <input type="file" id="file-upload" class="hidden" multiple onchange="handleFileUpload(event)"/>
+                </label>
+
+                <textarea 
+                    class="w-full bg-transparent border-none text-gray-800 placeholder-gray-400 focus:ring-0 resize-none py-2.5 px-1 text-sm md:text-base min-h-[44px] max-h-32 focus:outline-none" 
+                    id="chat-input" 
+                    placeholder="Nhập tin nhắn..." 
+                    rows="1"></textarea>
+
+                <button 
+                    class="p-2.5 bg-primary hover:bg-blue-700 text-white rounded-xl transition-all shrink-0 mb-0.5 opacity-50 cursor-not-allowed shadow-sm" 
+                    disabled 
+                    id="send-btn" 
+                    onclick="send()">
+                    <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">send</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<script>
+/* =========================================
+   1. CORE LOGIC & INITIALIZATION (Your Logic)
+========================================= */
+const pb = new PocketBase("https://nhannguyen123-chat.hf.space");
+
+// TENANT
+const rawTenant = new URLSearchParams(location.search).get("bot");
+const tenant = /^[a-z0-9_-]{1,40}$/i.test(rawTenant || "") ? rawTenant : "bds";
+
+// RANDOM USER
+const adjs = ["Cool","Nhanh","Thông","Hay","Vui","Giỏi","Mượt","Ngầu"];
+const animals = ["Mèo","Chó","Gấu","Cáo","Hổ","Rồng","Thỏ","Vịt"];
+function randomName(){
+    return adjs[Math.floor(Math.random()*adjs.length)] + " " + animals[Math.floor(Math.random()*animals.length)];
+}
+
+let isVerified = false; 
+
+// Hàm kiểm tra khách đã xác thực trong quá khứ chưa
+async function checkVerifyStatus() {
+    try {
+        const records = await pb.collection('verifications').getList(1, 1, {
+            filter: `session='${sessionId}' && status='verified'`
+        });
+        if (records.items.length > 0) {
+            isVerified = true;
+            document.getElementById("verify-btn").classList.add("hidden"); // Giấu nút xác thực đi
+        } else {
+            isVerified = false;
+            document.getElementById("verify-btn").classList.remove("hidden"); // Hiện nút xác thực
+        }
+    } catch (e) { console.log("Lỗi check status:", e); }
+}
+
+
+// CONFIG
+let cfg = {
+    bot_name: "AI Assistant",
+    bot_avatar: "🤖",
+    color: "#2563eb",
+    webhook: "https://bluetech-ai-gateway.toidayhoc.workers.dev/?platform=web&key=nhan123",
+    greeting: "Xin chào! Tôi có thể giúp gì cho bạn?" // Thêm biến greeting mặc định
+};
+
+async function loadConfig(){
+    try{
+        const r = await pb.collection("bot_configs").getFirstListItem(`tenant='${tenant}'`);
+        cfg = {
+            bot_name: r.bot_name || cfg.bot_name,
+            bot_avatar: r.bot_avatar || cfg.bot_avatar,
+            color: r.color || cfg.color,
+            webhook: r.webhook || cfg.webhook,
+            greeting: r.greeting || cfg.greeting // Đọc greeting từ DB
+        };
+    } catch(err){
+        console.log("Use default config");
+    }
+    
+    // Apply UI Config
+    document.documentElement.style.setProperty("--color-primary", cfg.color);
+    document.getElementById("bot-name").textContent = cfg.bot_name;
+    document.getElementById("bot-avatar").textContent = cfg.bot_avatar;
+    document.getElementById("typing-avatar").textContent = cfg.bot_avatar;
+    document.title = cfg.bot_name;
+}
+
+/* =========================================
+   2. UI INTERACTIONS (Mobile Menu & Input)
+========================================= */
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar.classList.contains('closed')) {
+        sidebar.classList.remove('closed');
+        sidebar.classList.add('open');
+        overlay.classList.remove('hidden');
+    } else {
+        sidebar.classList.remove('open');
+        sidebar.classList.add('closed');
+        overlay.classList.add('hidden');
+    }
+}
+
+const inputEl = document.getElementById('chat-input');
+const btnEl = document.getElementById('send-btn');
+
+inputEl.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+    
+    if (this.value.trim().length > 0) {
+        btnEl.classList.remove('opacity-50', 'cursor-not-allowed');
+        btnEl.removeAttribute('disabled');
+    } else {
+        btnEl.classList.add('opacity-50', 'cursor-not-allowed');
+        btnEl.setAttribute('disabled', 'true');
+    }
+});
+
+inputEl.addEventListener("keypress", e => {
+    if(e.key === "Enter" && !e.shiftKey){
+        e.preventDefault();
+        send();
+    }
+});
+
+/* =========================================
+   3. CHAT LOGIC (Render & Send)
+========================================= */
+function appendMsg(r, scroll=true){
+    const history = document.getElementById('chat-history');
+    const isUser = !r.is_bot;
+    
+    // Remove static welcome message if exists
+    const welcomeMsg = document.getElementById('welcome-msg');
+    if (welcomeMsg) welcomeMsg.remove();
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `flex gap-3 max-w-[90%] sm:max-w-[80%] ${isUser ? 'ml-auto flex-row-reverse' : ''}`;
+    
+    const time = new Date(r.created).toLocaleTimeString("vi-VN", { hour:"2-digit", minute:"2-digit" });
+
+    let avatarHtml = '';
+    if (!isUser) {
+        avatarHtml = `<div class="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-1 text-sm">${cfg.bot_avatar}</div>`;
+    }
+
+    const bubbleClass = isUser ? 'chat-bubble-user py-2.5 px-4 text-sm sm:text-base' : 'chat-bubble-ai py-2.5 px-4 text-sm sm:text-base';
+    
+    // Render Markdown & Clean XSS
+    const cleanHTML = DOMPurify.sanitize(marked.parse(r.text));
+
+    msgDiv.innerHTML = `
+        ${avatarHtml}
+        <div class="flex flex-col ${isUser ? 'items-end' : 'items-start'}">
+            <div class="${bubbleClass}">
+                ${cleanHTML}
+            </div>
+            <span class="text-[10px] text-gray-400 mt-1 px-1">${time}</span>
+        </div>
+    `;
+    
+    history.appendChild(msgDiv);
+    
+    if(scroll){
+        history.scrollTop = history.scrollHeight;
+    }
+}
+
+async function loadMsgs(){
+    try{
+        const rows = await pb.collection("messages").getList(1, 100, {
+            sort: "created",
+            filter: `session='${sessionId}' && tenant='${tenant}'`
+        });
+
+        const history = document.getElementById("chat-history");
+        history.innerHTML = "";
+
+        if(!rows.items.length){
+            history.innerHTML = `
+                <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-3 opacity-70">
+                    <span class="text-5xl block mb-2">${cfg.bot_avatar}</span>
+                    <p class="text-sm">Xin chào <strong>${username}</strong>!</p>
+                    <p class="text-xs max-w-[80%] mx-auto font-medium text-gray-700 p-3 bg-gray-100 rounded-lg shadow-sm border border-gray-200">
+                       ${cfg.greeting}
+                    </p>
+                </div>
+            `;
+            return;
+        }
+
+        rows.items.forEach(r => appendMsg(r, false));
+        history.scrollTop = history.scrollHeight;
+
+    } catch(err){
+        console.error(err);
+    }
+}
+
+async function send(){
+    const text = inputEl.value.trim();
+    if(!text) return;
+
+    // Reset Input
+    inputEl.value = "";
+    inputEl.style.height = 'auto';
+    btnEl.classList.add('opacity-50', 'cursor-not-allowed');
+    btnEl.setAttribute('disabled', 'true');
+
+    // Show typing
+    const typingIndicator = document.getElementById("typing-indicator");
+    const history = document.getElementById("chat-history");
+    typingIndicator.classList.remove("hidden");
+    history.scrollTop = history.scrollHeight;
+
+    try {
+        // Save User Message to DB
+        await pb.collection("messages").create({
+            session: sessionId,
+            tenant,
+            username,
+            text,
+            is_bot: false
+        });
+
+        // Fetch Webhook
+        await fetch(cfg.webhook, {
+            method: "POST",
+            headers: { "Content-Type":"application/json" },
+            body: JSON.stringify({
+                question: text,
+                session: sessionId,
+                tenant,
+                platform: "web"
+            })
+        });
+
+    } catch(err) {
+        console.error(err);
+        await pb.collection("messages").create({
+            session: sessionId,
+            tenant,
+            username: cfg.bot_name,
+            text: "⚠️ Kết nối đang gián đoạn, vui lòng thử lại nhé!",
+            is_bot: true
+        });
+    }
+    inputEl.focus();
+}
+
+
+/* =========================================
+   SESSION & SYNC (GIẢI PHÁP ĐA THIẾT BỊ)
+========================================= */
+const urlParams = new URLSearchParams(window.location.search);
+
+// 1. Ưu tiên lấy ID và Tên từ URL, nếu không có mới lấy trong máy, nếu không có nữa thì tạo mới
+let sessionId = urlParams.get("session") || localStorage.getItem("s_"+tenant);
+let username = urlParams.get("u") || localStorage.getItem("u_"+tenant);
+
+if (!sessionId) {
+    sessionId = crypto.randomUUID();
+}
+if (!username) {
+    username = randomName(); 
+}
+
+// 2. Lưu ngược lại vào máy để lần sau vào lại web gốc không bị mất
+localStorage.setItem("s_"+tenant, sessionId);
+localStorage.setItem("u_"+tenant, username);
+
+// 3. Tự động chèn ID vào thanh URL của trình duyệt
+const newUrl = new URL(window.location);
+newUrl.searchParams.set("bot", tenant);
+newUrl.searchParams.set("session", sessionId);
+newUrl.searchParams.set("u", username);
+window.history.replaceState(null, '', newUrl.toString());
+
+// Set hiển thị lên giao diện
+document.getElementById("uname-header").textContent = "👤 " + username;
+document.getElementById("uname-sidebar").textContent = username;
+
+// Đổ link vào ô input để khách copy
+const sessionUrlInput = document.getElementById("session-url");
+if (sessionUrlInput) {
+    sessionUrlInput.value = newUrl.toString();
+}
+
+/* =========================================
+   HÀM COPY LINK XỬ LÝ CLICK
+========================================= */
+function copySessionUrl() {
+    const urlInput = document.getElementById('session-url');
+    const icon = document.getElementById('copy-icon');
+    
+    // Select text (hỗ trợ tốt trên cả mobile)
+    urlInput.select();
+    urlInput.setSelectionRange(0, 99999); 
+    
+    // Copy vào bộ nhớ tạm (Clipboard)
+    navigator.clipboard.writeText(urlInput.value).then(() => {
+        // Đổi icon thành dấu check màu xanh báo hiệu thành công
+        icon.textContent = "check";
+        icon.classList.add("text-green-600");
+        
+        // Trả lại icon cũ sau 2 giây
+        setTimeout(() => {
+            icon.textContent = "content_copy";
+            icon.classList.remove("text-green-600");
+        }, 2000);
+    }).catch(err => {
+        console.error('Lỗi copy: ', err);
+        alert('Có lỗi xảy ra, vui lòng copy thủ công!');
+    });
+}
+/* =========================================
+   4. FILE UPLOAD (MOCK) & REALTIME
+========================================= */
+/* =========================================
+   HÀM LOAD DANH SÁCH FILE (CÓ THUMBNAIL)
+========================================= */
+// ⚠️ QUAN TRỌNG: Đổi chữ 'file' ở dưới thành đúng tên cột chứa file trong bảng tai_lieu của bác
+const FILE_COLUMN = 'file'; 
+
+async function loadFileList() {
+    try {
+        const records = await pb.collection('tai_lieu').getList(1, 50, {
+            filter: `session='${sessionId}' && tenant='${tenant}'`,
+            sort: '-created' 
+        });
+
+        const fileList = document.getElementById('file-list');
+        fileList.innerHTML = ''; 
+
+        if (records.items.length === 0) {
+            fileList.innerHTML = '<li class="text-xs text-gray-400 italic text-center">Chưa có tài liệu nào</li>';
+            return;
+        }
+
+        records.items.forEach(record => {
+            const fileName = record.original_name || "Tài liệu";
+            // Lấy link file an toàn bằng FILE_COLUMN
+            const fileUrl = pb.files.getUrl(record, record[FILE_COLUMN]); 
+            
+            const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+            
+            // Xử lý hiển thị Thumbnail nhỏ gọn để dễ quản lý
+            let previewHtml = isImage 
+                ? `<img src="${fileUrl}" class="w-10 h-10 rounded-md object-cover border border-gray-200 shrink-0" alt="preview"/>`
+                : `<div class="w-10 h-10 rounded-md bg-blue-50 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-blue-500 text-[20px]">description</span></div>`;
+            
+            const li = document.createElement('li');
+            li.className = 'flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200 shadow-sm hover:border-blue-300 transition-colors cursor-pointer';
+            li.onclick = () => window.open(fileUrl, '_blank'); 
+            
+            li.innerHTML = `
+                ${previewHtml}
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-700 truncate" title="${fileName}">${fileName}</p>
+                    <p class="text-[10px] text-gray-400">Bấm để xem</p>
+                </div>
+            `;
+            fileList.appendChild(li);
+        });
+    } catch (error) {
+        console.error("Lỗi tải danh sách file:", error);
+    }
+}
+
+/* =========================================
+   HÀM UPLOAD FILE 
+========================================= */
+async function handleFileUpload(event) {
+    const files = event.target.files;
+    if (files.length === 0) return;
+
+    if (!isVerified) {
+        event.target.value = ''; // Xóa file vừa chọn để tránh lỗi
+        
+        // Cảnh báo nhẹ nhàng và mở luôn form xác thực
+        alert("Để đảm bảo an toàn và hỗ trợ tốt nhất, vui lòng xác thực Số điện thoại trước khi đính kèm hình ảnh/tài liệu nhé!");
+        startVerification(); 
+        return; 
+    }
+
+    const file = files[0]; 
+
+    const uploadLabel = event.target.parentElement;
+    const originalContent = uploadLabel.innerHTML;
+    uploadLabel.innerHTML = '<span class="material-symbols-outlined animate-spin text-[22px] text-blue-500">sync</span>';
+    uploadLabel.classList.add('pointer-events-none'); 
+
+    try {
+        const formData = new FormData();
+        formData.append(FILE_COLUMN, file); 
+        formData.append('tenant', tenant);
+        formData.append('session', sessionId);
+        formData.append('original_name', file.name); 
+
+        // 1. Đẩy file lên S3/PocketBase
+        const record = await pb.collection('tai_lieu').create(formData);
+        const fileUrl = pb.files.getUrl(record, record[FILE_COLUMN]); 
+        
+        // 2. Tạo nội dung tin nhắn an toàn bằng thẻ HTML thay vì Markdown
+        const isImage = file.name.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+        let fileMessage = "";
+        
+        if (isImage) {
+            fileMessage = `🖼️ **Đã gửi hình ảnh:**<br><img src="${fileUrl}" style="max-width: 100%; border-radius: 12px; margin-top: 8px; border: 1px solid #e5e7eb;" alt="image"/>`;
+        } else {
+            fileMessage = `📁 **Đã gửi tài liệu:** <a href="${fileUrl}" target="_blank" style="color: #2563eb; text-decoration: underline;">${file.name}</a>`;
+        }
+
+        // 3. Lưu tin nhắn vào khung chat
+        await pb.collection("messages").create({
+            session: sessionId,
+            tenant,
+            username,
+            text: fileMessage,
+            is_bot: false
+        });
+
+        // 4. Update Sidebar ngay lập tức (Có chữ await để đảm bảo đợi load xong)
+        await loadFileList(); 
+
+    } catch (error) {
+        console.error("Lỗi khi upload:", error);
+        alert("Upload thất bại, vui lòng thử lại!");
+    } finally {
+        uploadLabel.innerHTML = originalContent;
+        uploadLabel.classList.remove('pointer-events-none');
+        event.target.value = ''; 
+    }
+}
+// REALTIME LISTENER
+pb.collection("messages").subscribe("*", e => {
+    // Chỉ xử lý các tin nhắn thuộc đúng tenant và session của khách hàng hiện tại
+    if (e.record.tenant === tenant && e.record.session === sessionId) {
+        
+        // Nếu là hành động TẠO MỚI tin nhắn (create)
+        if (e.action === "create") {
+            appendMsg(e.record);
+
+            if (e.record.is_bot) {
+                // Nếu là Bot trả lời: Ẩn ngay hiệu ứng gõ chữ và mở lại nút gửi
+                document.getElementById("typing-indicator").classList.add("hidden");
+                const btn = document.getElementById("send-btn");
+                // Kiểm tra nếu ô input vẫn trống thì khóa nút, có chữ thì mở nút
+                if (document.getElementById("chat-input").value.trim().length === 0) {
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                    btn.setAttribute('disabled', 'true');
+                } else {
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btn.removeAttribute('disabled');
+                }
+            } else {
+                // Nếu là User nhắn: Đảm bảo hiệu ứng hiển thị gõ chữ của Bot được bật lên 
+                // trong lúc chờ n8n xử lý dữ liệu ngầm
+                document.getElementById("typing-indicator").classList.remove("hidden");
+                const history = document.getElementById("chat-history");
+                history.scrollTop = history.scrollHeight;
+            }
+        }
+    }
+});
+
+// CLEANUP
+window.addEventListener("beforeunload", () => {
+    pb.collection("messages").unsubscribe();
+});
+
+// START
+(async () => {
+    await loadConfig();
+    await loadMsgs();
+    await loadFileList();
+    await checkVerifyStatus();
+})();
+
+let currentVerifyId = null;
+
+async function startVerification() {
+    document.getElementById('verify-modal').classList.remove('hidden');
+    document.getElementById('verify-step-1').classList.remove('hidden');
+    document.getElementById('verify-step-2').classList.add('hidden');
+    
+    // Sinh mã ngẫu nhiên
+    const code = "HT" + Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // ĐIỀN USERNAME BOT TELEGRAM CỦA BÁC VÀO ĐÂY:
+    document.getElementById('telegram-link').href = `https://t.me/TEN_BOT_CUA_BAC_BOT?start=${code}`;
+
+    try {
+        // Tạo record lên PB
+        const record = await pb.collection('verifications').create({
+            session: sessionId,
+            code: code,
+            status: "pending"
+        });
+        currentVerifyId = record.id;
+
+        // Bật Realtime lắng nghe Worker
+        pb.collection('verifications').subscribe(currentVerifyId, function (e) {
+            if (e.action === "update" && e.record.status === "verified") {
+                isVerified = true;
+                document.getElementById('verify-step-1').classList.add('hidden');
+                document.getElementById('verify-step-2').classList.remove('hidden');
+                document.getElementById('verified-phone-display').innerText = "SĐT: " + e.record.phone;
+                document.getElementById('new-username-input').value = username; 
+                pb.collection('verifications').unsubscribe(currentVerifyId);
+            }
+        });
+    } catch (err) { console.error(err); }
+}
+
+function closeVerifyModal() {
+    document.getElementById('verify-modal').classList.add('hidden');
+    if(currentVerifyId) pb.collection('verifications').unsubscribe(currentVerifyId);
+}
+
+async function saveNewName() {
+    username = document.getElementById('new-username-input').value.trim() || username;
+    localStorage.setItem("u_"+tenant, username);
+    document.getElementById("uname-header").textContent = "👤 " + username;
+    document.getElementById("uname-sidebar").textContent = username;
+    document.getElementById("verify-btn").classList.add("hidden"); 
+    closeVerifyModal();
+    
+    await pb.collection("messages").create({
+        session: sessionId, tenant, username: cfg.bot_name,
+        text: `✅ **Hệ thống:** Khách hàng đã xác thực SĐT thành công.`,
+        is_bot: true
+    });
+}
+
+</script>
+
+<div id="verify-modal" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative text-center">
+        <button onclick="closeVerifyModal()" class="absolute top-3 right-3 text-gray-400 hover:text-gray-700">
+            <span class="material-symbols-outlined">close</span>
+        </button>
+        
+        <div id="verify-step-1">
+            <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.26-5.61 3.71-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.06-.49-.83-.27-1.49-.42-1.43-.89.03-.24.38-.49 1.04-.75 4.08-1.78 6.81-2.92 8.18-3.48 3.9-1.59 4.71-1.87 5.24-1.88.12 0 .38.03.52.14.12.09.15.22.16.32.01.12.01.24 0 .32z"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Xác thực danh tính</h3>
+            <p class="text-sm text-gray-600 mb-4">Bấm vào nút bên dưới để mở ứng dụng Telegram và chia sẻ số điện thoại an toàn.</p>
+            
+            <a id="telegram-link" href="#" target="_blank" class="w-full inline-flex items-center justify-center gap-2 bg-[#2AABEE] hover:bg-[#2299d6] text-white font-bold py-3 px-4 rounded-xl transition-colors mb-4">
+                Mở Telegram ngay
+                <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+            </a>
+            
+            <div class="flex items-center justify-center gap-2 text-sm text-yellow-600 font-medium mt-2">
+                <span class="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                Đang chờ bạn xác nhận trên Telegram...
+            </div>
+        </div>
+
+        <div id="verify-step-2" class="hidden">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-green-600 text-[32px]">check_circle</span>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Xác thực thành công!</h3>
+            <p class="text-sm text-green-600 font-medium mb-4" id="verified-phone-display"></p>
+            
+            <div class="mb-4 text-left">
+                <label class="block text-xs font-bold text-gray-700 mb-1">Tên hiển thị của bạn:</label>
+                <input type="text" id="new-username-input" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <button onclick="saveNewName()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                Lưu tên & Bắt đầu chat
+            </button>
+        </div>
+    </div>
+</div>
+</body>
+</html>

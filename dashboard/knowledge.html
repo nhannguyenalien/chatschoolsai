@@ -359,18 +359,14 @@ let editingDocId = null;
 // ═══════════════════════════════════════
 async function loadDocs() {
   try {
-    // API Rules tự filter theo tenant_id
     const rows = await PB.collection("documents").getList(1, 500, {
         sort: "-created",
         filter: `tenant="${window.TENANT}"`
-        });
+    });
     allDocs = rows.items;
     filteredDocs = [...allDocs];
 
-    
-    // Tính chunk count per doc
-    await loadChunkCounts();
-
+    // ĐÃ XÓA hàm loadChunkCounts() ở đây vì AnythingLLM tự quản lý chunk
     renderStats();
     renderTable();
   } catch (err) {
@@ -402,10 +398,10 @@ async function loadChunkCounts() {
 // RENDER STATS
 // ═══════════════════════════════════════
 function renderStats() {
-  const totalChunks = allDocs.reduce((s, d) => s + (d._chunkCount || 0), 0);
   const totalChars  = allDocs.reduce((s, d) => s + (d.char_count || 0), 0);
+  
   document.getElementById("stat-docs").textContent   = allDocs.length;
-  document.getElementById("stat-chunks").textContent = totalChunks;
+  document.getElementById("stat-chunks").textContent = "Auto"; // Giao cho AnythingLLM lo
   document.getElementById("stat-chars").textContent  = totalChars >= 1000
     ? (totalChars / 1000).toFixed(1) + "k"
     : totalChars;
@@ -448,14 +444,14 @@ function renderTable() {
         </div>
       </td>
       <td class="px-4 py-4">
-        ${doc._chunkCount
+        ${doc.anything_path
           ? `<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E6F4EA] text-[#137333] border border-[#CEEAD6]">
                <span class="w-1.5 h-1.5 rounded-full bg-[#137333]"></span>
-               <span class="font-label-md text-label-md font-bold whitespace-nowrap">${doc._chunkCount} chunks</span>
+               <span class="font-label-md text-label-md font-bold whitespace-nowrap">Đã học (AI)</span>
              </div>`
           : `<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-variant text-on-surface-variant border border-outline-variant">
                <span class="material-symbols-outlined text-[14px]">pending</span>
-               <span class="font-label-md text-label-md font-bold whitespace-nowrap">Chưa embed</span>
+               <span class="font-label-md text-label-md font-bold whitespace-nowrap">Chờ đồng bộ</span>
              </div>`
         }
       </td>
@@ -577,7 +573,7 @@ async function saveDoc() {
       char_count: content.length
     });
 
-    showToast(`✓ Đã lưu "${title}" — ${data.chunks_count} chunks`, "success");
+    showToast(`✓ Đã đồng bộ "${title}" vào hệ thống AI`, "success");
     document.getElementById("doc-title").value   = "";
     document.getElementById("doc-content").value = "";
     document.getElementById("char-counter").textContent = "0 / 50,000";
