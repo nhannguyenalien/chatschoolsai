@@ -89,6 +89,7 @@
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="toggleSidebar()"></div>
 
     <aside id="sidebar" class="absolute md:relative z-50 w-72 md:w-80 h-full border-r border-outline-variant bg-surface flex flex-col shrink-0 closed md:transform-none">
+        
         <div class="p-6 border-b border-outline-variant bg-gray-50/50">
             <div class="flex justify-between items-center mb-2">
                 <h2 class="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -223,10 +224,8 @@ async function checkVerifyStatus() {
         });
         if (records.items.length > 0) {
             isVerified = true;
-            document.getElementById("verify-btn").classList.add("hidden"); // Giấu nút xác thực đi
         } else {
             isVerified = false;
-            document.getElementById("verify-btn").classList.remove("hidden"); // Hiện nút xác thực
         }
     } catch (e) { console.log("Lỗi check status:", e); }
 }
@@ -445,6 +444,8 @@ if (!username) {
     username = randomName(); 
 }
 
+
+
 // 2. Lưu ngược lại vào máy để lần sau vào lại web gốc không bị mất
 localStorage.setItem("s_"+tenant, sessionId);
 localStorage.setItem("u_"+tenant, username);
@@ -655,6 +656,22 @@ window.addEventListener("beforeunload", () => {
     await loadMsgs();
     await loadFileList();
     await checkVerifyStatus();
+
+    if (urlParams.get("show_name") === "1") {
+    // Mở sẵn form bước 2
+    document.getElementById('verify-modal').classList.remove('hidden');
+    document.getElementById('verify-step-1').classList.add('hidden');
+    document.getElementById('verify-step-2').classList.remove('hidden');
+    
+    // Xóa tên cũ, bắt nhập tên mới
+    document.getElementById('new-username-input').value = "";
+    document.getElementById('new-username-input').placeholder = "Nhập tên thật của bạn (VD: Anh Tuấn)...";
+    
+    // Xóa chữ show_name trên URL đi để F5 không bị nảy form lại
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.delete("show_name");
+    window.history.replaceState(null, '', currentUrl.toString());
+}
 })();
 
 let currentVerifyId = null;
@@ -668,12 +685,14 @@ async function startVerification() {
     const code = "HT" + Math.floor(100000 + Math.random() * 900000).toString();
     
     // ĐIỀN USERNAME BOT TELEGRAM CỦA BÁC VÀO ĐÂY:
-    document.getElementById('telegram-link').href = `https://t.me/TEN_BOT_CUA_BAC_BOT?start=${code}`;
+    document.getElementById('telegram-link').href = `https://t.me/verifyschoolaibot?start=${code}`;
 
     try {
         // Tạo record lên PB
         const record = await pb.collection('verifications').create({
             session: sessionId,
+            tenant: tenant,
+            domain: window.location.origin,
             code: code,
             status: "pending"
         });
@@ -686,7 +705,12 @@ async function startVerification() {
                 document.getElementById('verify-step-1').classList.add('hidden');
                 document.getElementById('verify-step-2').classList.remove('hidden');
                 document.getElementById('verified-phone-display').innerText = "SĐT: " + e.record.phone;
-                document.getElementById('new-username-input').value = username; 
+                
+                // --- SỬA THÀNH 2 DÒNG NÀY ---
+                document.getElementById('new-username-input').value = ""; 
+                document.getElementById('new-username-input').placeholder = "Nhập tên thật của bạn (VD: Anh Tuấn)...";
+                // ----------------------------
+                
                 pb.collection('verifications').unsubscribe(currentVerifyId);
             }
         });
@@ -699,16 +723,41 @@ function closeVerifyModal() {
 }
 
 async function saveNewName() {
-    username = document.getElementById('new-username-input').value.trim() || username;
+    const newName = document.getElementById('new-username-input').value.trim();
+    
+    // 1. ÉP KHÁCH NHẬP TÊN THẬT
+    if (!newName) {
+        alert("Vui lòng nhập tên của bạn để hệ thống tiện xưng hô nhé!");
+        document.getElementById('new-username-input').focus();
+        return;
+    }
+
+    // 2. Lưu tên mới vào máy
+    username = newName;
     localStorage.setItem("u_"+tenant, username);
+    
+    // 3. ÉP TÊN THẬT LÊN URL (Để khi copy link sang máy khác dùng luôn tên này)
+    const newUrl = new URL(window.location);
+    newUrl.searchParams.set("u", username);
+    window.history.replaceState(null, '', newUrl.toString());
+    
+    // Cập nhật link ở ô Copy
+    const sessionUrlInput = document.getElementById("session-url");
+    if (sessionUrlInput) sessionUrlInput.value = newUrl.toString();
+    
+    // 4. Cập nhật giao diện
     document.getElementById("uname-header").textContent = "👤 " + username;
     document.getElementById("uname-sidebar").textContent = username;
-    document.getElementById("verify-btn").classList.add("hidden"); 
-    closeVerifyModal();
+     
     
+    closeVerifyModal();
+
+    // 5. Bắn thông báo vào chat
     await pb.collection("messages").create({
-        session: sessionId, tenant, username: cfg.bot_name,
-        text: `✅ **Hệ thống:** Khách hàng đã xác thực SĐT thành công.`,
+        session: sessionId, 
+        tenant, 
+        username: cfg.bot_name,
+        text: `✅ **Hệ thống:** Khách hàng đã xác thực SĐT và đổi tên thành **${username}**.`,
         is_bot: true
     });
 }
