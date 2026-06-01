@@ -195,6 +195,17 @@
             <div class="h-16 border-b border-outline-variant flex items-center px-5 shrink-0 bg-white shadow-sm z-10">
                 <h3 class="font-semibold text-[15px] text-on-surface">Thông tin chi tiết</h3>
             </div>
+            <div class="p-5 border-b border-outline-variant">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-xs font-bold text-outline uppercase tracking-wider">Hệ thống & Thiết bị</h4>
+                        <span class="material-symbols-outlined text-[18px] text-outline">devices</span>
+                    </div>
+                    <div id="admin-user-info">
+                        <div class="text-sm text-outline text-center py-4 bg-white rounded-xl border border-dashed border-outline-variant">
+                            Đang tải...
+                        </div>
+                    </div>
+                </div>
             
             <div class="flex-1 overflow-y-auto p-5 bg-surface/20">
                 <div class="flex items-center justify-between mb-4">
@@ -222,6 +233,7 @@ let allMessages = [];
 let sessions = [];
 let activeSession = null;
 let messageIds = new Set();
+let verifiedUsers = {};
 
 const sessionListItemsEl = document.getElementById("session-list-items");
 const messagesArea = document.getElementById("messages-area");
@@ -263,15 +275,30 @@ marked.setOptions({ breaks: true });
 // XỬ LÝ DỮ LIỆU CHAT
 // ═══════════════════════════════════════
 async function loadMessages() {
-    const result = await pb.collection("messages").getList(1, 1000, {
-        sort: "-created",
-        filter: `tenant="${CURRENT_TENANT}"` 
-    });
+    // 1. Tải cả Tin nhắn và Thông tin Xác thực cùng lúc
+    // CHÚ Ý: Bỏ điều kiện status='verified' ở đây để tránh lỗi 400 từ PocketBase Rule
+    const [msgResult, verifyResult] = await Promise.all([
+        pb.collection("messages").getList(1, 1000, {
+            sort: "-created",
+            filter: `tenant="${CURRENT_TENANT}"` 
+        }),
+        pb.collection("verifications").getList(1, 1000, {
+            filter: `tenant="${CURRENT_TENANT}"` 
+        })
+    ]);
 
+    // 2. Lưu SĐT vào biến tạm (Chỉ lấy những thằng đã verified)
+    verifiedUsers = {};
+    for (const v of verifyResult.items) {
+        if (v.status === "verified") { // Lọc bằng Javascript ở đây
+            verifiedUsers[v.session] = v;
+        }
+    }
+
+    // 3. Xử lý tin nhắn
     allMessages = [];
     messageIds.clear();
-
-    for (const msg of result.items) {
+    for (const msg of msgResult.items) {
         if (messageIds.has(msg.id)) continue;
         messageIds.add(msg.id);
         allMessages.push(msg);
@@ -291,8 +318,14 @@ function buildSessions() {
                 username: "Khách hàng",
                 messages: [],
                 lastMessage: msg.text || "Đã gửi tệp",
-                lastCreated: msg.created
+                lastCreated: msg.created,
+                isVerified: !!verifiedUsers[msg.session], // <--- BƠM THÊM DÒNG NÀY
+                phone: verifiedUsers[msg.session]?.phone || "",
+                clientMeta: null
             };
+        }
+        if (msg.client_meta && !map[msg.session].clientMeta) {
+            map[msg.session].clientMeta = msg.client_meta;
         }
         
         map[msg.session].messages.push(msg);
@@ -304,7 +337,9 @@ function buildSessions() {
 
         // Lấy tên khách hàng (Loại trừ Bot và Admin)
         if (!msg.is_bot && msg.username !== "Admin") {
-            map[msg.session].username = msg.username;
+            if (map[msg.session].username === "Khách hàng") {
+                map[msg.session].username = msg.username;
+            }
         }
     }
 
@@ -343,7 +378,8 @@ function renderSessionList() {
         // Gọt sạch HTML cho phần xem trước
         let previewText = (session.lastMessage || "").replace(/<\/?[^>]+(>|$)/g, "").replace(/\*\*/g, "");
         if (previewText.length > 40) previewText = previewText.substring(0, 40) + "...";
-
+        const verifyIcon = session.isVerified ? `<span class="material-symbols-outlined text-blue-500 text-[14px] align-middle ml-1" title="SĐT: ${session.phone}">verified</span>` : '';
+        
         div.innerHTML = `
             <div class="flex items-start gap-3">
                 <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-sm border border-outline-variant">
@@ -351,7 +387,7 @@ function renderSessionList() {
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-baseline mb-1">
-                        <h4 class="font-semibold text-sm text-on-surface truncate pr-2">${escapeHtml(session.username)}</h4>
+                        <h4 class="font-semibold text-sm text-on-surface truncate pr-2">${escapeHtml(session.username)}${verifyIcon}</h4>
                         <span class="text-[11px] text-outline whitespace-nowrap">${time}</span>
                     </div>
                     <p class="text-xs text-on-surface-variant truncate">${previewText}</p>
@@ -370,11 +406,15 @@ function openChat(sessionId) {
     activeSession = sessions.find(s => s.session === sessionId);
     if (!activeSession) return;
 
-    chatTitleEl.textContent = activeSession.username;
+    const verifyIcon = activeSession.isVerified ? `<span class="material-symbols-outlined text-blue-500 text-[18px] align-middle ml-1" title="Đã xác thực">verified</span>` : '';
+    const phoneBadge = activeSession.phone ? `<span class="ml-2 px-2.5 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200 shadow-sm align-middle">📞 ${activeSession.phone}</span>` : '';
+    
+    chatTitleEl.innerHTML = `${escapeHtml(activeSession.username)}${verifyIcon}${phoneBadge}`;
     chatAvatarEl.textContent = (activeSession.username || "KH").slice(0, 2).toUpperCase();
     
     renderSessionList(); 
     renderMessages();
+    renderUserInfo();
     loadAdminFiles(sessionId);
 }
 
@@ -509,6 +549,49 @@ async function subscribeRealtime() {
 
 function closeChat() { document.body.classList.remove("mobile-chat-open"); }
 function escapeHtml(str = "") { return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"); }
+// ═══════════════════════════════════════
+// HIỂN THỊ THÔNG TIN HỆ THỐNG
+// ═══════════════════════════════════════
+function renderUserInfo() {
+    const infoEl = document.getElementById("admin-user-info");
+    if (!infoEl) return;
+
+    const meta = activeSession?.clientMeta;
+    
+    // Nếu khách chat từ trước lúc bạn gắn lấy Meta, thì bỏ qua
+    if (!meta || Object.keys(meta).length === 0) {
+        infoEl.innerHTML = '<div class="text-sm text-outline text-center py-4 bg-white rounded-xl border border-dashed border-outline-variant">Chưa có thông tin hệ thống</div>';
+        return;
+    }
+
+    // Tương thích với key JSON của Worker (location hoặc loc)
+    const loc = meta.location || meta.loc || 'Không rõ';
+
+    infoEl.innerHTML = `
+        <div class="bg-white p-3.5 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-3">
+            <div class="flex items-center gap-2.5 text-sm">
+                <span class="material-symbols-outlined text-[18px] text-primary">public</span>
+                <span class="text-on-surface font-medium">IP:</span>
+                <span class="text-on-surface-variant ml-auto font-mono text-xs">${meta.ip || '---'}</span>
+            </div>
+            <div class="flex items-center gap-2.5 text-sm">
+                <span class="material-symbols-outlined text-[18px] text-primary">smartphone</span>
+                <span class="text-on-surface font-medium">Thiết bị:</span>
+                <span class="text-on-surface-variant ml-auto">${meta.device || '---'}</span>
+            </div>
+            <div class="flex items-center gap-2.5 text-sm">
+                <span class="material-symbols-outlined text-[18px] text-primary">web</span>
+                <span class="text-on-surface font-medium">Trình duyệt:</span>
+                <span class="text-on-surface-variant ml-auto">${meta.browser || '---'}</span>
+            </div>
+            <div class="flex items-center gap-2.5 text-sm">
+                <span class="material-symbols-outlined text-[18px] text-primary">location_on</span>
+                <span class="text-on-surface font-medium">Vị trí:</span>
+                <span class="text-on-surface-variant ml-auto truncate max-w-[120px]" title="${loc}">${loc}</span>
+            </div>
+        </div>
+    `;
+}
 </script>
 </body>
 </html>

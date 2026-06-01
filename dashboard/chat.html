@@ -227,6 +227,7 @@ async function checkVerifyStatus() {
         } else {
             isVerified = false;
         }
+        updateNameUI();
     } catch (e) { console.log("Lỗi check status:", e); }
 }
 
@@ -458,8 +459,7 @@ newUrl.searchParams.set("u", username);
 window.history.replaceState(null, '', newUrl.toString());
 
 // Set hiển thị lên giao diện
-document.getElementById("uname-header").textContent = "👤 " + username;
-document.getElementById("uname-sidebar").textContent = username;
+
 
 // Đổ link vào ô input để khách copy
 const sessionUrlInput = document.getElementById("session-url");
@@ -746,8 +746,7 @@ async function saveNewName() {
     if (sessionUrlInput) sessionUrlInput.value = newUrl.toString();
     
     // 4. Cập nhật giao diện
-    document.getElementById("uname-header").textContent = "👤 " + username;
-    document.getElementById("uname-sidebar").textContent = username;
+    updateNameUI();
      
     
     closeVerifyModal();
@@ -762,6 +761,50 @@ async function saveNewName() {
     });
 }
 
+// ==========================================
+// CẬP NHẬT GIAO DIỆN TÊN + TÍCH XANH + NÚT SỬA
+// ==========================================
+function updateNameUI() {
+    // Nếu đã verify -> Hiện tích xanh và nút sửa
+    const verifyHtml = isVerified 
+        ? `<span class="material-symbols-outlined text-blue-500 text-[18px] align-middle ml-0.5" title="Đã xác thực SĐT">verified</span>` 
+        : ``;
+        
+    const editHtml = isVerified 
+        ? `<span class="material-symbols-outlined text-gray-400 hover:text-blue-600 cursor-pointer text-[18px] align-middle ml-2" onclick="openEditNameModal()" title="Đổi tên">edit_square</span>` 
+        : ``;
+
+    // Render lên Header (Góc trên bên phải)
+    const headerEl = document.getElementById("uname-header");
+    if (headerEl) {
+        headerEl.innerHTML = `👤 <span class="font-bold">${username}</span> ${verifyHtml} ${editHtml}`;
+    }
+
+    // Render lên Sidebar (Thanh menu bên trái)
+    const sidebarEl = document.getElementById("uname-sidebar");
+    if (sidebarEl) {
+        sidebarEl.innerHTML = `${username} ${verifyHtml}`;
+    }
+}
+
+
+updateNameUI();
+// ==========================================
+// MỞ LẠI POPUP NHƯNG CHỈ ĐỂ ĐỔI TÊN
+// ==========================================
+function openEditNameModal() {
+    document.getElementById('verify-modal').classList.remove('hidden');
+    document.getElementById('verify-step-1').classList.add('hidden');
+    document.getElementById('verify-step-2').classList.remove('hidden');
+    
+    // Đổi chữ "Xác thực thành công" thành "Đổi tên" cho hợp ngữ cảnh
+    document.querySelector('#verify-step-2 h3').innerText = "Cập nhật tên hiển thị";
+    document.getElementById('verified-phone-display').innerText = "Đang dùng tên: " + username;
+    
+    // Điền sẵn tên cũ vào để khách sửa
+    document.getElementById('new-username-input').value = username;
+    document.getElementById('new-username-input').focus();
+}
 </script>
 
 <div id="verify-modal" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-center justify-center p-4">
