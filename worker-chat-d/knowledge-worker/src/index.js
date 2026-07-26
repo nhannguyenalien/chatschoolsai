@@ -87,7 +87,13 @@ async function getPbToken(env) {
   });
   const data = await res.json();
   if (!data.token) throw new Error("PocketBase auth th\u1EA5t b\u1EA1i");
-  _pbToken = `Admin ${data.token}`;
+  // QUAN TR\u1ECCNG: PocketBase (b\u1EA3n /api/admins/auth-with-password) y\xEAu c\u1EA7u header Authorization
+  // l\xE0 CH\xCDNH token th\u1EADt, KH\xD4NG th\xEAm ti\u1EC1n t\u1ED1 "Admin ". N\u1EBFu th\xEAm v\xE0o, PocketBase kh\xF4ng nh\u1EADn
+  // di\u1EC7n \u0111\u01B0\u1EE3c \u0111\xE2y l\xE0 admin -> request b\u1ECB coi nh\u01B0 \u1EA9n danh. V\u1EDBi collection c\xF3 createRule/updateRule
+  // r\u1ED7ng ("") th\u00EC v\u1EABn qua \u0111\u01B0\u1EE3c (ai c\u0169ng \u0111\u01B0\u1EE3c ph\xE9p) n\xEAn kh\xF4ng l\u1ED9 ra, nh\u01B0ng v\u1EDBi collection c\xF3 rule
+  // th\u1EADt (vd "posts", "post_targets": @request.auth.id != "") th\u00EC m\u1ECDi request ghi \u0111\u1EC1u b\u1ECB t\u1EEB ch\u1ED1i
+  // \xE2m th\u1EA7m (PocketBase tr\u1EA3 "Failed to create record." kh\xF4ng r\xF5 l\xFD do).
+  _pbToken = data.token;
   _pbTokenTime = now;
   return _pbToken;
 }
@@ -288,11 +294,14 @@ async function ensureWorkspaceExists(tenant, env) {
         }
       }
     );
-    const checkData = await checkRes.json();
-    console.log(
-      "[Workspace Check]",
-      JSON.stringify(checkData)
-    );
+    const checkRawText = await checkRes.text();
+    console.log(`[Workspace Check] status=${checkRes.status} raw=${checkRawText.slice(0, 300)}`);
+    let checkData;
+    try {
+      checkData = JSON.parse(checkRawText);
+    } catch (parseErr) {
+      throw new Error(`AnythingLLM trả về response kh\xF4ng phải JSON hợp lệ khi check workspace (status ${checkRes.status}): ${checkRawText.slice(0, 200)}`);
+    }
     if (checkData.workspace && checkData.workspace.length > 0) {
       return;
     }
@@ -1551,10 +1560,20 @@ __name(handleApiStatus, "handleApiStatus");
 // bỏ qua tenant client tự gửi lên (nếu c\xF3) — tr\xE1nh 1 tenant giả mạo tenant kh\xE1c qua body.
 async function callInternalHandlerWithForcedTenant(request, env, cors, tenant, innerHandler) {
   const body = await request.json().catch(() => ({}));
+  // KHÔNG copy nguyên request.headers — header Content-Length của request GỐC không khớp với
+  // body MỚI (dài hơn do thêm field tenant), khiến request.json() ở innerHandler đọc bị cắt cụt
+  // giữa chừng ("Unexpected end of JSON input"). Chỉ giữ lại header thật sự cần, để runtime tự
+  // tính Content-Length đúng theo body mới.
+  const newHeaders = new Headers({ "Content-Type": "application/json" });
+  const ua = request.headers.get("user-agent");
+  if (ua) newHeaders.set("user-agent", ua);
+  const cfIp = request.headers.get("cf-connecting-ip");
+  if (cfIp) newHeaders.set("cf-connecting-ip", cfIp);
   const forcedRequest = new Request(request.url, {
     method: "POST",
-    headers: request.headers,
-    body: JSON.stringify({ ...body, tenant })
+    headers: newHeaders,
+    body: JSON.stringify({ ...body, tenant }),
+    cf: request.cf
   });
   return await innerHandler(forcedRequest, env, cors);
 }
