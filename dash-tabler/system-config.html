@@ -89,11 +89,12 @@
                 <div class="mb-3">
                   <label class="form-label">ANYTHINGLLM_URL</label>
                   <input type="text" id="cfg-anythingllm-url" class="form-control font-monospace" placeholder="https://your-anythingllm-vps.com/">
-                  <small class="form-hint">Nhớ có dấu <code>/</code> ở cuối, đúng như code đang ghép chuỗi.</small>
+                  <small class="form-hint"><span class="text-warning"><i class="ti ti-alert-triangle"></i> Cần bạn tự điền</span> — đây là Cloudflare secret, tôi chưa từng thấy giá trị cũ nên không điền sẵn được. Nhớ có dấu <code>/</code> ở cuối, đúng như code đang ghép chuỗi.</small>
                 </div>
                 <div class="mb-3">
                   <label class="form-label">ANYTHINGLLM_API_KEY</label>
                   <input type="text" id="cfg-anythingllm-key" class="form-control font-monospace" placeholder="sk-...">
+                  <small class="form-hint text-warning"><i class="ti ti-alert-triangle"></i> Cần bạn tự điền — lấy trong giao diện admin của AnythingLLM (VPS mới).</small>
                 </div>
               </div>
             </div>
@@ -103,6 +104,7 @@
               <div class="card-body">
                 <label class="form-label">TELEGRAM_BOT_TOKEN</label>
                 <input type="text" id="cfg-telegram-token" class="form-control font-monospace" placeholder="123456:ABC-...">
+                <small class="form-hint text-warning"><i class="ti ti-alert-triangle"></i> Cần bạn tự điền — lấy lại từ @BotFather trên Telegram nếu không nhớ token cũ.</small>
               </div>
             </div>
           </div>
@@ -114,6 +116,7 @@
                 <div class="mb-3">
                   <label class="form-label">OPENAI_KEY</label>
                   <input type="text" id="cfg-openai-key" class="form-control font-monospace" placeholder="sk-...">
+                  <small class="form-hint text-warning"><i class="ti ti-alert-triangle"></i> Cần bạn tự điền — Cloudflare secret, không đọc lại được giá trị cũ.</small>
                 </div>
                 <div class="row g-2">
                   <div class="col-12 mb-2">
@@ -271,8 +274,17 @@ async function loadConfig() {
         setVal('cfg-admin-secret', r.admin_secret);
         setVal('cfg-dashboard-url', r.dashboard_url);
     } catch (err) {
-        // Chưa có record nào — bình thường ở lần đầu dùng trang này.
+        // Chưa có record nào (lần đầu dùng trang này) — điền sẵn những giá trị tôi THỰC SỰ biết
+        // (var thường/không phải secret, hoặc do chính tôi tạo trong phiên làm việc trước).
+        // KHÔNG điền được ANYTHINGLLM_URL/API_KEY, TELEGRAM_BOT_TOKEN, OPENAI_KEY vì đó là
+        // Cloudflare secret thật — set 1 lần là không đọc lại được nữa (kể cả qua API), phải tự
+        // tra lại (password manager, note cũ, hoặc trang quản trị AnythingLLM/Telegram/OpenAI).
         configRecordId = null;
+        setVal('cfg-openai-base', 'https://v98store.com/v1');
+        setVal('cfg-openai-chat-model', 'gpt-4o-mini');
+        setVal('cfg-openai-embed-model', 'text-embedding-3-small');
+        setVal('cfg-admin-secret', 'baa8bb99ccfb0540d51bf6fdc83cc75f89260af9a42d7184');
+        setVal('cfg-dashboard-url', '');
     }
 }
 
