@@ -62,7 +62,10 @@ function renderSidebar(user) {
     return sectionHtml + `<ul class="navbar-nav">${itemsHtml}</ul>`;
   }).join('<div class="my-2 border-top"></div>');
 
-  el.innerHTML = `
+  // Dùng outerHTML (không phải innerHTML) để <aside> trở thành sibling trực tiếp của .page-wrapper —
+  // CSS của Tabler định vị margin-left cho .page-wrapper bằng sibling selector, lồng thêm 1 div bọc
+  // ngoài (như innerHTML để lại) sẽ làm mất offset này và khiến sidebar đè lên nội dung.
+  el.outerHTML = `
     <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
       <div class="container-fluid">
 
