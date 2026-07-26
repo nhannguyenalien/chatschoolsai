@@ -296,3 +296,5 @@ function injectBaseStyles() {
   `;
   document.head.appendChild(style);
 }
+
+// renderSidebar() giờ định nghĩa duy nhất ở _shared/sidebar.js (dùng chung toàn dashboard).

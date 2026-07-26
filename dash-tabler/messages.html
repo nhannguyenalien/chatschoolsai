@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Chat Logs - Customer AI Hub</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); overflow: hidden; }
+
+        /* Tùy chỉnh Layout Full Height cho App Chat */
+        .chat-layout-container {
+            height: calc(100vh - 4rem); /* Trừ đi chiều cao của Top Header */
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Custom Active state cho Session List */
+        .session-item { border-left: 3px solid transparent; cursor: pointer; }
+        .session-item:hover { background-color: rgba(32, 107, 196, 0.04); }
+        .session-item.active { 
+            background-color: rgba(32, 107, 196, 0.08); 
+            border-left-color: #206bc4; 
+        }
+
+        /* Markdown Styling trong Chat */
+        .chat-prose img { max-width: 100%; border-radius: 8px; margin-top: 8px; border: 1px solid #e6e8eb; }
+        .chat-prose a { color: inherit; text-decoration: underline; font-weight: 500;}
+        .chat-prose p { margin-bottom: 0.5rem; }
+        .chat-prose p:last-child { margin-bottom: 0; }
+        .chat-prose strong { font-weight: 600; }
+        .chat-prose ul { margin-bottom: 0.5rem; padding-left: 1.5rem; }
+
+        /* Mobile View Toggle Logic */
+        @media (max-width: 767.98px) {
+            .mobile-chat-open #session-list { display: none !important; }
+            .mobile-chat-open #chat-view { display: flex !important; }
+            #chat-view { display: none !important; }
+        }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+        <div class="page-wrapper d-flex flex-column vh-100">
+            <header class="navbar navbar-expand-md navbar-light d-print-none bg-white border-bottom flex-shrink-0" style="height: 4rem;">
+                <div class="container-fluid">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <h2 class="page-title d-none d-md-block text-body fs-2 m-0 ms-3">Nhật ký trò chuyện</h2>
+                    
+                    <div class="navbar-nav flex-row order-md-last ms-auto">
+                        <div class="nav-item d-none d-md-flex me-3">
+                            <div class="input-icon" style="width: 300px;">
+                                <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+                                <input type="text" class="form-control form-control-rounded" placeholder="Tìm kiếm tên, nội dung...">
+                            </div>
+                        </div>
+                        <div class="nav-item dropdown">
+                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0">
+                                <span class="avatar avatar-sm rounded-circle" id="user-avatar-header" style="background-image: url('')"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="chat-layout-container d-flex flex-row flex-grow-1 w-100 overflow-hidden">
+                
+                <div class="d-flex flex-column border-end bg-white" style="width: 100%; max-width: 340px; flex-shrink: 0;" id="session-list">
+                    <div class="p-3 border-bottom flex-shrink-0">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="fs-4 fw-bold m-0 text-body">Phiên gần đây</h3>
+                            <span class="badge bg-primary-lt" id="active-count">0 Hoạt động</span>
+                        </div>
+                        <div class="d-flex gap-2 overflow-auto hide-scrollbar">
+                            <button class="btn btn-sm btn-primary rounded-pill" id="filter-all-btn" onclick="switchSessionFilter('all', this)">Tất cả</button>
+                            <button class="btn btn-sm btn-ghost-secondary rounded-pill" id="filter-escalation-btn" onclick="switchSessionFilter('needs_human', this)">
+                                Cần xử lý <span class="badge bg-danger ms-1 d-none" id="escalation-badge">0</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="list-group list-group-flush overflow-auto flex-grow-1" id="session-list-items">
+                        <div class="p-5 text-center text-secondary">Đang tải dữ liệu...</div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column flex-grow-1 bg-light position-relative" id="chat-view">
+                    
+                    <div id="chat-welcome" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-light z-2">
+                        <i class="ti ti-messages text-secondary opacity-25 mb-3" style="font-size: 60px;"></i>
+                        <h3 class="text-secondary fs-2 fw-medium">Chọn một phiên chat</h3>
+                        <p class="text-muted">Bấm vào khách hàng bên trái để xem tin nhắn</p>
+                    </div>
+
+                    <div class="p-3 border-bottom bg-white d-flex align-items-center justify-content-between flex-shrink-0 z-1" style="height: 64px;">
+                        <div class="d-flex align-items-center gap-3 overflow-hidden">
+                            <button class="btn btn-icon btn-ghost-secondary d-md-none" onclick="closeChat()">
+                                <i class="ti ti-arrow-left"></i>
+                            </button>
+                            <div class="avatar bg-blue-lt rounded-circle fw-bold fs-4 flex-shrink-0" id="chat-header-avatar">KH</div>
+                            <div class="text-truncate">
+                                <h3 class="m-0 fs-4 fw-bold text-truncate" id="chat-title">Khách Hàng</h3>
+                                <div class="fs-6 text-secondary d-flex align-items-center gap-1">
+                                    <span class="badge bg-success badge-blink" style="width:6px;height:6px;padding:0;"></span>
+                                    Đang trực tuyến
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 flex-shrink-0">
+                            <button class="btn btn-icon btn-ghost-secondary d-xl-none" onclick="document.getElementById('right-info-panel').classList.toggle('d-none'); document.getElementById('right-info-panel').classList.toggle('d-flex');">
+                                <i class="ti ti-info-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary d-none d-sm-flex">
+                                <i class="ti ti-check me-2"></i> Hoàn tất
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger d-none m-3 mb-0 py-2 d-flex align-items-center gap-2" id="escalation-banner">
+                        <i class="ti ti-alert-triangle"></i>
+                        <span>AI chưa trả lời được câu hỏi này — khách đang chờ bạn hỗ trợ. Gửi tin nhắn bên dưới để đánh dấu đã xử lý.</span>
+                    </div>
+
+                    <div class="flex-grow-1 overflow-auto p-3 p-md-4 d-flex flex-column gap-3" id="messages-area">
+                        </div>
+
+                    <div class="p-3 bg-white border-top flex-shrink-0">
+                        <div class="input-group">
+                            <input type="text" id="admin-message-input" class="form-control form-control-lg bg-light border-light" placeholder="Nhập tin nhắn hỗ trợ khách..." style="border-radius: 8px 0 0 8px;">
+                            <button class="btn btn-primary btn-lg" id="send-admin-message" onclick="sendAdminMessage()" style="border-radius: 0 8px 8px 0;">
+                                <i class="ti ti-send me-sm-2"></i> <span class="d-none d-sm-inline">Gửi</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-none d-xl-flex flex-column border-start bg-white" style="width: 320px; flex-shrink: 0;" id="right-info-panel">
+                    <div class="p-3 border-bottom flex-shrink-0" style="height: 64px; display: flex; align-items: center;">
+                        <h3 class="m-0 fs-4 fw-bold">Thông tin chi tiết</h3>
+                    </div>
+                    
+                    <div class="p-3 border-bottom flex-shrink-0">
+                        <div class="d-flex align-items-center justify-content-between mb-3 text-secondary">
+                            <div class="text-uppercase tracking-wide fs-6 fw-bold">Hệ thống & Thiết bị</div>
+                            <i class="ti ti-devices"></i>
+                        </div>
+                        <div id="admin-user-info">
+                            <div class="text-center text-secondary py-3 bg-light border border-dashed rounded-3 fs-5">Đang tải...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-3 flex-grow-1 overflow-auto bg-light">
+                        <div class="d-flex align-items-center justify-content-between mb-3 text-secondary">
+                            <div class="text-uppercase tracking-wide fs-6 fw-bold">Tài liệu đã nhận</div>
+                            <i class="ti ti-folder"></i>
+                        </div>
+                        <ul class="list-unstyled d-flex flex-column gap-2" id="admin-file-list">
+                            <li class="text-center text-secondary py-5 bg-white border border-dashed rounded-3 fs-5">
+                                Chưa có tài liệu nào
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+    <script>
+    /* =========================================================
+       SCHEMA MỚI CẦN THÊM VÀO COLLECTION "messages" (PocketBase admin):
+       - needs_human (bool)         — worker set true khi AI trả lời kèm [NEED_HUMAN]
+       - escalation_resolved (bool) — FE set true khi admin đã gửi tin nhắn trả lời phiên đó
+       Dùng để hiện badge + lọc "Cần xử lý" bên dưới. Xem thêm worker-chat-d/knowledge-worker/src/index.js.
+       ========================================================= */
+
+    // ═══════════════════════════════════════
+    // CẤU HÌNH & TRẠNG THÁI
+    // ═══════════════════════════════════════
+    const pb = window.PB || new PocketBase("https://nhannguyen123-chat.hf.space");
+    let CURRENT_TENANT = ""; 
+
+    let allMessages = [];
+    let sessions = [];
+    let activeSession = null;
+    let messageIds = new Set();
+    let verifiedUsers = {};
+    let sessionFilter = "all"; // 'all' | 'needs_human'
+
+    const sessionListItemsEl = document.getElementById("session-list-items");
+    const messagesArea = document.getElementById("messages-area");
+    const chatTitleEl = document.getElementById("chat-title");
+    const chatAvatarEl = document.getElementById("chat-header-avatar");
+    const chatWelcomeEl = document.getElementById("chat-welcome");
+    const adminInput = document.getElementById("admin-message-input");
+
+    marked.setOptions({ breaks: true });
+
+    // ═══════════════════════════════════════
+    // KHỞI TẠO
+    // ═══════════════════════════════════════
+    (async function init() {
+        try {
+            window.hideLoginModal = window.hideLoginModal || function() {};
+            
+            // Comment out để giả lập nếu chưa có auth
+            // if (window.requireAuth) await window.requireAuth();
+            if (window.requireAuth) await window.requireAuth();
+
+            CURRENT_TENANT = pb.authStore.model?.tenant || window.TENANT || new URLSearchParams(window.location.search).get("bot") || "bds";
+            
+            const tenantLabel = document.getElementById("nav-tenant-id");
+            if (tenantLabel) tenantLabel.textContent = CURRENT_TENANT;
+            
+            const user = window.AUTH_USER || {};
+                if (document.getElementById("user-name")) {
+                    document.getElementById("user-name").textContent = user.name || user.email || "—";
+                }
+                if (document.getElementById("user-tenant-label")) {
+                    document.getElementById("user-tenant-label").textContent = CURRENT_TENANT;
+                }
+                if (user.avatarUrl) {
+                    if (document.getElementById("user-avatar")) {
+                        document.getElementById("user-avatar").style.backgroundImage = `url('${user.avatarUrl}')`;
+                    }
+                    if (document.getElementById("user-avatar-header")) {
+                        document.getElementById("user-avatar-header").style.backgroundImage = `url('${user.avatarUrl}')`;
+                    }
+                }
+            
+            await loadMessages();
+            await subscribeRealtime();
+            renderSidebar(window.AUTH_USER);
+
+            adminInput.addEventListener("keypress", e => {
+                if (e.key === "Enter") sendAdminMessage();
+            });
+
+            // Deep link từ cảnh báo Telegram: messages.html?bot=TENANT&session=XYZ
+            const deepLinkSession = new URLSearchParams(window.location.search).get("session");
+            if (deepLinkSession && sessions.some(s => s.session === deepLinkSession)) {
+                openChat(deepLinkSession);
+            }
+        } catch (err) {
+            console.error("Lỗi khởi tạo:", err);
+            sessionListItemsEl.innerHTML = '<div class="p-5 text-center text-danger">Lỗi kết nối máy chủ!</div>';
+        }
+    })();
+
+    // ═══════════════════════════════════════
+    // XỬ LÝ DỮ LIỆU CHAT
+    // ═══════════════════════════════════════
+    async function loadMessages() {
+        const [msgResult, verifyResult] = await Promise.all([
+            pb.collection("messages").getList(1, 1000, {
+                sort: "-created",
+                filter: `tenant="${CURRENT_TENANT}"` 
+            }),
+            pb.collection("verifications").getList(1, 1000, {
+                filter: `tenant="${CURRENT_TENANT}"` 
+            })
+        ]);
+
+        verifiedUsers = {};
+        for (const v of verifyResult.items) {
+            if (v.status === "verified") {
+                verifiedUsers[v.session] = v;
+            }
+        }
+
+        allMessages = [];
+        messageIds.clear();
+        for (const msg of msgResult.items) {
+            if (messageIds.has(msg.id)) continue;
+            messageIds.add(msg.id);
+            allMessages.push(msg);
+        }
+
+        buildSessions();
+        renderSessionList();
+    }
+
+    function buildSessions() {
+        const map = Object.create(null);
+
+        for (const msg of allMessages) {
+            if (!map[msg.session]) {
+                map[msg.session] = {
+                    session: msg.session,
+                    username: "Khách hàng",
+                    messages: [],
+                    lastMessage: msg.text || "Đã gửi tệp",
+                    lastCreated: msg.created,
+                    isVerified: !!verifiedUsers[msg.session],
+                    phone: verifiedUsers[msg.session]?.phone || "",
+                    clientMeta: null,
+                    needsHuman: false
+                };
+            }
+            if (msg.client_meta && !map[msg.session].clientMeta) {
+                map[msg.session].clientMeta = msg.client_meta;
+            }
+
+            if (msg.needs_human && !msg.escalation_resolved) {
+                map[msg.session].needsHuman = true;
+            }
+
+            map[msg.session].messages.push(msg);
+
+            if (new Date(msg.created) > new Date(map[msg.session].lastCreated)) {
+                map[msg.session].lastCreated = msg.created;
+                map[msg.session].lastMessage = msg.text || "Đã gửi tệp";
+            }
+
+            if (!msg.is_bot && msg.username !== "Admin") {
+                if (map[msg.session].username === "Khách hàng") {
+                    map[msg.session].username = msg.username;
+                }
+            }
+        }
+
+        sessions = Object.values(map).sort((a, b) => new Date(b.lastCreated) - new Date(a.lastCreated));
+        document.getElementById("active-count").textContent = `${sessions.length} Hoạt động`;
+
+        const escalationCount = sessions.filter(s => s.needsHuman).length;
+        const badgeEl = document.getElementById("escalation-badge");
+        if (badgeEl) {
+            badgeEl.textContent = escalationCount;
+            badgeEl.classList.toggle("d-none", escalationCount === 0);
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // LỌC PHIÊN (Tất cả / Cần xử lý)
+    // ═══════════════════════════════════════
+    function switchSessionFilter(filter, btn) {
+        sessionFilter = filter;
+        document.querySelectorAll("#filter-all-btn, #filter-escalation-btn").forEach(b => {
+            b.classList.remove("btn-primary");
+            b.classList.add("btn-ghost-secondary");
+        });
+        if (btn) { btn.classList.remove("btn-ghost-secondary"); btn.classList.add("btn-primary"); }
+        renderSessionList();
+    }
+
+    // ═══════════════════════════════════════
+    // RENDER GIAO DIỆN
+    // ═══════════════════════════════════════
+    function renderSessionList() {
+        sessionListItemsEl.innerHTML = "";
+
+        const visibleSessions = sessionFilter === "needs_human"
+            ? sessions.filter(s => s.needsHuman)
+            : sessions;
+
+        if (visibleSessions.length === 0) {
+            sessionListItemsEl.innerHTML = sessionFilter === "needs_human"
+                ? '<div class="p-5 text-center text-secondary">Không có phiên nào cần xử lý 🎉</div>'
+                : '<div class="p-5 text-center text-secondary">Chưa có dữ liệu chat</div>';
+            return;
+        }
+
+        let html = '';
+        for (const session of visibleSessions) {
+            const isActive = activeSession && activeSession.session === session.session;
+            const time = formatDateTime(session.lastCreated);
+            const avatarChar = (session.username || "KH").slice(0, 2).toUpperCase();
+
+            let previewText = (session.lastMessage || "").replace(/<\/?[^>]+(>|$)/g, "").replace(/\*\*/g, "");
+
+            const verifyIcon = session.isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue ms-1" title="SĐT: ${session.phone}"></i>` : '';
+            const escalationIcon = session.needsHuman ? `<i class="ti ti-alert-triangle-filled text-danger ms-1" title="Cần admin hỗ trợ"></i>` : '';
+
+            html += `
+                <div class="list-group-item session-item p-3 border-0 border-bottom ${isActive ? 'active' : ''}" onclick="openChat('${session.session}')">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="avatar bg-blue-lt rounded-circle flex-shrink-0 fw-bold">${avatarChar}</div>
+                        <div class="flex-fill min-w-0">
+                            <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                <h4 class="m-0 fs-5 fw-bold text-body text-truncate pe-2">${escapeHtml(session.username)}${verifyIcon}${escalationIcon}</h4>
+                                <span class="text-secondary fs-6 whitespace-nowrap">${time}</span>
+                            </div>
+                            <div class="text-secondary fs-6 text-truncate" style="max-width: 200px;">${previewText}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        sessionListItemsEl.innerHTML = html;
+    }
+
+    function openChat(sessionId) {
+        document.body.classList.add("mobile-chat-open");
+        chatWelcomeEl.classList.add("d-none"); 
+
+        activeSession = sessions.find(s => s.session === sessionId);
+        if (!activeSession) return;
+
+        const verifyIcon = activeSession.isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue fs-3 ms-1 align-middle" title="Đã xác thực"></i>` : '';
+        const phoneBadge = activeSession.phone ? `<span class="badge bg-green-lt ms-2 py-1"><i class="ti ti-phone me-1"></i> ${activeSession.phone}</span>` : '';
+        
+        chatTitleEl.innerHTML = `${escapeHtml(activeSession.username)}${verifyIcon}${phoneBadge}`;
+        chatAvatarEl.textContent = (activeSession.username || "KH").slice(0, 2).toUpperCase();
+
+        const banner = document.getElementById("escalation-banner");
+        if (banner) banner.classList.toggle("d-none", !activeSession.needsHuman);
+
+        renderSessionList();
+        renderMessages();
+        renderUserInfo();
+        loadAdminFiles(sessionId);
+    }
+
+    function renderMessages() {
+        if (!activeSession) return;
+
+        const sorted = [...activeSession.messages].sort((a, b) => new Date(a.created) - new Date(b.created));
+        let html = '';
+
+        sorted.forEach(msg => {
+            const time = formatDateTime(msg.created);
+            const cleanText = DOMPurify.sanitize(marked.parse(msg.text || ""), { ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt'] });
+
+            if (!msg.is_bot) {
+                // User Message (Left)
+                html += `
+                    <div class="d-flex align-items-end gap-2 justify-content-start w-100">
+                        <div class="avatar avatar-sm bg-secondary-lt rounded-circle fw-bold fs-5 flex-shrink-0">${(msg.username || "KH").slice(0,2).toUpperCase()}</div>
+                        <div class="bg-white border rounded-3 px-3 py-2 shadow-sm" style="max-width: 85%; border-bottom-left-radius: 4px !important;">
+                            <div class="fs-6 fw-bold text-secondary mb-1">${escapeHtml(msg.username)}</div>
+                            <div class="fs-4 text-body chat-prose">${cleanText}</div>
+                            <div class="fs-6 text-secondary mt-1">${time}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Bot / Admin Message (Right)
+                const isAdmin = msg.username === "Admin";
+                const bgClass = isAdmin ? "bg-green" : "bg-primary"; 
+                const icon = isAdmin ? "ti-headset" : "ti-robot";
+                const displayName = isAdmin ? "Admin (Bạn)" : escapeHtml(msg.username);
+                
+                html += `
+                    <div class="d-flex align-items-end gap-2 justify-content-end w-100">
+                        <div class="${bgClass} text-white rounded-3 px-3 py-2 shadow-sm" style="max-width: 85%; border-bottom-right-radius: 4px !important;">
+                            <div class="d-flex align-items-center justify-content-end gap-1 mb-1 opacity-75">
+                                <i class="ti ${icon} fs-5"></i>
+                                <div class="fs-6 fw-bold tracking-wide">${displayName}</div>
+                            </div>
+                            <div class="fs-4 chat-prose" style="color: rgba(255,255,255,0.95)">${cleanText}</div>
+                            <div class="fs-6 opacity-75 mt-1 text-end">${time}</div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        messagesArea.innerHTML = html;
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    // ═══════════════════════════════════════
+    // ADMIN GỬI TIN & LOAD FILE
+    // ═══════════════════════════════════════
+    async function sendAdminMessage() {
+        const text = adminInput.value.trim();
+        if (!text || !activeSession) return;
+
+        adminInput.value = "";
+        adminInput.disabled = true;
+
+        try {
+            await pb.collection("messages").create({
+                session: activeSession.session, tenant: CURRENT_TENANT, username: "Admin", text: text, is_bot: true
+            });
+
+            // Chủ đã trả lời -> đánh dấu các câu hỏi "cần xử lý" của phiên này là đã xong
+            const pending = activeSession.messages.filter(m => m.needs_human && !m.escalation_resolved);
+            if (pending.length) {
+                await Promise.all(pending.map(m =>
+                    pb.collection("messages").update(m.id, { escalation_resolved: true }).catch(() => {})
+                ));
+                pending.forEach(m => { m.escalation_resolved = true; });
+                activeSession.needsHuman = false;
+                const banner = document.getElementById("escalation-banner");
+                if (banner) banner.classList.add("d-none");
+                buildSessions();
+                renderSessionList();
+            }
+        } catch (err) {
+            alert("Lỗi khi gửi tin nhắn!");
+        } finally {
+            adminInput.disabled = false; adminInput.focus();
+        }
+    }
+
+    async function loadAdminFiles(sessionId) {
+        const fileListEl = document.getElementById("admin-file-list");
+        if (!fileListEl) return; 
+
+        fileListEl.innerHTML = '<li class="text-center text-secondary py-4">Đang tìm...</li>';
+
+        try {
+            const records = await pb.collection('tai_lieu').getList(1, 50, {
+                filter: `session='${sessionId}' && tenant='${CURRENT_TENANT}'`, sort: '-created'
+            });
+
+            if (records.items.length === 0) {
+                fileListEl.innerHTML = '<li class="text-center text-secondary py-5 bg-white border border-dashed rounded-3 fs-5">Khách chưa gửi file nào</li>';
+                return;
+            }
+
+            let html = '';
+            records.items.forEach(record => {
+                const fileName = record.original_name || "Tài liệu đính kèm";
+                const fileUrl = pb.files.getUrl(record, record.file); 
+                const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+                const icon = isImage ? 'ti-photo' : 'ti-file-description';
+                
+                html += `
+                    <li>
+                        <a href="${fileUrl}" target="_blank" class="text-decoration-none d-flex align-items-center gap-3 p-2 bg-white border rounded-3 hover:border-primary transition-colors">
+                            <div class="avatar bg-light border text-primary">
+                                <i class="ti ${icon} fs-2"></i>
+                            </div>
+                            <div class="flex-fill min-w-0">
+                                <div class="fs-5 fw-bold text-body text-truncate" title="${fileName}">${fileName}</div>
+                                <div class="fs-6 text-secondary mt-1">Bấm để tải về</div>
+                            </div>
+                        </a>
+                    </li>
+                `;
+            });
+            fileListEl.innerHTML = html;
+        } catch (error) {
+            fileListEl.innerHTML = '<li class="text-center text-danger py-4">Lỗi tải dữ liệu</li>';
+        }
+    }
+
+    async function subscribeRealtime() {
+        await pb.collection("messages").subscribe("*", e => {
+            const msg = e.record;
+            if (msg.tenant !== CURRENT_TENANT) return;
+            if (messageIds.has(msg.id)) return;
+            
+            messageIds.add(msg.id);
+            allMessages.unshift(msg);
+
+            buildSessions();
+            renderSessionList();
+
+            if (activeSession && msg.session === activeSession.session) {
+                activeSession = sessions.find(s => s.session === activeSession.session);
+                renderMessages();
+            }
+        });
+    }
+
+    function closeChat() { document.body.classList.remove("mobile-chat-open"); }
+    function escapeHtml(str = "") { return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"); }
+    
+    // ═══════════════════════════════════════
+    // HIỂN THỊ THÔNG TIN HỆ THỐNG
+    // ═══════════════════════════════════════
+    function renderUserInfo() {
+        const infoEl = document.getElementById("admin-user-info");
+        if (!infoEl) return;
+
+        const meta = activeSession?.clientMeta;
+        
+        if (!meta || Object.keys(meta).length === 0) {
+            infoEl.innerHTML = '<div class="text-center text-secondary py-3 bg-light border border-dashed rounded-3 fs-5">Chưa có thông tin</div>';
+            return;
+        }
+
+        const loc = meta.location || meta.loc || 'Không rõ';
+
+        infoEl.innerHTML = `
+            <div class="card card-sm shadow-sm">
+                <div class="card-body d-flex flex-column gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ti ti-world text-primary fs-3"></i>
+                        <span class="fw-medium text-body">IP:</span>
+                        <span class="ms-auto text-secondary font-monospace fs-5">${meta.ip || '---'}</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ti ti-device-mobile text-primary fs-3"></i>
+                        <span class="fw-medium text-body">Thiết bị:</span>
+                        <span class="ms-auto text-secondary fs-5">${meta.device || '---'}</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ti ti-browser text-primary fs-3"></i>
+                        <span class="fw-medium text-body">Trình duyệt:</span>
+                        <span class="ms-auto text-secondary fs-5">${meta.browser || '---'}</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ti ti-map-pin text-primary fs-3"></i>
+                        <span class="fw-medium text-body">Vị trí:</span>
+                        <span class="ms-auto text-secondary fs-5 text-truncate" style="max-width:120px;" title="${loc}">${loc}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function formatDateTime(isoStr) {
+        const d = new Date(isoStr);
+        const now = new Date();
+        const isToday = d.toDateString() === now.toDateString();
+        const hhmm = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+        if (isToday) return hhmm;
+        const ddmm = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+        return `${ddmm} ${hhmm}`;
+    }
+    </script>
+</body>
+</html>

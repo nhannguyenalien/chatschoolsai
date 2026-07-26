@@ -8,3 +8,4 @@ const WORKER_URL = "https://knowledge-worker.toidayhoc.workers.dev";
 
 // Không cần chỉnh gì dưới đây
 const PB = new PocketBase(PB_URL);
+window.PB = PB;

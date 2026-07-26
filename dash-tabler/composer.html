@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Soạn Bài - Customer AI Hub</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); }
+
+        .form-label { text-transform: uppercase; letter-spacing: .03em; color: var(--tblr-secondary); font-size: .75rem; }
+
+        .toast-msg {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+
+        .target-pill { font-size: 11px; padding: 2px 8px; border-radius: 12px; border: 1px solid currentColor; }
+        .status-pending{ color:#b08900; } .status-approved{ color:#2c7be5; }
+        .status-scheduled{ color:#7c4dff; } .status-published{ color:#2fb344; } .status-error{ color:#d63939; }
+        .post-card{ cursor:pointer; transition: box-shadow .15s; }
+        .post-card:hover{ box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+        .repeatable-row{ border:1px solid var(--tblr-border-color); border-radius:8px; padding:10px; margin-bottom:8px; position:relative; }
+        .remove-row-btn{ position:absolute; top:6px; right:6px; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="toast-msg" id="toast"></div>
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none d-print-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
+                        <span class="avatar avatar-sm bg-primary text-white"><i class="ti ti-robot"></i></span>
+                        <span class="ms-2 fw-bold text-primary">AI Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
+                            <a href="index.html" class="text-reset text-decoration-none">Overview</a>
+                            <i class="ti ti-chevron-right fs-6"></i>
+                            <span class="text-primary fw-medium">Soạn Bài</span>
+                        </div>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <div>
+                                <h2 class="page-title fs-1">Soạn Bài</h2>
+                                <div class="text-secondary mt-1 fs-3">Soạn bài viết, dùng AI viết lại từ RSS, và đăng thủ công lên các nền tảng.</div>
+                            </div>
+                            <a href="sm-config.html" class="btn btn-outline-secondary ms-auto"><i class="ti ti-plug-connected me-1"></i>Quản lý kênh đăng</a>
+                        </div>
+                    </div>
+
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item"><a href="#tab-posts" class="nav-link active" data-bs-toggle="tab">Bài viết</a></li>
+                        <li class="nav-item"><a href="#tab-media" class="nav-link" data-bs-toggle="tab">Thư viện Media</a></li>
+                        <li class="nav-item"><a href="#tab-rss" class="nav-link" data-bs-toggle="tab">RSS &amp; Prompt AI</a></li>
+                    </ul>
+
+                    <div class="tab-content">
+
+                        <!-- ===== TAB POSTS ===== -->
+                        <div class="tab-pane active show" id="tab-posts">
+                            <div class="card">
+                                <div class="card-header border-bottom-0 pb-0 d-flex align-items-center flex-wrap gap-2">
+                                    <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                        <i class="ti ti-news text-primary fs-2"></i> Bài viết
+                                    </h3>
+                                    <div class="ms-auto d-flex gap-2">
+                                        <select id="filter-status" class="form-select w-auto">
+                                            <option value="">Tất cả trạng thái</option>
+                                            <option value="pending">Chờ duyệt</option>
+                                            <option value="approved">Đã duyệt</option>
+                                            <option value="scheduled">Đã lên lịch</option>
+                                            <option value="published">Đã đăng</option>
+                                            <option value="error">Lỗi</option>
+                                        </select>
+                                        <button id="refresh-posts" class="btn btn-outline-secondary"><i class="ti ti-refresh"></i></button>
+                                        <button id="new-post-btn" class="btn btn-primary"><i class="ti ti-plus me-1"></i> Bài viết mới</button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div id="posts-list" class="row row-cards"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===== TAB MEDIA LIBRARY ===== -->
+                        <div class="tab-pane" id="tab-media">
+                            <div class="card">
+                                <div class="card-header border-bottom-0 pb-0 d-flex align-items-center flex-wrap gap-2">
+                                    <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                        <i class="ti ti-photo text-primary fs-2"></i> Thư viện Media
+                                    </h3>
+                                    <div class="ms-auto d-flex gap-2">
+                                        <select id="filter-media-source" class="form-select w-auto">
+                                            <option value="">Tất cả nguồn</option>
+                                            <option value="upload">Khách upload</option>
+                                            <option value="ai_generated">AI render</option>
+                                        </select>
+                                        <button id="refresh-media" class="btn btn-outline-secondary"><i class="ti ti-refresh"></i></button>
+                                        <button id="upload-media-btn" class="btn btn-primary"><i class="ti ti-upload me-1"></i> Upload ảnh/video</button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-secondary fs-5 mb-3">Media khách tự upload hoặc do n8n render (Cloudinary/HuggingFace) đều xuất hiện ở đây để chọn gắn vào bài viết.</div>
+                                    <input type="file" id="media-file-input" accept="image/*,video/*" class="d-none">
+                                    <div id="media-library-grid" class="row row-cards"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tab-rss">
+                            <div class="row row-cards">
+                                <div class="col-lg-6">
+                                    <div class="card mb-4">
+                                        <div class="card-header border-bottom-0 pb-0 d-flex align-items-center">
+                                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                                <i class="ti ti-sparkles text-primary fs-2"></i> AI Prompt
+                                            </h3>
+                                            <button id="new-prompt-btn" class="btn btn-primary ms-auto"><i class="ti ti-plus me-1"></i> Prompt mới</button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="text-secondary fs-5 mb-3">Mẫu prompt AI dùng để n8n viết lại nội dung theo từng category.</div>
+                                            <div id="prompts-list" class="d-flex flex-column gap-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="card mb-4">
+                                        <div class="card-header border-bottom-0 pb-0 d-flex align-items-center">
+                                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                                <i class="ti ti-rss text-primary fs-2"></i> Nguồn RSS
+                                            </h3>
+                                            <button id="new-rss-btn" class="btn btn-primary ms-auto"><i class="ti ti-plus me-1"></i> Nguồn mới</button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="text-secondary fs-5 mb-3">n8n đọc các nguồn đang "Hoạt động" để crawl, gắn với prompt tương ứng.</div>
+                                            <div id="rss-list" class="d-flex flex-column gap-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: POST ===================== -->
+    <div class="modal" id="post-modal" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="post-modal-title">Bài viết</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="post-id">
+
+            <div class="mb-3">
+              <label class="form-label">Tiêu đề</label>
+              <input type="text" id="post-title" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nội dung</label>
+              <textarea id="post-content" class="form-control" rows="4"></textarea>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Image prompt</label>
+                <textarea id="post-image-prompt" class="form-control" rows="2"></textarea>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Video prompt</label>
+                <textarea id="post-video-prompt" class="form-control" rows="2"></textarea>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Alt text ảnh (alt_img)</label>
+              <input type="text" id="post-alt-img" class="form-control">
+            </div>
+
+            <hr>
+            <div class="d-flex align-items-center mb-2">
+              <h6 class="mb-0">Media</h6>
+              <div class="ms-auto d-flex gap-2">
+                <button type="button" id="pick-from-library-btn" class="btn btn-sm btn-outline-primary">Chọn từ thư viện</button>
+                <button type="button" id="add-media-row" class="btn btn-sm btn-outline-primary">+ Thêm media</button>
+              </div>
+            </div>
+            <div id="media-rows"></div>
+
+            <hr>
+            <div class="d-flex align-items-center mb-2">
+              <h6 class="mb-0">Đăng lên (targets)</h6>
+              <button type="button" id="add-target-row" class="btn btn-sm btn-outline-primary ms-auto">+ Thêm nền tảng</button>
+            </div>
+            <div class="text-secondary fs-6 mb-2">Chọn nền tảng, Page và đặt trạng thái/giờ đăng — đây là bước "đăng thủ công": worker sẽ đăng thật khi trạng thái chuyển sang "Đã duyệt"/"Đã lên lịch".</div>
+            <div id="target-rows"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn" data-bs-dismiss="modal">Đóng</button>
+            <button type="button" id="save-post-btn" class="btn btn-primary">Lưu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== MODAL: AI PROMPT ===================== -->
+    <div class="modal" id="prompt-modal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">AI Prompt</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="prompt-id-hidden">
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Tên gợi nhớ</label>
+                <input type="text" id="prompt-label" class="form-control" placeholder="VD: Bất động sản - kiếm hiệp">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Category</label>
+                <input type="text" id="prompt-category" class="form-control" placeholder="VD: bds, tech, fnb...">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Model AI</label>
+              <input type="text" id="prompt-model" class="form-control" placeholder="models/gemini-2.5-flash-lite">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">System prompt</label>
+              <textarea id="prompt-system" class="form-control" rows="10" placeholder="VAI TRÒ: ...&#10;NHIỆM VỤ: ...&#10;YÊU CẦU OUTPUT: ..."></textarea>
+              <small class="form-hint mt-1">n8n sẽ nối phần data RSS crawl được vào sau prompt này rồi gửi cho model.</small>
+            </div>
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" id="prompt-active" checked>
+              <span class="form-check-label">Đang dùng</span>
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger me-auto d-none" id="delete-prompt-btn">Xóa</button>
+            <button type="button" class="btn" data-bs-dismiss="modal">Đóng</button>
+            <button type="button" id="save-prompt-btn" class="btn btn-primary">Lưu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== MODAL: RSS SOURCE ===================== -->
+    <div class="modal" id="rss-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Nguồn RSS</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="rss-id-hidden">
+            <div class="mb-3">
+              <label class="form-label">Tên gợi nhớ</label>
+              <input type="text" id="rss-label" class="form-control" placeholder="VD: VnBusiness - Bất động sản">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Category</label>
+              <input type="text" id="rss-category" class="form-control" placeholder="VD: bds">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">RSS URL</label>
+              <input type="text" id="rss-url" class="form-control" placeholder="https://...rss">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Prompt AI áp dụng</label>
+              <select id="rss-prompt" class="form-select"></select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Số bài lấy mỗi lần crawl</label>
+              <input type="number" id="rss-maxitems" class="form-control" value="7" min="1">
+            </div>
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" id="rss-active" checked>
+              <span class="form-check-label">Hoạt động (n8n mới crawl nguồn đang bật)</span>
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger me-auto d-none" id="delete-rss-btn">Xóa</button>
+            <button type="button" class="btn" data-bs-dismiss="modal">Đóng</button>
+            <button type="button" id="save-rss-btn" class="btn btn-primary">Lưu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== MODAL: PICK FROM MEDIA LIBRARY ===================== -->
+    <div class="modal" id="media-picker-modal" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Chọn media từ thư viện</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="media-picker-grid" class="row row-cards"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== MODAL: UPLOAD MEDIA ===================== -->
+    <div class="modal" id="upload-media-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Upload ảnh/video</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Tên gợi nhớ</label>
+              <input type="text" id="upload-media-label" class="form-control" placeholder="VD: Ảnh nội thất phòng khách">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Loại</label>
+              <select id="upload-media-type" class="form-select">
+                <option value="image">Ảnh</option>
+                <option value="video">Video</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Chọn file</label>
+              <input type="file" id="upload-media-file" class="form-control" accept="image/*,video/*">
+              <small class="form-hint mt-1">Lưu trực tiếp vào PocketBase (VPS của bạn).</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn" data-bs-dismiss="modal">Đóng</button>
+            <button type="button" id="save-upload-media-btn" class="btn btn-primary">Upload</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+    <script>
+    /* =========================================================
+       SCHEMA CẦN CÓ TRONG POCKETBASE (tự tạo 1 lần trong admin)
+       - posts: tenant(text), title(text), content(text), image_prompt(text), video_prompt(text), alt_img(text)
+       - media: tenant(text), post_id relation -> posts, url(text), type(select image/video), order(number)
+       - post_targets: tenant(text), post_id relation -> posts, platform(select facebook/instagram/linkedin),
+         status(select pending/approved/scheduled/published/error), scheduled_at(date), page_id(text), error_log(text)
+       - ai_prompts: tenant(text), label(text), category(text), model(text), system_prompt(text), is_active(bool)
+       - rss_sources: tenant(text), label(text), category(text), rss_url(url),
+         prompt_id(relation->ai_prompts), max_items(number), is_active(bool)
+       - media_library: tenant(text), label(text), source(select upload/ai_generated),
+         type(select image/video), file(file), url(text - dùng khi source=ai_generated),
+         prompt_used(text), status(select ready/processing/error)
+       - pages_config: quản lý ở sm-config.html (tenant, platform, label, page_id, access_token, extra_config, is_active)
+       Rules: giống các collection khác trong app (@request.auth.id != "")
+       — cách ly theo tenant do FE tự filter (đúng pattern app đang dùng ở bot_configs).
+       ========================================================= */
+
+    function showToast(msg, type = "success") {
+        const toast = document.getElementById("toast");
+        toast.innerHTML = type === 'success'
+            ? `<i class="ti ti-check text-success fs-3"></i> ${msg}`
+            : `<i class="ti ti-alert-triangle text-danger fs-3"></i> ${msg}`;
+        toast.className = `toast-msg ${type} show`;
+        setTimeout(() => toast.classList.remove("show"), 3000);
+    }
+
+    const STATUS_LABEL = {
+        pending:'Chờ duyệt', approved:'Đã duyệt', scheduled:'Đã lên lịch',
+        publishing:'Đang đăng...', published:'Đã đăng', error:'Lỗi'
+    };
+    let pagesConfigCache = [];
+    let promptsCache = [];
+    let rssCache = [];
+    let mediaLibraryCache = [];
+    let mediaRowCount = 0, targetRowCount = 0;
+
+    // ═══════════════════════════════════════
+    // BOOT
+    // ═══════════════════════════════════════
+    (async () => {
+        await requireAuth();
+        renderSidebar(window.AUTH_USER);
+
+        await loadPagesConfigForTargets(); // read-only, quản lý thật ở sm-config.html
+        await loadPrompts();               // load trước vì rss-modal cần select prompt
+        await loadRss();
+        await loadMediaLibrary();
+        await loadPosts();
+    })();
+
+    async function loadPagesConfigForTargets() {
+        try {
+            pagesConfigCache = await PB.collection('pages_config').getFullList({
+                sort: 'platform',
+                filter: `tenant = "${window.TENANT}" && is_active = true`
+            });
+        } catch (err) {
+            pagesConfigCache = [];
+            showToast('Chưa cấu hình kênh đăng — vào "Quản lý kênh đăng" để thêm Page/Account', 'error');
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // POSTS
+    // ═══════════════════════════════════════
+    async function loadPosts() {
+        const list = document.getElementById('posts-list');
+        list.innerHTML = '<div class="col-12 text-secondary">Đang tải...</div>';
+        try {
+            const posts = await PB.collection('posts').getFullList({
+                sort: '-created',
+                filter: `tenant = "${window.TENANT}"`,
+                expand: 'media_via_post_id,post_targets_via_post_id'
+            });
+            renderPosts(posts);
+        } catch (err) {
+            list.innerHTML = `<div class="col-12 alert alert-danger">Lỗi tải bài viết: ${escHtml(err.message)}</div>`;
+        }
+    }
+
+    function renderPosts(posts) {
+        const filter = document.getElementById('filter-status').value;
+        const list = document.getElementById('posts-list');
+        list.innerHTML = '';
+
+        const filtered = posts.filter(p => {
+            if (!filter) return true;
+            const targets = p.expand?.post_targets_via_post_id || [];
+            return targets.some(t => t.status === filter);
+        });
+
+        if (filtered.length === 0) {
+            list.innerHTML = '<div class="col-12 text-secondary">Không có bài viết.</div>';
+            return;
+        }
+
+        filtered.forEach(p => {
+            const targets = p.expand?.post_targets_via_post_id || [];
+            const pills = targets.map(t =>
+                `<span class="target-pill status-${t.status} me-1">${t.platform}: ${STATUS_LABEL[t.status]||t.status}</span>`
+            ).join('');
+            const col = document.createElement('div');
+            col.className = 'col-md-6';
+            col.innerHTML = `
+              <div class="card post-card mb-3">
+                <div class="card-body">
+                  <h3 class="card-title">${escHtml(p.title || '(chưa có tiêu đề)')}</h3>
+                  <p class="text-secondary fs-5 mb-2">${escHtml((p.content||'').slice(0,140))}${(p.content||'').length>140?'…':''}</p>
+                  <div>${pills || '<span class="text-secondary fs-6">Chưa gắn nền tảng nào</span>'}</div>
+                </div>
+              </div>`;
+            col.querySelector('.post-card').addEventListener('click', () => openPostModal(p.id));
+            list.appendChild(col);
+        });
+    }
+
+    document.getElementById('filter-status').addEventListener('change', loadPosts);
+    document.getElementById('refresh-posts').addEventListener('click', loadPosts);
+    document.getElementById('new-post-btn').addEventListener('click', () => openPostModal(null));
+
+    function mediaRowTemplate(m={}) {
+        mediaRowCount++;
+        return `<div class="repeatable-row" data-record-id="${m.id||''}">
+          <button type="button" class="btn btn-sm btn-icon remove-row-btn" onclick="this.closest('.repeatable-row').remove()"><i class="ti ti-x"></i></button>
+          <div class="row g-2">
+            <div class="col-md-7">
+              <label class="form-label">URL</label>
+              <input type="text" class="form-control media-url" value="${escHtml(m.url||'')}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Loại</label>
+              <select class="form-select media-type">
+                <option value="image" ${m.type==='image'?'selected':''}>Ảnh</option>
+                <option value="video" ${m.type==='video'?'selected':''}>Video</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Thứ tự</label>
+              <input type="number" class="form-control media-order" value="${m.order ?? 0}">
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function targetRowTemplate(t={}) {
+        targetRowCount++;
+        const pageOptions = pagesConfigCache
+            .filter(pc => pc.platform === (t.platform || 'facebook'))
+            .map(pc => `<option value="${escHtml(pc.page_id)}" ${pc.page_id===t.page_id?'selected':''}>${escHtml(pc.label)} (${escHtml(pc.page_id)})</option>`)
+            .join('');
+        return `<div class="repeatable-row" data-record-id="${t.id||''}">
+          <button type="button" class="btn btn-sm btn-icon remove-row-btn" onclick="this.closest('.repeatable-row').remove()"><i class="ti ti-x"></i></button>
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label">Nền tảng</label>
+              <select class="form-select target-platform" onchange="refreshTargetPageOptions(this)">
+                <option value="facebook" ${t.platform==='facebook'?'selected':''}>Facebook</option>
+                <option value="instagram" ${t.platform==='instagram'?'selected':''}>Instagram</option>
+                <option value="linkedin" ${t.platform==='linkedin'?'selected':''}>LinkedIn</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Page</label>
+              <select class="form-select target-pageid">${pageOptions || '<option value="">— chưa có kênh, vào "Quản lý kênh đăng" —</option>'}</select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Trạng thái</label>
+              <select class="form-select target-status">
+                ${Object.entries(STATUS_LABEL).filter(([v])=>v!=='publishing').map(([v,l])=>`<option value="${v}" ${t.status===v?'selected':''}>${l}</option>`).join('')}
+              </select>
+              ${t.status==='publishing'?'<div class="text-warning fs-6 mt-1">Hệ thống đang đăng bài này lên nền tảng, đừng đổi trạng thái lúc này.</div>':''}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Lên lịch lúc</label>
+              <input type="datetime-local" class="form-control target-scheduled" value="${t.scheduled_at ? toLocalDatetime(t.scheduled_at) : ''}">
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Lỗi (error_log)</label>
+              <input type="text" class="form-control target-error" value="${escHtml(t.error_log||'')}" readonly>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function refreshTargetPageOptions(selectEl) {
+        const platform = selectEl.value;
+        const row = selectEl.closest('.repeatable-row');
+        const pageSelect = row.querySelector('.target-pageid');
+        const options = pagesConfigCache.filter(pc => pc.platform === platform)
+            .map(pc => `<option value="${escHtml(pc.page_id)}">${escHtml(pc.label)} (${escHtml(pc.page_id)})</option>`).join('');
+        pageSelect.innerHTML = options || '<option value="">— chưa có kênh, vào "Quản lý kênh đăng" —</option>';
+    }
+
+    document.getElementById('add-media-row').addEventListener('click', () => {
+        document.getElementById('media-rows').insertAdjacentHTML('beforeend', mediaRowTemplate());
+    });
+    document.getElementById('add-target-row').addEventListener('click', () => {
+        document.getElementById('target-rows').insertAdjacentHTML('beforeend', targetRowTemplate());
+    });
+
+    async function openPostModal(id) {
+        document.getElementById('post-id').value = id || '';
+        document.getElementById('post-title').value = '';
+        document.getElementById('post-content').value = '';
+        document.getElementById('post-image-prompt').value = '';
+        document.getElementById('post-video-prompt').value = '';
+        document.getElementById('post-alt-img').value = '';
+        document.getElementById('media-rows').innerHTML = '';
+        document.getElementById('target-rows').innerHTML = '';
+        document.getElementById('post-modal-title').textContent = id ? 'Sửa bài viết' : 'Bài viết mới';
+
+        if (id) {
+            try {
+                const p = await PB.collection('posts').getOne(id, { expand: 'media_via_post_id,post_targets_via_post_id' });
+                document.getElementById('post-title').value = p.title || '';
+                document.getElementById('post-content').value = p.content || '';
+                document.getElementById('post-image-prompt').value = p.image_prompt || '';
+                document.getElementById('post-video-prompt').value = p.video_prompt || '';
+                document.getElementById('post-alt-img').value = p.alt_img || '';
+                (p.expand?.media_via_post_id||[]).forEach(m => {
+                    document.getElementById('media-rows').insertAdjacentHTML('beforeend', mediaRowTemplate(m));
+                });
+                (p.expand?.post_targets_via_post_id||[]).forEach(t => {
+                    document.getElementById('target-rows').insertAdjacentHTML('beforeend', targetRowTemplate(t));
+                });
+            } catch (err) {
+                showToast('Lỗi tải bài viết: ' + err.message, 'error');
+                return;
+            }
+        }
+        new bootstrap.Modal(document.getElementById('post-modal')).show();
+    }
+
+    document.getElementById('save-post-btn').addEventListener('click', async () => {
+        const id = document.getElementById('post-id').value;
+        const data = {
+            tenant: window.TENANT,
+            title: document.getElementById('post-title').value,
+            content: document.getElementById('post-content').value,
+            image_prompt: document.getElementById('post-image-prompt').value,
+            video_prompt: document.getElementById('post-video-prompt').value,
+            alt_img: document.getElementById('post-alt-img').value,
+        };
+        btnLoading('save-post-btn', 'Đang lưu...');
+        try {
+            let postId = id;
+            if (id) {
+                await PB.collection('posts').update(id, data);
+            } else {
+                const created = await PB.collection('posts').create(data);
+                postId = created.id;
+            }
+
+            const mediaPromises = [...document.querySelectorAll('#media-rows .repeatable-row')].map(row => {
+                const recId = row.dataset.recordId;
+                const payload = {
+                    tenant: window.TENANT,
+                    post_id: postId,
+                    url: row.querySelector('.media-url').value,
+                    type: row.querySelector('.media-type').value,
+                    order: Number(row.querySelector('.media-order').value || 0)
+                };
+                return recId ? PB.collection('media').update(recId, payload) : PB.collection('media').create(payload);
+            });
+
+            const targetPromises = [...document.querySelectorAll('#target-rows .repeatable-row')].map(row => {
+                const recId = row.dataset.recordId;
+                const scheduled = row.querySelector('.target-scheduled').value;
+                const payload = {
+                    tenant: window.TENANT,
+                    post_id: postId,
+                    platform: row.querySelector('.target-platform').value,
+                    page_id: row.querySelector('.target-pageid').value,
+                    status: row.querySelector('.target-status').value,
+                    scheduled_at: scheduled ? new Date(scheduled).toISOString() : '',
+                    error_log: row.querySelector('.target-error').value
+                };
+                return recId ? PB.collection('post_targets').update(recId, payload) : PB.collection('post_targets').create(payload);
+            });
+
+            await Promise.all([...mediaPromises, ...targetPromises]);
+
+            bootstrap.Modal.getInstance(document.getElementById('post-modal')).hide();
+            showToast(id ? 'Đã lưu bài viết' : 'Đã tạo bài viết mới', 'success');
+            loadPosts();
+        } catch (err) {
+            showToast('Lỗi lưu bài viết: ' + err.message, 'error');
+        } finally {
+            btnReset('save-post-btn');
+        }
+    });
+
+    // ═══════════════════════════════════════
+    // AI PROMPTS
+    // ═══════════════════════════════════════
+    async function loadPrompts() {
+        const list = document.getElementById('prompts-list');
+        list.innerHTML = '<div class="text-secondary">Đang tải...</div>';
+        try {
+            promptsCache = await PB.collection('ai_prompts').getFullList({
+                sort: 'category',
+                filter: `tenant = "${window.TENANT}"`
+            });
+            renderPrompts();
+        } catch (err) {
+            list.innerHTML = `<div class="alert alert-danger mb-0">Lỗi tải ai_prompts: ${escHtml(err.message)}<br><span class="fs-6">Kiểm tra collection "ai_prompts" đã được tạo chưa.</span></div>`;
+        }
+    }
+
+    function renderPrompts() {
+        const list = document.getElementById('prompts-list');
+        list.innerHTML = '';
+        if (promptsCache.length === 0) {
+            list.innerHTML = '<div class="text-secondary">Chưa có prompt nào.</div>';
+            return;
+        }
+        promptsCache.forEach(p => {
+            const row = document.createElement('div');
+            row.className = 'border rounded p-3 d-flex align-items-start gap-2 prompt-row';
+            row.innerHTML = `
+              <div class="flex-fill">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="fw-medium">${escHtml(p.label||'')}</span>
+                  <span class="badge bg-blue-lt">${escHtml(p.category||'')}</span>
+                  ${p.is_active ? '<span class="badge bg-green-lt">Đang dùng</span>' : '<span class="badge bg-secondary-lt">Tạm dừng</span>'}
+                </div>
+                <div class="text-secondary fs-6 mt-1">${escHtml(p.model||'')}</div>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary edit-prompt-btn">Sửa</button>`;
+            row.querySelector('.edit-prompt-btn').addEventListener('click', () => openPromptModal(p));
+            list.appendChild(row);
+        });
+    }
+
+    document.getElementById('new-prompt-btn').addEventListener('click', () => openPromptModal(null));
+
+    function openPromptModal(p) {
+        document.getElementById('prompt-id-hidden').value = p?.id || '';
+        document.getElementById('prompt-label').value = p?.label || '';
+        document.getElementById('prompt-category').value = p?.category || '';
+        document.getElementById('prompt-model').value = p?.model || 'models/gemini-2.5-flash-lite';
+        document.getElementById('prompt-system').value = p?.system_prompt || '';
+        document.getElementById('prompt-active').checked = p ? !!p.is_active : true;
+        document.getElementById('delete-prompt-btn').classList.toggle('d-none', !p);
+        new bootstrap.Modal(document.getElementById('prompt-modal')).show();
+    }
+
+    document.getElementById('save-prompt-btn').addEventListener('click', async () => {
+        const id = document.getElementById('prompt-id-hidden').value;
+        const data = {
+            tenant: window.TENANT,
+            label: document.getElementById('prompt-label').value,
+            category: document.getElementById('prompt-category').value,
+            model: document.getElementById('prompt-model').value,
+            system_prompt: document.getElementById('prompt-system').value,
+            is_active: document.getElementById('prompt-active').checked
+        };
+        btnLoading('save-prompt-btn', 'Đang lưu...');
+        try {
+            if (id) await PB.collection('ai_prompts').update(id, data);
+            else await PB.collection('ai_prompts').create(data);
+            bootstrap.Modal.getInstance(document.getElementById('prompt-modal')).hide();
+            showToast('Đã lưu prompt', 'success');
+            await loadPrompts();
+            await loadRss(); // refresh select prompt trong list RSS
+        } catch (err) {
+            showToast('Lỗi lưu prompt: ' + err.message, 'error');
+        } finally {
+            btnReset('save-prompt-btn');
+        }
+    });
+
+    document.getElementById('delete-prompt-btn').addEventListener('click', async () => {
+        const id = document.getElementById('prompt-id-hidden').value;
+        if (!id || !confirm('Xóa prompt này?')) return;
+        try {
+            await PB.collection('ai_prompts').delete(id);
+            bootstrap.Modal.getInstance(document.getElementById('prompt-modal')).hide();
+            showToast('Đã xóa', 'success');
+            await loadPrompts();
+            await loadRss();
+        } catch (err) {
+            showToast('Lỗi xóa: ' + err.message, 'error');
+        }
+    });
+
+    // ═══════════════════════════════════════
+    // RSS SOURCES
+    // ═══════════════════════════════════════
+    async function loadRss() {
+        const list = document.getElementById('rss-list');
+        list.innerHTML = '<div class="text-secondary">Đang tải...</div>';
+        try {
+            rssCache = await PB.collection('rss_sources').getFullList({
+                sort: 'category',
+                filter: `tenant = "${window.TENANT}"`,
+                expand: 'prompt_id'
+            });
+            renderRss();
+        } catch (err) {
+            list.innerHTML = `<div class="alert alert-danger mb-0">Lỗi tải rss_sources: ${escHtml(err.message)}<br><span class="fs-6">Kiểm tra collection "rss_sources" đã được tạo chưa.</span></div>`;
+        }
+    }
+
+    function renderRss() {
+        const list = document.getElementById('rss-list');
+        list.innerHTML = '';
+        if (rssCache.length === 0) {
+            list.innerHTML = '<div class="text-secondary">Chưa có nguồn RSS nào.</div>';
+            return;
+        }
+        rssCache.forEach(r => {
+            const promptLabel = r.expand?.prompt_id?.label || '— chưa gắn prompt —';
+            const row = document.createElement('div');
+            row.className = 'border rounded p-3 d-flex align-items-start gap-2';
+            row.innerHTML = `
+              <div class="flex-fill">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="fw-medium">${escHtml(r.label||'')}</span>
+                  <span class="badge bg-blue-lt">${escHtml(r.category||'')}</span>
+                  ${r.is_active ? '<span class="badge bg-green-lt">Hoạt động</span>' : '<span class="badge bg-secondary-lt">Tạm dừng</span>'}
+                </div>
+                <div class="text-secondary fs-6 mt-1 text-truncate" style="max-width:320px">${escHtml(r.rss_url||'')}</div>
+                <div class="text-secondary fs-6">Prompt: ${escHtml(promptLabel)}</div>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary edit-rss-btn">Sửa</button>`;
+            row.querySelector('.edit-rss-btn').addEventListener('click', () => openRssModal(r));
+            list.appendChild(row);
+        });
+    }
+
+    function fillRssPromptSelect(selectedId) {
+        const sel = document.getElementById('rss-prompt');
+        sel.innerHTML = '<option value="">— chưa gắn prompt —</option>' +
+            promptsCache.map(p => `<option value="${p.id}" ${p.id===selectedId?'selected':''}>${escHtml(p.label)} (${escHtml(p.category)})</option>`).join('');
+    }
+
+    document.getElementById('new-rss-btn').addEventListener('click', () => openRssModal(null));
+
+    function openRssModal(r) {
+        document.getElementById('rss-id-hidden').value = r?.id || '';
+        document.getElementById('rss-label').value = r?.label || '';
+        document.getElementById('rss-category').value = r?.category || '';
+        document.getElementById('rss-url').value = r?.rss_url || '';
+        document.getElementById('rss-maxitems').value = r?.max_items || 7;
+        document.getElementById('rss-active').checked = r ? !!r.is_active : true;
+        fillRssPromptSelect(r?.prompt_id || '');
+        document.getElementById('delete-rss-btn').classList.toggle('d-none', !r);
+        new bootstrap.Modal(document.getElementById('rss-modal')).show();
+    }
+
+    document.getElementById('save-rss-btn').addEventListener('click', async () => {
+        const id = document.getElementById('rss-id-hidden').value;
+        const data = {
+            tenant: window.TENANT,
+            label: document.getElementById('rss-label').value,
+            category: document.getElementById('rss-category').value,
+            rss_url: document.getElementById('rss-url').value,
+            prompt_id: document.getElementById('rss-prompt').value,
+            max_items: Number(document.getElementById('rss-maxitems').value || 7),
+            is_active: document.getElementById('rss-active').checked
+        };
+        btnLoading('save-rss-btn', 'Đang lưu...');
+        try {
+            if (id) await PB.collection('rss_sources').update(id, data);
+            else await PB.collection('rss_sources').create(data);
+            bootstrap.Modal.getInstance(document.getElementById('rss-modal')).hide();
+            showToast('Đã lưu nguồn RSS', 'success');
+            loadRss();
+        } catch (err) {
+            showToast('Lỗi lưu RSS: ' + err.message, 'error');
+        } finally {
+            btnReset('save-rss-btn');
+        }
+    });
+
+    document.getElementById('delete-rss-btn').addEventListener('click', async () => {
+        const id = document.getElementById('rss-id-hidden').value;
+        if (!id || !confirm('Xóa nguồn RSS này?')) return;
+        try {
+            await PB.collection('rss_sources').delete(id);
+            bootstrap.Modal.getInstance(document.getElementById('rss-modal')).hide();
+            showToast('Đã xóa', 'success');
+            loadRss();
+        } catch (err) {
+            showToast('Lỗi xóa: ' + err.message, 'error');
+        }
+    });
+
+    // ═══════════════════════════════════════
+    // MEDIA LIBRARY
+    // ═══════════════════════════════════════
+    function fileUrl(record) {
+        if (record.file) return PB.files.getUrl(record, record.file);
+        return record.url || '';
+    }
+
+    async function loadMediaLibrary() {
+        const grid = document.getElementById('media-library-grid');
+        if (grid) grid.innerHTML = '<div class="col-12 text-secondary">Đang tải...</div>';
+        try {
+            mediaLibraryCache = await PB.collection('media_library').getFullList({
+                sort: '-created',
+                filter: `tenant = "${window.TENANT}"`
+            });
+            renderMediaLibrary();
+        } catch (err) {
+            if (grid) grid.innerHTML = `<div class="col-12 alert alert-danger">Lỗi tải media_library: ${escHtml(err.message)}<br><span class="fs-6">Kiểm tra collection "media_library" đã được tạo chưa.</span></div>`;
+        }
+    }
+
+    function mediaCardHtml(m, mode) {
+        const url = fileUrl(m);
+        const preview = m.type === 'video'
+            ? `<video src="${url}" class="card-img-top" style="height:160px;object-fit:cover;background:#000" muted preload="metadata"></video>`
+            : `<img src="${url}" class="card-img-top" style="height:160px;object-fit:cover" loading="lazy">`;
+        const sourceBadge = m.source === 'ai_generated'
+            ? '<span class="badge bg-purple-lt">AI render</span>'
+            : '<span class="badge bg-blue-lt">Khách upload</span>';
+        const statusBadge = m.status === 'processing' ? '<span class="badge bg-yellow-lt">Đang xử lý</span>'
+            : m.status === 'error' ? '<span class="badge bg-red-lt">Lỗi</span>' : '';
+        const actionBtn = mode === 'picker'
+            ? `<button class="btn btn-sm btn-primary w-100 pick-btn">Chọn</button>`
+            : `<button class="btn btn-sm btn-outline-danger w-100 delete-media-btn"><i class="ti ti-trash"></i></button>`;
+        return `
+          <div class="col-md-3">
+            <div class="card">
+              ${preview}
+              <div class="card-body p-2">
+                <div class="fs-6 text-truncate mb-1">${escHtml(m.label||'(không tên)')}</div>
+                <div class="d-flex gap-1 flex-wrap mb-2">${sourceBadge}${statusBadge}</div>
+                ${actionBtn}
+              </div>
+            </div>
+          </div>`;
+    }
+
+    function renderMediaLibrary() {
+        const grid = document.getElementById('media-library-grid');
+        const filter = document.getElementById('filter-media-source').value;
+        const items = mediaLibraryCache.filter(m => !filter || m.source === filter);
+        grid.innerHTML = '';
+        if (items.length === 0) {
+            grid.innerHTML = '<div class="col-12 text-secondary">Chưa có media nào.</div>';
+            return;
+        }
+        items.forEach(m => {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = mediaCardHtml(m, 'library');
+            const col = wrap.firstElementChild;
+            col.querySelector('.delete-media-btn').addEventListener('click', async () => {
+                if (!confirm('Xóa media này khỏi thư viện?')) return;
+                try {
+                    await PB.collection('media_library').delete(m.id);
+                    showToast('Đã xóa', 'success');
+                    loadMediaLibrary();
+                } catch (err) {
+                    showToast('Lỗi xóa: ' + err.message, 'error');
+                }
+            });
+            grid.appendChild(col);
+        });
+    }
+
+    document.getElementById('filter-media-source').addEventListener('change', renderMediaLibrary);
+    document.getElementById('refresh-media').addEventListener('click', loadMediaLibrary);
+
+    document.getElementById('upload-media-btn').addEventListener('click', () => {
+        document.getElementById('upload-media-label').value = '';
+        document.getElementById('upload-media-type').value = 'image';
+        document.getElementById('upload-media-file').value = '';
+        new bootstrap.Modal(document.getElementById('upload-media-modal')).show();
+    });
+
+    document.getElementById('save-upload-media-btn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('upload-media-file');
+        if (!fileInput.files[0]) { showToast('Chọn file trước đã', 'error'); return; }
+        const formData = new FormData();
+        formData.append('tenant', window.TENANT);
+        formData.append('label', document.getElementById('upload-media-label').value);
+        formData.append('source', 'upload');
+        formData.append('type', document.getElementById('upload-media-type').value);
+        formData.append('status', 'ready');
+        formData.append('file', fileInput.files[0]);
+
+        btnLoading('save-upload-media-btn', 'Đang upload...');
+        try {
+            await PB.collection('media_library').create(formData);
+            bootstrap.Modal.getInstance(document.getElementById('upload-media-modal')).hide();
+            showToast('Đã upload media', 'success');
+            loadMediaLibrary();
+        } catch (err) {
+            showToast('Lỗi upload: ' + err.message, 'error');
+        } finally {
+            btnReset('save-upload-media-btn');
+        }
+    });
+
+    // ----- Picker dùng trong modal Post -----
+    document.getElementById('pick-from-library-btn').addEventListener('click', () => {
+        const grid = document.getElementById('media-picker-grid');
+        grid.innerHTML = '';
+        if (mediaLibraryCache.length === 0) {
+            grid.innerHTML = '<div class="col-12 text-secondary">Thư viện chưa có media nào. Qua tab "Thư viện Media" để upload trước.</div>';
+        } else {
+            mediaLibraryCache.forEach(m => {
+                const wrap = document.createElement('div');
+                wrap.innerHTML = mediaCardHtml(m, 'picker');
+                const col = wrap.firstElementChild;
+                col.querySelector('.pick-btn').addEventListener('click', () => {
+                    document.getElementById('media-rows').insertAdjacentHTML('beforeend', mediaRowTemplate({ url: fileUrl(m), type: m.type, order: 0 }));
+                    bootstrap.Modal.getInstance(document.getElementById('media-picker-modal')).hide();
+                });
+                grid.appendChild(col);
+            });
+        }
+        new bootstrap.Modal(document.getElementById('media-picker-modal')).show();
+    });
+
+    // ═══════════════════════════════════════
+    // HELPERS
+    // ═══════════════════════════════════════
+    function toLocalDatetime(iso) {
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        const pad = n => String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    </script>
+</body>
+</html>

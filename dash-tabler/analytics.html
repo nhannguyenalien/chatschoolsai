@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Analytics - Customer AI Hub</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root { --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif; }
+        body { font-family: var(--tblr-font-sans-serif); }
+
+        .toast-msg {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+
+        .status-pending, .status-approved, .status-scheduled, .status-published, .status-error { font-size: 11px; padding: 2px 8px; border-radius: 12px; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="toast-msg" id="toast"></div>
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none d-print-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
+                        <span class="avatar avatar-sm bg-primary text-white"><i class="ti ti-robot"></i></span>
+                        <span class="ms-2 fw-bold text-primary">AI Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
+                            <a href="index.html" class="text-reset text-decoration-none">Overview</a>
+                            <i class="ti ti-chevron-right fs-6"></i>
+                            <span class="text-primary fw-medium">Analytics</span>
+                        </div>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <div>
+                                <h2 class="page-title fs-1">Analytics</h2>
+                                <div class="text-secondary mt-1 fs-3">Theo dõi tình trạng đăng bài trên tất cả nền tảng.</div>
+                            </div>
+                            <button onclick="refreshAll()" class="btn btn-outline-secondary ms-auto"><i class="ti ti-refresh" id="refresh-icon"></i> Làm mới</button>
+                        </div>
+                    </div>
+
+                    <!-- STAT CARDS -->
+                    <div class="row row-cards mb-4">
+                        <div class="col-6 col-lg-3">
+                            <div class="card card-sm"><div class="card-body">
+                                <div class="subheader text-uppercase mb-1">Tổng lượt đăng</div>
+                                <div class="h2 mb-0" id="stat-total"><span class="placeholder col-4"></span></div>
+                            </div></div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <div class="card card-sm"><div class="card-body">
+                                <div class="subheader text-uppercase mb-1 text-success">Đã đăng</div>
+                                <div class="h2 mb-0 text-success" id="stat-published"><span class="placeholder col-4"></span></div>
+                            </div></div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <div class="card card-sm"><div class="card-body">
+                                <div class="subheader text-uppercase mb-1 text-warning">Chờ / Đã lên lịch</div>
+                                <div class="h2 mb-0 text-warning" id="stat-pending"><span class="placeholder col-4"></span></div>
+                            </div></div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <div class="card card-sm"><div class="card-body">
+                                <div class="subheader text-uppercase mb-1 text-danger">Lỗi</div>
+                                <div class="h2 mb-0 text-danger" id="stat-error"><span class="placeholder col-4"></span></div>
+                            </div></div>
+                        </div>
+                    </div>
+
+                    <!-- CHARTS -->
+                    <div class="row row-cards mb-4">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header border-bottom-0 pb-0 d-flex align-items-center">
+                                    <h3 class="card-title mb-0">Bài đăng thành công theo ngày</h3>
+                                    <div class="ms-auto btn-group">
+                                        <button class="btn btn-sm btn-primary" onclick="renderTimeChart(7,this)">7 ngày</button>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="renderTimeChart(30,this)">30 ngày</button>
+                                    </div>
+                                </div>
+                                <div class="card-body" style="height:260px">
+                                    <canvas id="timeChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3">
+                            <div class="card">
+                                <div class="card-header border-bottom-0 pb-0"><h3 class="card-title mb-0">Theo trạng thái</h3></div>
+                                <div class="card-body" style="height:260px">
+                                    <canvas id="statusChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3">
+                            <div class="card">
+                                <div class="card-header border-bottom-0 pb-0"><h3 class="card-title mb-0">Theo nền tảng</h3></div>
+                                <div class="card-body" style="height:260px">
+                                    <canvas id="platformChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FILTER BAR -->
+                    <div class="card mb-0" style="border-radius:8px 8px 0 0;border-bottom:none">
+                        <div class="card-body py-2">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <input type="text" id="search-input" class="form-control form-control-sm" style="width:220px" placeholder="Tìm theo tiêu đề bài viết..." oninput="applyFilters()"/>
+                                <select id="filter-platform" onchange="applyFilters()" class="form-select form-select-sm" style="width:auto">
+                                    <option value="">Tất cả nền tảng</option>
+                                    <option value="facebook">Facebook</option>
+                                    <option value="instagram">Instagram</option>
+                                    <option value="linkedin">LinkedIn</option>
+                                </select>
+                                <select id="filter-status" onchange="applyFilters()" class="form-select form-select-sm" style="width:auto">
+                                    <option value="">Tất cả trạng thái</option>
+                                    <option value="pending">Chờ duyệt</option>
+                                    <option value="approved">Đã duyệt</option>
+                                    <option value="scheduled">Đã lên lịch</option>
+                                    <option value="publishing">Đang đăng...</option>
+                                    <option value="published">Đã đăng</option>
+                                    <option value="error">Lỗi</option>
+                                </select>
+                                <div class="ms-auto text-secondary fs-5" id="log-count">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LOG TABLE -->
+                    <div class="card" style="border-radius:0 0 8px 8px">
+                        <div class="table-responsive">
+                            <table class="table table-vcenter table-hover card-table">
+                                <thead>
+                                    <tr>
+                                        <th>Bài viết</th>
+                                        <th style="width:110px">Nền tảng</th>
+                                        <th style="width:120px">Trạng thái</th>
+                                        <th style="width:150px">Lên lịch</th>
+                                        <th style="width:150px">Cập nhật</th>
+                                        <th>Lỗi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="log-tbody">
+                                    <tr><td colspan="6" class="py-2"><span class="placeholder col-12 placeholder-sm"></span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script>
+    const STATUS_LABEL = { pending:'Chờ duyệt', approved:'Đã duyệt', scheduled:'Đã lên lịch', publishing:'Đang đăng...', published:'Đã đăng', error:'Lỗi' };
+    const STATUS_BADGE = {
+        pending:'bg-azure-lt text-azure', approved:'bg-blue-lt text-blue', scheduled:'bg-purple-lt text-purple',
+        publishing:'bg-yellow-lt text-yellow', published:'bg-success-lt text-success', error:'bg-danger-lt text-danger'
+    };
+
+    let allTargets = [];   // flattened: 1 row per post_target, với thông tin post gắn kèm
+    let filteredTargets = [];
+    let timeChart, statusChart, platformChart;
+
+    // ═══════════════════════════════════════
+    // BOOT
+    // ═══════════════════════════════════════
+    (async () => {
+        await requireAuth();
+        renderSidebar(window.AUTH_USER);
+        await loadData();
+    })();
+
+    async function loadData() {
+        try {
+            const posts = await PB.collection('posts').getFullList({
+                sort: '-created',
+                filter: `tenant = "${window.TENANT}"`,
+                expand: 'post_targets_via_post_id'
+            });
+            allTargets = [];
+            posts.forEach(p => {
+                (p.expand?.post_targets_via_post_id || []).forEach(t => {
+                    allTargets.push({
+                        postTitle: p.title || '(chưa có tiêu đề)',
+                        platform: t.platform,
+                        status: t.status,
+                        scheduled_at: t.scheduled_at,
+                        updated: t.updated,
+                        error_log: t.error_log,
+                    });
+                });
+            });
+        } catch (err) {
+            allTargets = [];
+            showToast('Lỗi tải dữ liệu: ' + err.message, 'error');
+        }
+        updateStats();
+        renderTimeChart(7);
+        renderStatusChart();
+        renderPlatformChart();
+        applyFilters();
+    }
+
+    async function refreshAll() {
+        document.getElementById('refresh-icon').style.animation = 'spin .6s linear';
+        await loadData();
+        showToast('Đã làm mới', 'success');
+        setTimeout(() => document.getElementById('refresh-icon').style.animation = '', 700);
+    }
+
+    // ═══════════════════════════════════════
+    // STATS
+    // ═══════════════════════════════════════
+    function updateStats() {
+        const published = allTargets.filter(t => t.status === 'published').length;
+        const pending = allTargets.filter(t => t.status === 'pending' || t.status === 'approved' || t.status === 'scheduled').length;
+        const error = allTargets.filter(t => t.status === 'error').length;
+        setEl('stat-total', allTargets.length);
+        setEl('stat-published', published);
+        setEl('stat-pending', pending);
+        setEl('stat-error', error);
+    }
+
+    // ═══════════════════════════════════════
+    // CHARTS
+    // ═══════════════════════════════════════
+    function renderTimeChart(days, btn) {
+        if (btn) {
+            btn.parentElement.querySelectorAll('button').forEach(b => b.className = 'btn btn-sm btn-outline-primary');
+            btn.className = 'btn btn-sm btn-primary';
+        }
+        const ctx = document.getElementById('timeChart');
+        const labels = [], dataPoints = [];
+        const today = new Date(); today.setHours(23,59,59,999);
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(today.getTime() - i * 86400000);
+            labels.push(d.toLocaleDateString('vi-VN', { month:'2-digit', day:'2-digit' }));
+            const startOfDay = new Date(d); startOfDay.setHours(0,0,0,0);
+            const endOfDay = new Date(d); endOfDay.setHours(23,59,59,999);
+            const count = allTargets.filter(t => {
+                if (t.status !== 'published' || !t.updated) return false;
+                const dt = new Date(t.updated);
+                return dt >= startOfDay && dt <= endOfDay;
+            }).length;
+            dataPoints.push(count);
+        }
+        if (timeChart) timeChart.destroy();
+        timeChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Bài đăng thành công', data: dataPoints, backgroundColor: '#2fb344', borderRadius: 4, barPercentage: 0.6 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { borderDash: [4,4] } }, x: { grid: { display: false } } },
+                plugins: { legend: { display: false }, tooltip: { cornerRadius: 4 } }
+            }
+        });
+    }
+
+    function renderStatusChart() {
+        const ctx = document.getElementById('statusChart');
+        const keys = Object.keys(STATUS_LABEL);
+        const counts = keys.map(k => allTargets.filter(t => t.status === k).length);
+        const colors = ['#4299e1', '#2c7be5', '#7c4dff', '#2fb344', '#d63939'];
+        if (statusChart) statusChart.destroy();
+        statusChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: keys.map(k => STATUS_LABEL[k]), datasets: [{ data: counts, backgroundColor: colors }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+        });
+    }
+
+    function renderPlatformChart() {
+        const ctx = document.getElementById('platformChart');
+        const platforms = [...new Set(allTargets.map(t => t.platform))].filter(Boolean);
+        const counts = platforms.map(p => allTargets.filter(t => t.platform === p).length);
+        const colors = ['#206bc4', '#ae3ec9', '#0ca678', '#f76707', '#d63939'];
+        if (platformChart) platformChart.destroy();
+        platformChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: platforms.length ? platforms : ['—'], datasets: [{ data: platforms.length ? counts : [1], backgroundColor: colors }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+        });
+    }
+
+    // ═══════════════════════════════════════
+    // LOG TABLE
+    // ═══════════════════════════════════════
+    function applyFilters() {
+        const q = document.getElementById('search-input').value.trim().toLowerCase();
+        const pf = document.getElementById('filter-platform').value;
+        const sf = document.getElementById('filter-status').value;
+        filteredTargets = allTargets.filter(t => {
+            if (q && !t.postTitle.toLowerCase().includes(q)) return false;
+            if (pf && t.platform !== pf) return false;
+            if (sf && t.status !== sf) return false;
+            return true;
+        }).sort((a,b) => new Date(b.updated||0) - new Date(a.updated||0));
+        renderLogTable();
+    }
+
+    function renderLogTable() {
+        const tbody = document.getElementById('log-tbody');
+        setEl('log-count', `${filteredTargets.length} dòng`);
+        if (!filteredTargets.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-secondary"><i class="ti ti-inbox fs-1 d-block mb-2"></i>Không có dữ liệu</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = filteredTargets.slice(0, 200).map(t => `
+            <tr>
+                <td class="text-truncate" style="max-width:280px" title="${escHtml(t.postTitle)}">${escHtml(t.postTitle)}</td>
+                <td><span class="badge bg-secondary-lt">${escHtml(t.platform||'—')}</span></td>
+                <td><span class="badge ${STATUS_BADGE[t.status]||'bg-secondary-lt'}">${STATUS_LABEL[t.status]||t.status||'—'}</span></td>
+                <td class="text-secondary fs-5">${fmtDt(t.scheduled_at)}</td>
+                <td class="text-secondary fs-5">${fmtDt(t.updated)}</td>
+                <td class="text-danger fs-6">${t.error_log ? escHtml(t.error_log) : ''}</td>
+            </tr>
+        `).join('');
+    }
+
+    // ═══════════════════════════════════════
+    // HELPERS
+    // ═══════════════════════════════════════
+    function fmtDt(s) { if (!s) return '—'; try { return new Date(s).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); } catch { return s; } }
+    function setEl(id, v) { const e = document.getElementById(id); if (e) e.textContent = v; }
+    function showToast(msg, type = 'success') {
+        const toast = document.getElementById('toast');
+        toast.innerHTML = type === 'success'
+            ? `<i class="ti ti-check text-success fs-3"></i> ${msg}`
+            : `<i class="ti ti-alert-triangle text-danger fs-3"></i> ${msg}`;
+        toast.className = `toast-msg ${type} show`;
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    </script>
+</body>
+</html>

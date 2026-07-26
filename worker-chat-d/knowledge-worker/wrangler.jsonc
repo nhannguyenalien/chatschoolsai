@@ -1,0 +1,37 @@
+{
+  "name": "knowledge-worker",
+  "main": "src/index.js",
+  "workers_dev": true,
+  "preview_urls": true,
+  "compatibility_date": "2024-01-01",
+  "routes": [
+    {
+      "pattern": "apic.schoolsai.work",
+      "zone_name": "schoolsai.work",
+      "custom_domain": true,
+      "enabled": true,
+      "previews_enabled": false
+    }
+  ],
+  "vars": {
+    "OPENAI_BASE_URL": "https://v98store.com/v1",
+    "OPENAI_CHAT_MODEL": "gpt-4o-mini",
+    "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
+    "PB_URL": "https://nhannguyen123-chat.hf.space",
+    // Điền domain dashboard thật (vd: "https://dash.yourdomain.com") để link cảnh báo Telegram
+    // trỏ thẳng vào messages.html?bot=...&session=... — để trống nếu chưa deploy dashboard.
+    "DASHBOARD_URL": ""
+  },
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "knowledge"
+    }
+  ],
+  "triggers": {
+    // 01:00 UTC = 08:00 giờ VN — báo cáo tổng hợp ngày hôm trước.
+    // 00:30 UTC = 07:30 giờ VN — crawl RSS + AI viết bài nháp (post_targets status=pending, chờ duyệt).
+    // Mỗi 15 phút — đăng thật các bài đã duyệt (status=approved) hoặc tới giờ hẹn (scheduled).
+    "crons": ["0 1 * * *", "30 0 * * *", "*/15 * * * *"]
+  }
+}

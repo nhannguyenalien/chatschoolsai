@@ -1,0 +1,13 @@
+name = "knowledge-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "knowledge"
+
+[vars]
+PB_URL = "https://nhannguyen123-chat.hf.space"
+OPENAI_BASE_URL = "https://v98store.com/v1"
+OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+OPENAI_CHAT_MODEL = "gpt-4o-mini"

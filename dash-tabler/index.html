@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Customer AI Hub</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); }
+        
+        /* Custom Login Modal Overlay */
+        #login-modal {
+            position: fixed; inset: 0; z-index: 1055;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(11,28,48,0.7); backdrop-filter: blur(8px);
+            transition: opacity 0.2s;
+        }
+        #login-modal.hidden { display: none !important; }
+        .ai-pulse { animation: subtle-pulse 2s infinite ease-in-out; }
+        @keyframes subtle-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.2)} }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-none d-lg-flex d-print-none sticky-top bg-white border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item d-none d-md-flex me-3">
+                            <a href="#" class="nav-link px-0" data-bs-toggle="tooltip" title="Notifications">
+                                <i class="ti ti-bell fs-2"></i>
+                            </a>
+                        </div>
+                        <div class="nav-item dropdown">
+                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0">
+                                <span class="avatar avatar-sm rounded-circle" id="user-avatar" style="background-image: url('')"></span>
+                                <div class="d-none d-xl-block ps-2">
+                                    <div id="user-display-name">Admin</div>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                            <a href="#" onclick="doLogout()" class="dropdown-item text-danger">Đăng xuất</a>
+                        </div>
+                    </div>
+                    <div class="collapse navbar-collapse" id="navbar-menu">
+                        <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                            <div class="ms-md-auto w-100 w-md-auto">
+                                <div class="input-icon">
+                                    <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+                                    <input type="text" class="form-control form-control-rounded" placeholder="Search...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+                    
+                    <div class="row align-items-center mb-4">
+                        <div class="col">
+                            <h2 class="page-title fs-1">Customer AI Hub</h2>
+                            <div class="text-secondary mt-1">Tổng quan hoạt động bot — <span id="tenant-label" class="fw-bold text-primary">—</span></div>
+                        </div>
+                        <div class="col-auto ms-auto d-print-none">
+                            <button class="btn btn-outline-secondary d-flex align-items-center gap-2" onclick="exportReport()">
+                                <i class="ti ti-download"></i> Export Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col">
+                                    <h3 class="card-title">Chia sẻ Bot AI</h3>
+                                    <p class="text-secondary">Gửi link này cho khách hàng hoặc để họ quét mã QR để bắt đầu trò chuyện trực tiếp với AI của bạn.</p>
+                                    
+                                    <div class="input-group mb-2" style="max-width: 500px;">
+                                        <input type="text" id="share-link-input" class="form-control font-monospace" readonly value="Đang tạo link...">
+                                        <button class="btn btn-primary" onclick="copyShareLink()">
+                                            <i class="ti ti-copy me-2"></i> Copy
+                                        </button>
+                                    </div>
+                                    <a id="share-link-test" href="#" target="_blank" class="text-primary fw-medium text-decoration-none">
+                                        Mở test thử giao diện khách <i class="ti ti-external-link"></i>
+                                    </a>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="bg-white border rounded-3 p-2" id="qrcode-container" style="width: 130px; height: 130px; display: flex; align-items: center; justify-content: center;">
+                                        </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card card-sm h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader text-uppercase">Tổng tin nhắn</div>
+                                        <div class="ms-auto lh-1">
+                                            <span class="badge bg-blue-lt fw-bold" id="badge-msg-growth">—</span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-1 mt-2 placeholder-glow" id="stat-total-messages">
+                                        <span class="placeholder col-4"></span>
+                                    </div>
+                                    <div class="text-secondary fs-5">30 ngày gần nhất</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card card-sm h-100 position-relative overflow-hidden">
+                                <div class="position-absolute top-0 end-0 p-3 opacity-25 text-primary">
+                                    <i class="ti ti-message-circle" style="font-size: 80px; margin: -20px -20px 0 0;"></i>
+                                </div>
+                                <div class="card-body position-relative z-1">
+                                    <div class="subheader text-uppercase">Hội thoại</div>
+                                    <div class="h1 mb-1 mt-2" id="stat-sessions">—</div>
+                                    <div class="text-secondary fs-5">Unique sessions</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card card-sm h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader text-uppercase">Hôm nay</div>
+                                        <div class="ms-auto d-flex align-items-center gap-1 text-success">
+                                            <span class="badge bg-success badge-blink" style="width: 8px; height: 8px; padding: 0;"></span>
+                                            <span class="fs-5 fw-bold text-uppercase">Live</span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-1 mt-2" id="stat-today">—</div>
+                                    <div class="text-secondary fs-5">Tin nhắn hôm nay</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-lg-8">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h3 class="card-title">Query Volume Over Time</h3>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-primary">7D</button>
+                                        <button class="btn btn-sm btn-light">30D</button>
+                                    </div>
+                                </div>
+                                <div class="card-body d-flex flex-column">
+                                    <div style="min-height: 250px; height: 100%; width: 100%;">
+                                        <canvas id="volumeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card h-100 d-flex flex-column">
+                                <div class="card-header">
+                                    <h3 class="card-title">Khách hoạt động</h3>
+                                    <div class="card-actions">
+                                        <i class="ti ti-sort-descending text-secondary fs-3"></i>
+                                    </div>
+                                </div>
+                                <div class="list-group list-group-flush list-group-hoverable" id="top-sessions-list">
+                                    <div class="list-group-item placeholder-glow"><div class="placeholder col-12"></div></div>
+                                    <div class="list-group-item placeholder-glow"><div class="placeholder col-12"></div></div>
+                                    <div class="list-group-item placeholder-glow"><div class="placeholder col-12"></div></div>
+                                </div>
+                                <div class="card-footer text-center bg-light mt-auto">
+                                    <a href="messages.html" class="text-primary fs-5 text-decoration-none">Xem tất cả hội thoại</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-5">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="card-title">Bot Configuration</h3>
+                            <a href="config.html" class="text-secondary fs-5 text-decoration-none">Chỉnh sửa →</a>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Bot Name</th>
+                                        <th>Tenant</th>
+                                        <th>Status</th>
+                                        <th>Webhook</th>
+                                        <th class="w-1"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bot-table-body">
+                                    <tr><td colspan="5" class="text-center py-4 text-secondary placeholder-glow"><span class="placeholder col-3"></span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+    <script>
+    let allMessages = [];
+    let volumeChart = null;
+
+    // Các hàm helper từ thư viện của bác (giả lập để code chạy nếu _shared không tồn tại)
+    function escHtml(unsafe) { return (unsafe || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+    function formatTime(isoString) { 
+        if(!isoString) return "";
+        const d = new Date(isoString);
+        return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
+    }
+    function showToast(msg) { alert(msg); } // Tạm giả lập
+
+    // ═══════════════════════════════════════
+    // BOOT
+    // ═══════════════════════════════════════
+    
+    (async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+
+        // Luồng xử lý OAuth2 (Google) trả code về giữ lại để chạy đồng bộ
+        if (code && state) {
+            const providerStr = localStorage.getItem('provider');
+            if (providerStr) {
+                const provider = JSON.parse(providerStr);
+                if (provider.state === state) {
+                    try {
+                        const redirectUrl = window.location.origin;
+                        const authData = await PB.collection('tenants').authWithOAuth2Code(
+                            provider.name, code, provider.codeVerifier, redirectUrl
+                        );
+
+                        let user = authData.record;
+                        if (!user.tenant) {
+                            const newTenantId = `bot_${user.id}`;
+                            user = await PB.collection('tenants').update(user.id, {
+                                tenant: newTenantId,
+                                name: authData.meta.name 
+                            });
+                        }
+
+                        localStorage.removeItem('provider');
+                        window.history.replaceState(null, '', window.location.pathname);
+                        
+                        // Set biến global như auth.js yêu cầu
+                        window.TENANT = user.tenant;
+                        window.AUTH_USER = user;
+                    } catch (err) {
+                        console.error("Lỗi xác thực OAuth2:", err);
+                        window.location.href = "landing.html";
+                        return;
+                    }
+                }
+            }
+        }
+
+        // --- GỌI BỘ LOCK AUTH CỦA BÁC ---
+        // Hàm này sẽ tự động check token, tự refresh, tự validate tenant, tự sút ra landing.html nếu sai
+        await requireAuth(); 
+
+        // Sau khi qua được cửa requireAuth(), gọi tiếp các hàm nạp dữ liệu dashboard
+        renderSidebar(window.AUTH_USER);
+        
+        // Fix nhỏ: Vì hàm requireAuth() đã tự gọi renderUserInfo(user) bên trong, 
+        // nên ở đây bác chỉ cần kích hoạt nhãn tenant text lên là xong:
+        if (document.getElementById("nav-tenant-id")) {
+            document.getElementById("nav-tenant-id").textContent = window.TENANT;
+        }
+        if (document.getElementById("tenant-label")) {
+            document.getElementById("tenant-label").textContent = window.TENANT;
+        }
+
+        // Chạy tiếp luồng tải data chính của trang
+        await Promise.all([loadBotConfig(), loadAllMessages()]);
+        renderShareLink();
+    })();
+
+    function applyUserUI(user) {
+        const tenant = window.TENANT;
+        document.getElementById("nav-tenant-id").textContent = tenant;
+        document.getElementById("tenant-label").textContent = tenant;
+        document.getElementById("user-display-name").textContent = user.name || user.email || "Admin";
+        if (user.avatarUrl) {
+            document.getElementById("user-avatar").style.backgroundImage = `url('${user.avatarUrl}')`;
+        }
+    }
+
+    async function doLogin() {
+        const emailInput = document.getElementById("login-email").value.trim();
+        const passwordInput = document.getElementById("login-password").value;
+        const btn = document.getElementById("login-btn");
+        
+        if (!emailInput || !passwordInput) {
+            showLoginError("Vui lòng nhập đủ Email và Mật khẩu");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span> Đang xác thực...';
+
+        try {
+            await PB.collection("tenants").authWithPassword(emailInput, passwordInput);
+            const user = PB.authStore.model;
+            if (!user.tenant) {
+                PB.authStore.clear();
+                throw new Error("Tài khoản chưa được cấp tenant.");
+            }
+
+            window.TENANT = user.tenant;
+            window.AUTH_USER = user;
+
+            hideLoginModal();
+            applyUserUI(user);
+
+            await Promise.all([loadBotConfig(), loadAllMessages()]);
+            renderShareLink();
+
+        } catch (err) {
+            showLoginError(err.message || "Sai tài khoản hoặc mật khẩu");
+            btn.disabled = false;
+            btn.innerHTML = "Đăng nhập";
+        }
+    }
+
+    async function doGoogleLogin() {
+        const btn = document.getElementById("btn-google-login");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary me-2"></span> Đang kết nối...';
+
+        try {
+            const authMethods = await PB.collection('tenants').listAuthMethods();
+            const providers = authMethods.oauth2?.providers || authMethods.authProviders || [];
+            const googleProvider = providers.find(p => p.name === 'google');
+
+            if (!googleProvider) throw new Error("Chưa cấu hình Google Auth");
+
+            localStorage.setItem('provider', JSON.stringify(googleProvider));
+            window.location.href = googleProvider.authUrl + window.location.origin;
+
+        } catch (err) {
+            showLoginError(err.message || "Lỗi kết nối Google.");
+            btn.disabled = false;
+            btn.innerHTML = '<img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-4 h-4 me-2"> Tiếp tục với Google';
+        }
+    }
+
+    async function loadAllMessages() {
+        try {
+            const rows = await PB.collection("messages").getList(1, 5000, { 
+                sort: "-created",
+                filter: `tenant = "${window.TENANT}"` 
+            });
+            allMessages = rows.items;
+            
+            renderStats();
+            renderTopSessions();
+            renderChart(7);
+        } catch (err) {
+            console.error("Lỗi lấy dữ liệu chat:", err);
+        }
+    }
+
+    function renderStats() {
+        const total = allMessages.length;
+        const sessions = new Set(allMessages.map(m => m.session)).size;
+
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const todayCount = allMessages.filter(m => new Date(m.created) >= todayStart).length;
+
+        const now = Date.now();
+        const d30 = now - 30 * 86400000;
+        const d15 = now - 15 * 86400000;
+        const first15 = allMessages.filter(m => new Date(m.created) >= d30 && new Date(m.created) < d15).length;
+        const last15  = allMessages.filter(m => new Date(m.created) >= d15).length;
+        const growth  = first15 > 0 ? Math.round(((last15 - first15) / first15) * 100) : 0;
+
+        const msgEl = document.getElementById("stat-total-messages");
+        msgEl.textContent = total >= 1000 ? (total / 1000).toFixed(1) + "k" : total;
+        msgEl.classList.remove("placeholder-glow");
+
+        document.getElementById("stat-sessions").textContent = sessions;
+        document.getElementById("stat-today").textContent = todayCount;
+        
+        const growthEl = document.getElementById("badge-msg-growth");
+        growthEl.textContent = (growth >= 0 ? "+" : "") + growth + "%";
+        if(growth < 0) {
+            growthEl.classList.replace("bg-blue-lt", "bg-red-lt");
+        }
+    }
+
+    function renderTopSessions() {
+        const el = document.getElementById("top-sessions-list");
+        const userMessages = allMessages.filter(m => m.is_bot === false);
+        
+        const map = {};
+        userMessages.forEach(msg => {
+            if (!map[msg.session]) map[msg.session] = { username: msg.username || "Khách", count: 0, last: msg.created };
+            map[msg.session].count++;
+        });
+
+        const top5 = Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5);
+
+        if (!top5.length) { 
+            el.innerHTML = '<div class="list-group-item text-secondary text-center">Chưa có dữ liệu</div>'; 
+            return; 
+        }
+
+        // Đã sửa template string để fit class Tabler
+        el.innerHTML = top5.map(u => `
+            <div class="list-group-item">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="avatar bg-primary-lt rounded"><i class="ti ti-user"></i></span>
+                    </div>
+                    <div class="col text-truncate">
+                        <div class="text-reset d-block fw-medium">${escHtml(u.username)}</div>
+                        <div class="d-block text-secondary text-truncate mt-n1 fs-5">${formatTime(u.last)}</div>
+                    </div>
+                    <div class="col-auto text-secondary">
+                        ${u.count} tin
+                    </div>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    async function loadBotConfig() {
+        const tbody = document.getElementById("bot-table-body");
+        try {
+            const rows = await PB.collection("bot_configs").getList(1, 50, { 
+                sort: "-created",
+                filter: `tenant = "${window.TENANT}"` 
+            });
+            if (!rows.items.length) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-secondary">Chưa có cấu hình bot nào. <a href="config.html" class="text-primary">Tạo ngay</a></td></tr>`;
+                return;
+            }
+
+            // Đã sửa table row template theo class Tabler
+            tbody.innerHTML = rows.items.map(bot => `
+                <tr>
+                    <td>
+                        <div class="d-flex py-1 align-items-center">
+                            <span class="avatar me-3 border-0 bg-transparent fs-2">${bot.bot_avatar || "🤖"}</span>
+                            <div class="flex-fill">
+                                <div class="font-weight-medium">${escHtml(bot.bot_name || "Unnamed Bot")}</div>
+                                <div class="text-secondary fs-5 mt-1">ID: ${bot.id.substring(0, 8)}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-secondary font-monospace fs-5">${escHtml(bot.tenant_id || window.TENANT)}</td>
+                    <td><span class="badge bg-green-lt"><span class="badge-blink me-1"></span> Live</span></td>
+                    <td class="text-secondary text-truncate" style="max-width: 200px;">
+                        ${bot.webhook ? `<span title="${escHtml(bot.webhook)}">${escHtml(bot.webhook)}</span>` : '<span class="text-muted fst-italic">Chưa cấu hình</span>'}
+                    </td>
+                    <td class="text-end">
+                        <a href="config.html" class="btn btn-icon btn-ghost-secondary">
+                            <i class="ti ti-settings"></i>
+                        </a>
+                    </td>
+                </tr>
+            `).join("");
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-danger">Lỗi tải cấu hình</td></tr>`;
+        }
+    }
+
+    function exportReport() {
+        showToast("Tính năng export đang phát triển");
+    }
+
+    function renderShareLink() {
+        const shareUrl = `${window.location.origin}/chat?bot=${window.TENANT}`;
+        document.getElementById("share-link-input").value = shareUrl;
+        document.getElementById("share-link-test").href = shareUrl;
+        
+        const qrContainer = document.getElementById("qrcode-container");
+        qrContainer.innerHTML = ""; 
+        new QRCode(qrContainer, {
+            text: shareUrl,
+            width: 110, height: 110,
+            colorDark : "#206bc4", // Tabler Primary color
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+    }
+
+    function copyShareLink() {
+        const input = document.getElementById("share-link-input");
+        input.select();
+        navigator.clipboard.writeText(input.value).then(() => {
+            alert("Đã copy link chia sẻ!"); 
+        });
+    }
+
+    function renderChart(days) {
+        const ctx = document.getElementById('volumeChart');
+        const labels = [];
+        const dataPoints = [];
+        const today = new Date(); today.setHours(23, 59, 59, 999);
+
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+            labels.push(d.toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit' }));
+            
+            const startOfDay = new Date(d); startOfDay.setHours(0,0,0,0);
+            const endOfDay = new Date(d); endOfDay.setHours(23,59,59,999);
+            
+            const count = allMessages.filter(m => {
+                const msgDate = new Date(m.created);
+                return msgDate >= startOfDay && msgDate <= endOfDay;
+            }).length;
+            dataPoints.push(count);
+        }
+
+        if (volumeChart) volumeChart.destroy();
+
+        volumeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Số lượng tin nhắn',
+                    data: dataPoints,
+                    backgroundColor: '#206bc4', // Tabler primary color
+                    borderRadius: 4,
+                    barPercentage: 0.6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { display: false }, tooltip: { cornerRadius: 4 } }
+            }
+        });
+    }
+
+
+    function doLogout() {
+    PB.authStore.clear(); // Xóa token
+    window.location.href = "landing.html"; // Trả về Landing
+}
+    // Gắn sự kiện nút Chart
+    const chartBtns = document.querySelectorAll('.card-header .btn-group button');
+    chartBtns.forEach((btn, idx) => {
+        btn.onclick = () => {
+            chartBtns.forEach(b => b.className = "btn btn-sm btn-light");
+            btn.className = "btn btn-sm btn-primary";
+            renderChart(idx === 0 ? 7 : 30);
+        }
+    });
+
+    </script>
+</body>
+</html>

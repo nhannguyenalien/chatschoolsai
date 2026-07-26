@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Thanh Toán - Customer AI Hub</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); }
+        .gap-2-custom { gap: 8px !important; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-print-none sticky-top bg-white border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <h2 class="page-title d-none d-md-block text-primary fs-2 m-0 ms-3">Dashboard</h2>
+                    
+                    <div class="navbar-nav flex-row order-md-last ms-auto">
+                        <div class="nav-item d-none d-md-flex me-3">
+                            <div class="input-icon" style="width: 250px;">
+                                <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+                                <input type="text" class="form-control form-control-rounded" placeholder="Tìm kiếm...">
+                            </div>
+                        </div>
+                        <div class="nav-item d-none d-md-flex me-3">
+                            <a href="#" class="nav-link px-0" title="Thông báo">
+                                <i class="ti ti-bell fs-2"></i>
+                            </a>
+                        </div>
+                        <div class="nav-item dropdown">
+                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0">
+                                <span class="avatar avatar-sm rounded-circle" style="background-image: url('https://ui-avatars.com/api/?name=Admin&background=206bc4&color=fff')"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <h2 class="page-title fs-1 mb-1">Thanh Toán & Sử Dụng</h2>
+                        <div class="text-secondary fs-3">Quản lý gói dịch vụ, hạn mức và lịch sử giao dịch của bạn.</div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-lg-4">
+                            <div class="card h-100 position-relative overflow-hidden">
+                                <i class="ti ti-receipt position-absolute text-primary opacity-10" style="font-size: 140px; right: -20px; top: -20px;"></i>
+                                
+                                <div class="card-body d-flex flex-column position-relative z-1">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <div class="text-uppercase tracking-wide text-secondary fs-5 font-weight-medium">Gói Hiện Tại</div>
+                                            <h3 id="ui-plan-name" class="display-6 fw-bold text-body m-0 mt-1">Đang tải...</h3>
+                                        </div>
+                                        <span class="badge bg-green-lt fs-5 px-2 py-1"><i class="ti ti-circle-check-filled me-1"></i> Active</span>
+                                    </div>
+                                    <p class="text-secondary fs-4 mb-3" id="ui-plan-desc">Đang kiểm tra gói dịch vụ...</p>
+                                    
+                                    <div class="mt-auto d-flex flex-column gap-2" id="ui-action-container">
+                                        </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-8">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <div class="text-uppercase tracking-wide text-secondary fs-5 font-weight-medium">Mức Sử Dụng (Tháng Này)</div>
+                                            <h3 id="ui-usage-text" class="display-6 fw-bold text-body m-0 mt-1">... / ...</h3>
+                                        </div>
+                                        <div class="text-end">
+                                            <div id="ui-usage-percent" class="display-6 text-primary fw-bold">0%</div>
+                                            <div class="text-secondary fs-5">Đã sử dụng</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="progress progress-lg mb-2">
+                                        <div id="ui-progress-bar" class="progress-bar bg-primary" style="width: 0%" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between text-secondary fs-5 mb-4">
+                                        <span>0</span>
+                                        <span id="ui-usage-limit">Giới hạn: ...</span>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-sm-6">
+                                            <div class="bg-light border rounded-3 p-3">
+                                                <div class="d-flex align-items-center gap-2 text-secondary mb-1">
+                                                    <i class="ti ti-robot fs-3"></i>
+                                                    <span class="fs-5 fw-medium">Bot API</span>
+                                                </div>
+                                                <div class="fs-2 fw-bold text-body">Hoạt động</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="bg-light border rounded-3 p-3">
+                                                <div class="d-flex align-items-center gap-2 text-secondary mb-1">
+                                                    <i class="ti ti-database fs-3"></i>
+                                                    <span class="fs-5 fw-medium">Knowledge Base</span>
+                                                </div>
+                                                <div class="fs-2 fw-bold text-body">Ổn định</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="card-title d-flex align-items-center gap-2">
+                                <i class="ti ti-history text-primary fs-2"></i> Lịch Sử Giao Dịch
+                            </h3>
+                            <button class="btn btn-sm btn-ghost-primary">
+                                Tải về tất cả <i class="ti ti-download ms-2"></i>
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Mã Hóa Đơn</th>
+                                        <th>Ngày</th>
+                                        <th>Số Tiền</th>
+                                        <th>Trạng Thái</th>
+                                        <th class="w-1 text-end">Hành Động</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-secondary">
+                                            Hệ thống thanh toán qua Whop. Xem lịch sử hóa đơn trực tiếp trên Whop Dashboard của bạn.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@master/dist/pocketbase.umd.js"></script>
+
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <script>
+        // CẤU HÌNH 3 LINK THANH TOÁN WHOP CỦA BẠN (Thay thế mã plan thực tế của bạn vào đây)
+        const WHOP_LINKS = {
+            MONTHLY: "https://whop.com/checkout/plan_AmLo77qFcdLYF", // Link gói tháng $19
+            YEARLY: "https://whop.com/checkout/plan_5WXuEKjmm2Vyo",  // Link gói năm $199
+            ADDON: "https://whop.com/checkout/plan_AmLo77qFcdLYF"    // Link mua thêm 1000 câu $7
+        };
+
+        async function loadBillingData() {
+            try {
+                const authModel = window.AUTH_USER || PB.authStore.model;
+                if(!authModel) return;
+                
+                // Đồng bộ dữ liệu realtime mới nhất từ PocketBase
+                const user = await PB.collection('tenants').getOne(authModel.id);
+                
+                const planName = (user.plan_id === 'pro') ? 'Pro Plan' : 'Free Plan';
+                const limit = user.message_limit || 100;
+                let used = user.message_used || 0;
+
+                // Xử lý logic hiển thị Lazy Reset Tháng ở Frontend
+                const currentMonth = new Date().toISOString().slice(0, 7);
+                if (user.last_reset_month && user.last_reset_month !== currentMonth) {
+                    used = 0;
+                }
+                
+                let remaining = limit - used;
+                if(remaining < 0) remaining = 0;
+
+                let percent = (used / limit) * 100;
+                if(percent > 100) percent = 100;
+
+                // Đổ dữ liệu hạn mức lên cột bên phải
+                document.getElementById('ui-plan-name').textContent = planName;
+                document.getElementById('ui-usage-text').textContent = `${remaining} câu (Còn lại)`;
+                document.getElementById('ui-usage-percent').textContent = `${Math.round(percent)}%`;
+                document.getElementById('ui-usage-limit').textContent = `Giới hạn: ${limit}`;
+
+                const progressBar = document.getElementById('ui-progress-bar');
+                if(progressBar) {
+                    progressBar.style.width = `${percent}%`;
+                    if(percent >= 90) {
+                        progressBar.classList.remove('bg-primary');
+                        progressBar.classList.add('bg-danger');
+                        document.getElementById('ui-usage-percent').classList.replace('text-primary', 'text-danger');
+                    }
+                }
+
+                // LOGIC PHÂN PHỐI NÚT BẤM CỦA 3 LINK WHOP VÀO CONTAINER
+                const actionContainer = document.getElementById('ui-action-container');
+                const planDesc = document.getElementById('ui-plan-desc');
+                
+                if(actionContainer && planDesc) {
+                    actionContainer.innerHTML = ""; // Clear loader cũ
+
+                    if(planName === 'Free Plan') {
+                        planDesc.textContent = "Bạn đang ở gói miễn phí. Hạn mức 100 câu trả lời/tháng.";
+                        
+                        // Tạo Nút Gói Tháng
+                        const btnMonth = document.createElement('button');
+                        btnMonth.className = "btn btn-primary w-100";
+                        btnMonth.innerHTML = `<i class="ti ti-rocket me-2"></i> Nâng cấp Pro ($19/tháng)`;
+                        btnMonth.onclick = () => window.open(`${WHOP_LINKS.MONTHLY}?email=${encodeURIComponent(user.email)}`, "_blank");
+                        
+                        // Tạo Nút Gói Năm (Kèm badge giảm giá để thu hút)
+                        const btnYear = document.createElement('button');
+                        btnYear.className = "btn btn-outline-primary w-100 position-relative";
+                        btnYear.innerHTML = `<i class="ti ti-star me-2"></i> Mua Gói Năm ($199/năm) <span class="badge bg-red text-white ms-2" style="font-size: 10px; padding: 2px 6px;">Save 15%</span>`;
+                        btnYear.onclick = () => window.open(`${WHOP_LINKS.YEARLY}?email=${encodeURIComponent(user.email)}`, "_blank");
+
+                        actionContainer.appendChild(btnMonth);
+                        actionContainer.appendChild(btnYear);
+                    } else {
+                        planDesc.textContent = "Cảm ơn bạn đã đồng hành cùng gói cao cấp Pro Plan của hệ thống.";
+                        
+                        // Nếu là khách Pro -> Ưu tiên nút Addon nạp đạn nhanh $7
+                        const btnAddon = document.createElement('button');
+                        btnAddon.className = "btn btn-primary w-100";
+                        btnAddon.innerHTML = `<i class="ti ti-plus me-2"></i> Nạp thêm 1,000 câu ($7)`;
+                        btnAddon.onclick = () => window.open(`${WHOP_LINKS.ADDON}?email=${encodeURIComponent(user.email)}`, "_blank");
+
+                        actionContainer.appendChild(btnAddon);
+                    }
+                }
+
+            } catch (err) {
+                console.error("Lỗi tải thông tin billing:", err);
+            }
+        }
+
+        // KHỞI CHẠY LUỒNG ĐỒNG BỘ DASHBOARD
+        (async () => {
+            if(typeof requireAuth === "function") {
+                await requireAuth();
+            }
+            if(typeof renderSidebar === "function") {
+                renderSidebar(window.AUTH_USER);
+            }
+            if(typeof renderUserInfo === "function" && window.AUTH_USER) {
+                renderUserInfo(window.AUTH_USER);
+            }
+            await loadBillingData();
+        })();
+    </script>
+</body>
+</html>

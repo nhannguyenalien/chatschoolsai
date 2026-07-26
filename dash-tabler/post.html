@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Bài Đăng BDS — AI Admin</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+
+  <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <script src="_shared/auth.js"></script>
+  <script src="_shared/ui.js"></script>
+  <script src="_shared/sidebar.js"></script>
+
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+    body { font-family: var(--tblr-font-sans-serif); }
+
+    #login-modal { position:fixed;inset:0;z-index:1055;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.7);backdrop-filter:blur(8px); }
+    #login-modal.hidden { display:none!important; }
+
+    .post-thumb { width:52px;height:40px;object-fit:cover;border-radius:4px;border:1px solid var(--tblr-border-color); }
+    .post-thumb-placeholder { width:52px;height:40px;border-radius:4px;border:1px solid var(--tblr-border-color);background:var(--tblr-bg-surface-secondary);display:flex;align-items:center;justify-content:center;color:var(--tblr-secondary); }
+
+    .row-actions { opacity:0; transition:.12s; }
+    tr:hover .row-actions { opacity:1; }
+    tr:hover td { background: var(--tblr-bg-surface-secondary); }
+
+    #toast-container { position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+    .toast-item { pointer-events:auto;min-width:280px;max-width:360px;padding:12px 16px;border-radius:8px;font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);animation:toastIn .25s ease-out; }
+    @keyframes toastIn { from{transform:translateY(14px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .toast-item.success { background:#d1f0e0;color:#206b45;border:1px solid #a3dfc0; }
+    .toast-item.error   { background:#fde8e7;color:#c92a2a;border:1px solid #f5b0af; }
+    .toast-item.info    { background:#dbeafe;color:#1e40af;border:1px solid #93c5fd; }
+  </style>
+</head>
+<body class="layout-fluid">
+
+<!-- LOGIN MODAL -->
+<div id="login-modal" class="hidden">
+  <div class="card shadow-lg" style="width:100%;max-width:400px;border-radius:1rem;">
+    <div class="card-body text-center py-5">
+      <div class="avatar avatar-lg bg-primary-lt rounded-circle mb-3"><i class="ti ti-robot fs-2"></i></div>
+      <h2 class="h2 mb-1">AI Admin</h2>
+      <p class="text-secondary mb-4">Đăng nhập tài khoản</p>
+      <div class="mb-3 text-start">
+        <label class="form-label">Email</label>
+        <input type="text" id="login-email" class="form-control" placeholder="Nhập email..."/>
+      </div>
+      <div class="mb-4 text-start">
+        <label class="form-label">Mật khẩu</label>
+        <input type="password" id="login-password" class="form-control" placeholder="••••••••"/>
+      </div>
+      <div id="login-error" class="alert alert-danger d-none text-start p-2 fs-4 mb-3"></div>
+      <button class="btn btn-primary w-100 mb-3" id="login-btn" onclick="doLogin()">Đăng nhập</button>
+      <div class="hr-text">Hoặc</div>
+      <button class="btn btn-white w-100" onclick="doGoogleLogin()">
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="" style="width:16px;height:16px" class="me-2"/>
+        Tiếp tục với Google
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<div class="page">
+  <div id="sidebar-placeholder"></div>
+
+  <div class="page-wrapper">
+    <!-- TOP NAVBAR -->
+    <header class="navbar navbar-expand-md d-none d-lg-flex d-print-none sticky-top bg-white border-bottom">
+      <div class="container-xl">
+        <div class="navbar-nav flex-row order-md-last gap-2">
+          <a href="composer.html" class="btn btn-primary btn-sm d-flex align-items-center gap-1">
+            <i class="ti ti-plus"></i> Viết bài mới
+          </a>
+          <div class="nav-item dropdown">
+            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+              <span class="avatar avatar-sm rounded-circle" id="user-avatar" style="background-image:url('')"></span>
+              <div class="d-none d-xl-block ps-2">
+                <div id="user-display-name">Admin</div>
+                <div class="mt-1 small text-secondary" id="user-tenant-nav">—</div>
+              </div>
+            </a>
+            <div class="dropdown-menu dropdown-menu-end">
+              <a href="sm-config.html" class="dropdown-item"><i class="ti ti-settings me-2"></i>Cấu hình Pages</a>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item text-danger" onclick="logout()"><i class="ti ti-logout me-2"></i>Đăng xuất</a>
+            </div>
+          </div>
+        </div>
+        <div class="collapse navbar-collapse">
+          <div class="ms-md-auto">
+            <div class="input-icon">
+              <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+              <input type="text" id="search-input" class="form-control form-control-rounded"
+                placeholder="Tìm tiêu đề, nội dung..." oninput="handleSearch(this.value)"/>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-body mt-3">
+      <div class="container-xl">
+
+        <!-- Page header -->
+        <div class="row align-items-center mb-4">
+          <div class="col">
+            <h2 class="page-title">Bài Đăng BDS</h2>
+            <div class="text-secondary mt-1">Quản lý, duyệt và theo dõi bài đăng tự động lên mạng xã hội</div>
+          </div>
+          <div class="col-auto ms-auto d-print-none d-flex gap-2 flex-wrap">
+            <button onclick="refreshPosts()" class="btn btn-outline-secondary d-flex align-items-center gap-1">
+              <i class="ti ti-refresh" id="refresh-icon"></i> Làm mới
+            </button>
+            <button id="bulk-btn" onclick="bulkApprove()" class="btn btn-success d-none align-items-center gap-1">
+              <i class="ti ti-check"></i> Duyệt đã chọn (<span id="bulk-count">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <!-- STAT CARDS -->
+        <div class="row row-cards mb-4">
+          <div class="col-6 col-lg-3">
+            <div class="card card-sm">
+              <div class="card-body">
+                <div class="subheader text-uppercase mb-1">Tổng bài</div>
+                <div class="h2 mb-0" id="stat-total"><span class="placeholder col-4"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card card-sm">
+              <div class="card-body">
+                <div class="subheader text-uppercase mb-1 text-azure">Bản nháp</div>
+                <div class="h2 mb-0 text-azure" id="stat-draft"><span class="placeholder col-4"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card card-sm">
+              <div class="card-body">
+                <div class="subheader text-uppercase mb-1 text-success">Đã đăng</div>
+                <div class="h2 mb-0 text-success" id="stat-published"><span class="placeholder col-4"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card card-sm">
+              <div class="card-body">
+                <div class="subheader text-uppercase mb-1 text-danger">Lỗi</div>
+                <div class="h2 mb-0 text-danger" id="stat-error"><span class="placeholder col-4"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="card mb-0" style="border-radius:8px 8px 0 0;border-bottom:none">
+          <div class="card-body py-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-primary tab-btn" data-tab="all" onclick="switchTab('all',this)">Tất cả</button>
+                <button class="btn btn-sm btn-ghost-secondary tab-btn" data-tab="Bản nháp" onclick="switchTab('Bản nháp',this)">
+                  <span class="badge bg-azure-lt text-azure me-1" id="badge-draft">0</span>Bản nháp
+                </button>
+                <button class="btn btn-sm btn-ghost-secondary tab-btn" data-tab="Chờ đăng" onclick="switchTab('Chờ đăng',this)">
+                  <span class="badge bg-warning-lt text-warning me-1" id="badge-pending">0</span>Chờ đăng
+                </button>
+                <button class="btn btn-sm btn-ghost-secondary tab-btn" data-tab="Đã đăng" onclick="switchTab('Đã đăng',this)">Đã đăng</button>
+                <button class="btn btn-sm btn-ghost-secondary tab-btn" data-tab="error" onclick="switchTab('error',this)">
+                  <span class="badge bg-danger-lt text-danger me-1" id="badge-error">0</span>Lỗi
+                </button>
+              </div>
+              <div class="ms-auto d-flex gap-2">
+                <select id="platform-filter" onchange="applyFilters()" class="form-select form-select-sm" style="width:auto">
+                  <option value="all">Tất cả</option>
+                  <option value="photo">Ảnh</option>
+                  <option value="video">Video</option>
+                </select>
+                <select id="sort-select" onchange="applyFilters()" class="form-select form-select-sm" style="width:auto">
+                  <option value="newest">Mới nhất</option>
+                  <option value="oldest">Cũ nhất</option>
+                  <option value="scheduled">Giờ đăng</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="card" style="border-radius:0 0 8px 8px">
+          <div class="table-responsive">
+            <table class="table table-vcenter table-hover card-table">
+              <thead>
+                <tr>
+                  <th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input" onchange="toggleSelectAll(this)"/></th>
+                  <th style="width:60px">Ảnh</th>
+                  <th>Tiêu đề & Nội dung</th>
+                  <th class="d-none d-md-table-cell" style="width:140px">Giờ đăng</th>
+                  <th class="d-none d-lg-table-cell" style="width:90px">Loại</th>
+                  <th style="width:110px">Trạng thái</th>
+                  <th style="width:120px"></th>
+                </tr>
+              </thead>
+              <tbody id="posts-tbody">
+                <tr><td colspan="7" class="py-2"><span class="placeholder col-12 placeholder-sm"></span></td></tr>
+                <tr><td colspan="7" class="py-2"><span class="placeholder col-12 placeholder-sm" style="opacity:.7"></span></td></tr>
+                <tr><td colspan="7" class="py-2"><span class="placeholder col-12 placeholder-sm" style="opacity:.4"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer d-flex align-items-center">
+            <p class="m-0 text-secondary fs-5" id="pagination-info">—</p>
+            <ul class="pagination m-0 ms-auto" id="pagination-ul"></ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal modal-blur fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-edit text-primary me-2"></i>Chỉnh sửa bài đăng</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id"/>
+        <div class="row g-3 mb-3">
+          <div class="col-auto" id="thumb-preview-col" style="display:none">
+            <img id="edit-thumb-preview" src="" alt="" class="rounded border" style="width:80px;height:60px;object-fit:cover"/>
+          </div>
+          <div class="col">
+            <label class="form-label">Link ảnh</label>
+            <input type="url" id="edit-link-anh" class="form-control" placeholder="https://..." oninput="previewThumb(this.value)"/>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Tiêu đề gốc</label>
+          <input type="text" id="edit-title" class="form-control"/>
+        </div>
+        <div class="mb-3">
+          <label class="form-label d-flex justify-content-between">
+            <span>Nội dung đăng</span>
+            <span class="text-secondary fs-5" id="char-count">0 ký tự</span>
+          </label>
+          <textarea id="edit-content" class="form-control font-monospace" rows="6"
+            oninput="updateCharCount(this)"></textarea>
+          <div class="form-hint">FB: tối đa ~63k · Instagram: tối đa 2.200 ký tự</div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Caption / Alt ảnh</label>
+            <input type="text" id="edit-alt" class="form-control"/>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Giờ đăng</label>
+            <input type="datetime-local" id="edit-gio-dang" class="form-control"/>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Link video <span class="text-secondary">(để trống nếu chỉ đăng ảnh)</span></label>
+          <input type="url" id="edit-link-video" class="form-control" placeholder="https://..."/>
+        </div>
+        <div class="card bg-surface-secondary mb-0">
+          <div class="card-body py-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div class="fw-medium">Duyệt đăng tự động</div>
+                <div class="text-secondary fs-5 mt-1">Bật để hệ thống tự đăng đúng giờ đặt</div>
+              </div>
+              <label class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="edit-duyet"/>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="deletePost()" class="btn btn-danger me-auto"><i class="ti ti-trash me-1"></i>Xóa bài</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+        <button onclick="savePost()" id="save-btn" class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal modal-blur fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-eye text-primary me-2"></i>Xem nhanh</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <img id="detail-img" src="" alt="" class="rounded mb-3 w-100 d-none" style="max-height:220px;object-fit:cover"/>
+        <div class="mb-3">
+          <div class="text-uppercase text-secondary fs-6 mb-1">Tiêu đề gốc</div>
+          <div class="fw-medium" id="detail-title"></div>
+        </div>
+        <div class="mb-3">
+          <div class="text-uppercase text-secondary fs-6 mb-1">Nội dung đăng</div>
+          <p class="mb-0 small" id="detail-content" style="white-space:pre-wrap;max-height:180px;overflow-y:auto"></p>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <div class="card bg-surface-secondary mb-0">
+              <div class="card-body py-2">
+                <div class="text-secondary fs-6 text-uppercase">Giờ đăng</div>
+                <div class="fw-medium fs-5 mt-1" id="detail-time">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card bg-surface-secondary mb-0">
+              <div class="card-body py-2">
+                <div class="text-secondary fs-6 text-uppercase">Trạng thái</div>
+                <div class="mt-1" id="detail-status"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="detail-error-box" class="alert alert-danger d-none p-2 fs-5">
+          <div class="fw-medium mb-1">Chi tiết lỗi</div>
+          <code id="detail-error" class="fs-6"></code>
+        </div>
+        <div id="detail-fb-box" class="d-none">
+          <div class="text-uppercase text-secondary fs-6 mb-1">Facebook Post ID</div>
+          <a id="detail-fb-link" href="#" target="_blank" class="font-monospace fs-5 text-primary"></a>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="openEditFromDetail()" class="btn btn-secondary me-auto"><i class="ti ti-edit me-1"></i>Chỉnh sửa</button>
+        <button onclick="approvePost(window._detailPost)" id="approve-quick-btn" class="btn btn-success"><i class="ti ti-check me-1"></i>Duyệt đăng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+const COLLECTION = 'bds_posts';
+const PAGE_SIZE  = 20;
+
+let allPosts=[], filteredPosts=[], currentPage=1, currentTab='all', searchQuery='', selectedIds=new Set(), _editingPost=null;
+let _editModal, _detailModal;
+
+// ── BOOT ──
+(async () => {
+  if (!PB.authStore.isValid) { showLoginModal(); return; }
+  try { await PB.collection('tenants').authRefresh(); }
+  catch { PB.authStore.clear(); showLoginModal(); return; }
+  const user = PB.authStore.model;
+  if (!user.tenant) { PB.authStore.clear(); showLoginModal(); return; }
+  window.TENANT = user.tenant; window.AUTH_USER = user;
+  hideLoginModal();
+  renderSidebar(user);
+  applyUserUI(user);
+  _editModal   = new bootstrap.Modal(document.getElementById('editModal'));
+  _detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+  await loadPosts();
+})();
+
+function applyUserUI(user) {
+  const avatar = user.avatar ? PB.getFileUrl(user, user.avatar, {thumb:'40x40'}) : '';
+  setEl('user-display-name', user.name || user.email || 'Admin');
+  setEl('user-tenant-nav', window.TENANT);
+  const el = document.getElementById('user-avatar');
+  if (el && avatar) el.style.backgroundImage = `url('${avatar}')`;
+  updateSidebarUser(user);
+}
+
+// ── AUTH ──
+function showLoginModal() { document.getElementById('login-modal').classList.remove('hidden'); }
+function hideLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
+function showLoginError(m) { const e=document.getElementById('login-error'); e.textContent=m; e.classList.remove('d-none'); }
+
+async function doLogin() {
+  const email=document.getElementById('login-email').value.trim(), pass=document.getElementById('login-password').value;
+  const btn=document.getElementById('login-btn');
+  if (!email||!pass) { showLoginError('Vui lòng nhập đủ email và mật khẩu'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-2"></span>Đang xác thực...';
+  try {
+    await PB.collection('tenants').authWithPassword(email, pass);
+    const user=PB.authStore.model;
+    if (!user.tenant) throw new Error('Chưa được cấp tenant');
+    window.TENANT=user.tenant; window.AUTH_USER=user;
+    hideLoginModal(); applyUserUI(user); await loadPosts();
+  } catch(e) { showLoginError(e.message||'Sai tài khoản hoặc mật khẩu'); btn.disabled=false; btn.innerHTML='Đăng nhập'; }
+}
+async function doGoogleLogin() {
+  try {
+    const methods=await PB.collection('tenants').listAuthMethods();
+    const providers=methods.oauth2?.providers||methods.authProviders||[];
+    const g=providers.find(p=>p.name==='google');
+    if (!g) throw new Error('Chưa cấu hình Google Auth');
+    localStorage.setItem('provider', JSON.stringify(g));
+    window.location.href=g.authUrl+window.location.origin;
+  } catch(e) { showLoginError(e.message); }
+}
+function logout() { PB.authStore.clear(); window.location.href='index.html'; }
+
+// ── DATA ──
+async function loadPosts() {
+  showSkeletons();
+  try {
+    const r = await PB.collection(COLLECTION).getList(1, 500, {
+      filter: `tenant = "${window.TENANT}"`,
+      sort: '-created',
+    });
+    allPosts = r.items;
+  } catch(e) {
+    allPosts = getMockPosts();
+    showToast('Dùng dữ liệu mẫu — tạo collection bds_posts trong PocketBase', 'info');
+  }
+  updateStats(); applyFilters();
+}
+
+async function refreshPosts() {
+  document.getElementById('refresh-icon').style.animation='spin .6s linear';
+  await loadPosts(); showToast('Đã làm mới', 'success');
+  setTimeout(()=>document.getElementById('refresh-icon').style.animation='',700);
+}
+
+// ── FILTER ──
+let _st;
+function handleSearch(v) { clearTimeout(_st); _st=setTimeout(()=>{ searchQuery=v.trim().toLowerCase(); applyFilters(); },260); }
+
+function switchTab(tab, btn) {
+  currentTab=tab; currentPage=1;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.className=b.className.replace('btn-primary','btn-ghost-secondary');
+  });
+  btn.className=btn.className.replace('btn-ghost-secondary','btn-primary');
+  applyFilters();
+}
+
+function applyFilters() {
+  const pf=document.getElementById('platform-filter').value;
+  const sf=document.getElementById('sort-select').value;
+  filteredPosts=allPosts.filter(p => {
+    if (currentTab==='Bản nháp' && !(p.trang_thai==='Bản nháp'&&p.duyet!=='OK')) return false;
+    if (currentTab==='Chờ đăng' && !(p.duyet==='OK'&&p.trang_thai!=='Đã đăng')) return false;
+    if (currentTab==='Đã đăng'  && p.trang_thai!=='Đã đăng') return false;
+    if (currentTab==='error'    && !p.error_log) return false;
+    if (pf==='video'&&!p.link_video) return false;
+    if (pf==='photo'&&p.link_video)  return false;
+    if (searchQuery) { const h=`${p.title_goc||''} ${p.content||''}`.toLowerCase(); if (!h.includes(searchQuery)) return false; }
+    return true;
+  });
+  filteredPosts.sort((a,b)=>{
+    if (sf==='oldest')    return new Date(a.created)-new Date(b.created);
+    if (sf==='scheduled') return new Date(a.gio_dang||0)-new Date(b.gio_dang||0);
+    return new Date(b.created)-new Date(a.created);
+  });
+  renderTable();
+}
+
+// ── RENDER ──
+function renderTable() {
+  const tbody=document.getElementById('posts-tbody');
+  const total=filteredPosts.length, totalPg=Math.ceil(total/PAGE_SIZE)||1;
+  currentPage=Math.min(currentPage,totalPg);
+  const s=(currentPage-1)*PAGE_SIZE, items=filteredPosts.slice(s,s+PAGE_SIZE);
+  setEl('pagination-info', total===0?'0 bài':`${s+1}–${Math.min(s+PAGE_SIZE,total)} / ${total} bài`);
+  renderPagination(currentPage,totalPg);
+  if (!items.length) {
+    tbody.innerHTML=`<tr><td colspan="7" class="text-center py-5 text-secondary">
+      <i class="ti ti-inbox fs-1 d-block mb-2"></i>Không có bài nào<br>
+      <a href="composer.html" class="text-primary mt-1 d-inline-block">Viết bài mới →</a>
+    </td></tr>`; return;
+  }
+  tbody.innerHTML=items.map(p=>{
+    const thumb=p.link_anh
+      ? `<img src="${esc(p.link_anh)}" class="post-thumb" alt="" onerror="this.outerHTML='<div class=post-thumb-placeholder><i class=ti.ti-photo></i></div>'">`
+      : `<div class="post-thumb-placeholder"><i class="ti ti-photo"></i></div>`;
+    const typeTag=p.link_video
+      ? `<span class="badge bg-purple-lt text-purple"><i class="ti ti-video me-1"></i>Video</span>`
+      : `<span class="badge bg-azure-lt text-azure"><i class="ti ti-photo me-1"></i>Ảnh</span>`;
+    const duyetTag=p.duyet==='OK'
+      ? `<div class="text-success fs-6 mt-1"><i class="ti ti-check me-1"></i>Đã duyệt</div>`
+      : `<div class="text-secondary fs-6 mt-1">Chờ duyệt</div>`;
+    const pJson=JSON.stringify(p).replace(/"/g,'&quot;');
+    return `<tr>
+      <td><input type="checkbox" class="form-check-input" ${selectedIds.has(p.id)?'checked':''} onchange="toggleSelect('${p.id}',this)"/></td>
+      <td>${thumb}</td>
+      <td>
+        <div class="fw-medium text-truncate" style="max-width:300px" title="${esc(p.title_goc||'')}">${esc(p.title_goc||'(Không có tiêu đề)')}</div>
+        <div class="text-secondary text-truncate fs-5" style="max-width:300px">${esc((p.content||'').slice(0,90))}${(p.content||'').length>90?'…':''}</div>
+      </td>
+      <td class="d-none d-md-table-cell text-secondary fs-5">${fmtDt(p.gio_dang)}${duyetTag}</td>
+      <td class="d-none d-lg-table-cell">${typeTag}</td>
+      <td>${statusBadge(p)}</td>
+      <td class="row-actions">
+        <div class="d-flex gap-1 justify-content-end">
+          <button class="btn btn-icon btn-ghost-secondary btn-sm" title="Xem" onclick="openDetail(${pJson})"><i class="ti ti-eye"></i></button>
+          <button class="btn btn-icon btn-ghost-secondary btn-sm" title="Sửa" onclick="openEdit(${pJson})"><i class="ti ti-edit"></i></button>
+          ${p.trang_thai!=='Đã đăng'&&p.duyet!=='OK'?`<button class="btn btn-icon btn-ghost-success btn-sm" title="Duyệt" onclick="approvePost(${pJson})"><i class="ti ti-check"></i></button>`:''}
+          <div class="dropdown">
+            <button class="btn btn-icon btn-ghost-secondary btn-sm" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical"></i></button>
+            <div class="dropdown-menu dropdown-menu-end">
+              <a class="dropdown-item" onclick="copyContent('${esc(p.content||'')}')"><i class="ti ti-copy me-2"></i>Sao chép nội dung</a>
+              <a class="dropdown-item" onclick="duplicatePost(${pJson})"><i class="ti ti-copy-plus me-2"></i>Nhân bản</a>
+              ${p.fb_post_id?`<a class="dropdown-item" href="https://facebook.com/${p.fb_post_id}" target="_blank"><i class="ti ti-external-link me-2"></i>Xem trên Facebook</a>`:''}
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item text-danger" onclick="confirmDelete('${p.id}')"><i class="ti ti-trash me-2"></i>Xóa bài</a>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPagination(cur,tot) {
+  const ul=document.getElementById('pagination-ul');
+  if (tot<=1){ul.innerHTML='';return;}
+  let pg=[];
+  for(let i=1;i<=tot;i++){if(i===1||i===tot||(i>=cur-1&&i<=cur+1))pg.push(i);else if(pg[pg.length-1]!=='…')pg.push('…');}
+  ul.innerHTML=`<li class="page-item ${cur<=1?'disabled':''}"><a class="page-link" onclick="goToPage(${cur-1})"><i class="ti ti-chevron-left"></i></a></li>`
+    +pg.map(p=>p==='…'?`<li class="page-item disabled"><span class="page-link">…</span></li>`
+      :`<li class="page-item ${p===cur?'active':''}"><a class="page-link" onclick="goToPage(${p})">${p}</a></li>`).join('')
+    +`<li class="page-item ${cur>=tot?'disabled':''}"><a class="page-link" onclick="goToPage(${cur+1})"><i class="ti ti-chevron-right"></i></a></li>`;
+}
+
+function goToPage(p){const t=Math.ceil(filteredPosts.length/PAGE_SIZE)||1;if(p<1||p>t)return;currentPage=p;renderTable();window.scrollTo({top:0,behavior:'smooth'});}
+
+// ── EDIT ──
+function openEdit(post) {
+  _editingPost=post;
+  setVal('edit-id',post.id||''); setVal('edit-title',post.title_goc||''); setVal('edit-content',post.content||'');
+  setVal('edit-alt',post.alt_img||''); setVal('edit-link-anh',post.link_anh||''); setVal('edit-link-video',post.link_video||'');
+  document.getElementById('edit-duyet').checked=post.duyet==='OK';
+  if (post.gio_dang){try{const d=new Date(post.gio_dang),l=new Date(d-d.getTimezoneOffset()*60000);setVal('edit-gio-dang',l.toISOString().slice(0,16));}catch(e){}}
+  previewThumb(post.link_anh);
+  updateCharCount(document.getElementById('edit-content'));
+  _editModal.show(); _detailModal.hide();
+}
+function openEditFromDetail(){if(window._detailPost)openEdit(window._detailPost);}
+
+function previewThumb(url){
+  const img=document.getElementById('edit-thumb-preview'),col=document.getElementById('thumb-preview-col');
+  if(url&&url.startsWith('http')){img.src=url;col.style.display='';}else col.style.display='none';
+}
+function updateCharCount(el){
+  const n=(el.value||'').length,cc=document.getElementById('char-count');if(!cc)return;
+  cc.textContent=`${n} ký tự`;
+  cc.className=n>2200?'text-danger fs-5':n>1800?'text-warning fs-5':'text-secondary fs-5';
+}
+async function savePost(){
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
+  const gd=document.getElementById('edit-gio-dang').value;
+  try{
+    const id=document.getElementById('edit-id').value;
+    const updated=await PB.collection(COLLECTION).update(id,{
+      title_goc:  document.getElementById('edit-title').value,
+      content:    document.getElementById('edit-content').value,
+      alt_img:    document.getElementById('edit-alt').value,
+      link_anh:   document.getElementById('edit-link-anh').value,
+      link_video: document.getElementById('edit-link-video').value,
+      gio_dang:   gd?new Date(gd).toISOString():null,
+      duyet:      document.getElementById('edit-duyet').checked?'OK':'Pending',
+    });
+    const idx=allPosts.findIndex(p=>p.id===id);if(idx!==-1)allPosts[idx]={...allPosts[idx],...updated};
+    updateStats();applyFilters();showToast('Đã lưu thay đổi ✓','success');_editModal.hide();
+  }catch(e){showToast('Lỗi lưu: '+e.message,'error');}
+  btn.disabled=false;btn.innerHTML='<i class="ti ti-device-floppy me-1"></i>Lưu thay đổi';
+}
+async function deletePost(){
+  if(!_editingPost||!confirm(`Xóa bài "${(_editingPost.title_goc||'').slice(0,40)}"?`))return;
+  try{await PB.collection(COLLECTION).delete(_editingPost.id);allPosts=allPosts.filter(p=>p.id!==_editingPost.id);updateStats();applyFilters();showToast('Đã xóa','info');_editModal.hide();}
+  catch(e){showToast('Xóa thất bại: '+e.message,'error');}
+}
+async function confirmDelete(id){
+  const p=allPosts.find(x=>x.id===id);if(!p||!confirm(`Xóa bài "${(p.title_goc||'').slice(0,40)}"?`))return;
+  try{await PB.collection(COLLECTION).delete(id);allPosts=allPosts.filter(x=>x.id!==id);updateStats();applyFilters();showToast('Đã xóa','info');}
+  catch(e){showToast('Xóa thất bại','error');}
+}
+
+// ── DETAIL ──
+window._detailPost=null;
+function openDetail(post){
+  window._detailPost=post;
+  const img=document.getElementById('detail-img');
+  if(post.link_anh){img.src=post.link_anh;img.classList.remove('d-none');}else img.classList.add('d-none');
+  setEl('detail-title',post.title_goc||'(Không có tiêu đề)');
+  setEl('detail-content',post.content||'');
+  setEl('detail-time',fmtDt(post.gio_dang));
+  document.getElementById('detail-status').innerHTML=statusBadge(post);
+  const eb=document.getElementById('detail-error-box');
+  if(post.error_log){setEl('detail-error',post.error_log);eb.classList.remove('d-none');}else eb.classList.add('d-none');
+  const fb=document.getElementById('detail-fb-box'),fl=document.getElementById('detail-fb-link');
+  if(post.fb_post_id){fl.textContent=post.fb_post_id;fl.href=`https://facebook.com/${post.fb_post_id}`;fb.classList.remove('d-none');}else fb.classList.add('d-none');
+  document.getElementById('approve-quick-btn').classList.toggle('d-none',post.trang_thai==='Đã đăng'||post.duyet==='OK');
+  _detailModal.show();
+}
+
+// ── ACTIONS ──
+async function approvePost(post){
+  try{const u=await PB.collection(COLLECTION).update(post.id,{duyet:'OK'});const i=allPosts.findIndex(p=>p.id===post.id);if(i!==-1)allPosts[i]={...allPosts[i],...u};updateStats();applyFilters();showToast('Đã duyệt: '+(post.title_goc||'').slice(0,30),'success');_detailModal.hide();}
+  catch(e){showToast('Duyệt thất bại: '+e.message,'error');}
+}
+async function duplicatePost(post){
+  try{const n=await PB.collection(COLLECTION).create({...post,id:undefined,title_goc:'[Copy] '+(post.title_goc||''),trang_thai:'Bản nháp',fb_post_id:'',error_log:'',duyet:'Pending'});allPosts.unshift(n);updateStats();applyFilters();showToast('Đã nhân bản','success');}
+  catch(e){showToast('Nhân bản thất bại: '+e.message,'error');}
+}
+function copyContent(t){navigator.clipboard.writeText(t);showToast('Đã sao chép nội dung','success');}
+
+// ── BULK ──
+function toggleSelect(id,cb){if(cb.checked)selectedIds.add(id);else selectedIds.delete(id);updateBulkUI();}
+function toggleSelectAll(cb){const ids=filteredPosts.slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE).map(p=>p.id);ids.forEach(id=>cb.checked?selectedIds.add(id):selectedIds.delete(id));updateBulkUI();renderTable();}
+function updateBulkUI(){const n=selectedIds.size;setEl('bulk-count',n);const b=document.getElementById('bulk-btn');b.classList.toggle('d-none',n===0);b.classList.toggle('d-flex',n>0);}
+async function bulkApprove(){
+  let ok=0;for(const id of [...selectedIds]){try{await PB.collection(COLLECTION).update(id,{duyet:'OK'});const i=allPosts.findIndex(p=>p.id===id);if(i!==-1)allPosts[i].duyet='OK';ok++;}catch(e){}}
+  showToast(`Đã duyệt ${ok} bài`,'success');selectedIds.clear();updateBulkUI();applyFilters();
+}
+
+// ── STATS ──
+function updateStats(){
+  const draft=allPosts.filter(p=>p.trang_thai==='Bản nháp'&&p.duyet!=='OK').length;
+  const pend=allPosts.filter(p=>p.duyet==='OK'&&p.trang_thai!=='Đã đăng').length;
+  const pub=allPosts.filter(p=>p.trang_thai==='Đã đăng').length;
+  const err=allPosts.filter(p=>p.error_log).length;
+  setEl('stat-total',allPosts.length);setEl('stat-draft',draft);setEl('stat-published',pub);setEl('stat-error',err);
+  setEl('badge-draft',draft);setEl('badge-pending',pend);setEl('badge-error',err);
+}
+
+// ── HELPERS ──
+function statusBadge(p){
+  if(p.error_log) return `<span class="badge bg-danger-lt text-danger"><i class="ti ti-alert-circle me-1"></i>Lỗi</span>`;
+  if(p.trang_thai==='Đã đăng') return `<span class="badge bg-success-lt text-success"><i class="ti ti-check me-1"></i>Đã đăng</span>`;
+  if(p.duyet==='OK') return `<span class="badge bg-warning-lt text-warning"><i class="ti ti-clock me-1"></i>Chờ đăng</span>`;
+  return `<span class="badge bg-azure-lt text-azure"><i class="ti ti-file me-1"></i>Bản nháp</span>`;
+}
+function fmtDt(s){if(!s)return'—';try{return new Date(s).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch{return s;}}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function setEl(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function setVal(id,v){const e=document.getElementById(id);if(e)e.value=v;}
+function showSkeletons(){document.getElementById('posts-tbody').innerHTML=[1,2,3,4,5].map(i=>`<tr><td colspan="7" class="py-2"><span class="placeholder col-12 placeholder-sm" style="opacity:${1-i*.15}"></span></td></tr>`).join('');}
+
+function showToast(msg,type='info'){
+  const icons={success:'ti-check-circle',error:'ti-alert-triangle',info:'ti-info-circle'};
+  const el=document.createElement('div');el.className=`toast-item ${type}`;
+  el.innerHTML=`<i class="ti ${icons[type]} fs-4"></i>${msg}<button onclick="this.parentNode.remove()" class="ms-auto border-0 bg-transparent opacity-50 cursor-pointer fs-5">✕</button>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+// ── MOCK DATA ──
+function getMockPosts(){
+  return Array.from({length:25},(_,i)=>({
+    id:`mock-${i}`,
+    title_goc:['Căn hộ view biển Đà Nẵng từ 1.2 tỷ','Đất nền ven sông Hội An giá F0','Shophouse mặt tiền Nguyễn Văn Linh','Chung cư mini Hải Châu sinh lời 12%','Biệt thự KĐT Xanh Vĩnh Điện'][i%5],
+    content:'🌊 Cơ hội vàng không thể bỏ lỡ!\n✅ Giá từ 1.2 tỷ · Hỗ trợ vay 70%\n📞 Liên hệ ngay!',
+    link_anh:i%3===0?'':'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=200',
+    link_video:i%7===0?'https://example.com/v.mp4':'',
+    alt_img:'BDS Đà Nẵng '+(i+1),
+    gio_dang:new Date(Date.now()+(i-12)*86400000).toISOString(),
+    duyet:['OK','Pending','OK'][i%3],
+    trang_thai:['Bản nháp','Bản nháp','Đã đăng'][i%3],
+    fb_post_id:i%3===2?`fb_${100+i}`:'',
+    error_log:i===4?'FB Error: (#200) Permissions error':'',
+    created:new Date(Date.now()-i*86400000).toISOString(),
+  }));
+}
+</script>
+</body>
+</html>

@@ -139,10 +139,10 @@ function renderUserInfo(user) {
 // ─────────────────────────────────────────
 
 function redirectToLogin() {
-  // Chỉ redirect nếu chưa ở trang login
-  if (!window.location.pathname.endsWith("index.html") &&
+  // Đổi index.html thành landing.html để nếu chưa login, hệ thống tự sút ra Landing
+  if (!window.location.pathname.endsWith("landing.html") &&
       !window.location.pathname.endsWith("/")) {
-    window.location.href = "index.html";
+    window.location.href = "landing.html";
   }
 }
 

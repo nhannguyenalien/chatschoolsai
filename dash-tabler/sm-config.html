@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Cấu hình Kênh - Customer AI Hub</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root { --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif; }
+        body { font-family: var(--tblr-font-sans-serif); }
+
+        .form-label { text-transform: uppercase; letter-spacing: .03em; color: var(--tblr-secondary); font-size: .75rem; }
+
+        .toast-msg {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+
+        .token-mask{ font-family: ui-monospace, monospace; letter-spacing: 1px; }
+        .platform-icon { width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="toast-msg" id="toast"></div>
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none d-print-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
+                        <span class="avatar avatar-sm bg-primary text-white"><i class="ti ti-robot"></i></span>
+                        <span class="ms-2 fw-bold text-primary">AI Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
+                            <a href="index.html" class="text-reset text-decoration-none">Overview</a>
+                            <i class="ti ti-chevron-right fs-6"></i>
+                            <span class="text-primary fw-medium">Cấu hình Kênh</span>
+                        </div>
+                        <h2 class="page-title fs-1">Cấu hình Kênh</h2>
+                        <div class="text-secondary mt-1 fs-3">Quản lý Page/Account và token cho Facebook, Instagram, WhatsApp, Zalo và các API chat khác.</div>
+                    </div>
+
+                    <ul class="nav nav-pills mb-3" id="platform-tabs" role="tablist">
+                        <li class="nav-item"><a href="#" class="nav-link active" data-platform="" onclick="switchPlatformTab('', this)">Tất cả</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="facebook" onclick="switchPlatformTab('facebook', this)"><i class="ti ti-brand-facebook me-1"></i>Facebook</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="instagram" onclick="switchPlatformTab('instagram', this)"><i class="ti ti-brand-instagram me-1"></i>Instagram</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="whatsapp" onclick="switchPlatformTab('whatsapp', this)"><i class="ti ti-brand-whatsapp me-1"></i>WhatsApp</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="zalo" onclick="switchPlatformTab('zalo', this)"><i class="ti ti-message-circle me-1"></i>Zalo</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="other" onclick="switchPlatformTab('other', this)"><i class="ti ti-api me-1"></i>Khác</a></li>
+                    </ul>
+
+                    <div class="card">
+                        <div class="card-header border-bottom-0 pb-0 d-flex align-items-center">
+                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                <i class="ti ti-plug-connected text-primary fs-2"></i> Page / Account / Kênh chat
+                            </h3>
+                            <button id="new-page-btn" class="btn btn-primary ms-auto"><i class="ti ti-plus me-1"></i> Thêm kênh</button>
+                        </div>
+                        <div class="table-responsive mt-2">
+                            <table class="table card-table table-vcenter">
+                                <thead><tr>
+                                    <th>Platform</th><th>Tên gợi nhớ</th><th>ID</th><th>Access Token</th><th>Trạng thái</th><th class="w-1"></th>
+                                </tr></thead>
+                                <tbody id="pages-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: PAGE CONFIG ===================== -->
+    <div class="modal" id="page-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Page / Account / Kênh chat</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="page-id-hidden">
+            <div class="mb-3">
+              <label class="form-label">Platform</label>
+              <select id="page-platform" class="form-select" onchange="updatePageFieldLabels()">
+                <option value="facebook">Facebook</option>
+                <option value="instagram">Instagram</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="zalo">Zalo</option>
+                <option value="other">Khác (API chat ngoài)</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Tên gợi nhớ</label>
+              <input type="text" id="page-label" class="form-control" placeholder="VD: Page BĐS chính">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" id="page-pageid-label">Page / Account ID</label>
+              <input type="text" id="page-pageid" class="form-control" placeholder="VD: Page ID, Phone Number ID, OA ID...">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Access Token / API Key</label>
+              <input type="text" id="page-token" class="form-control token-mask">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Cấu hình thêm (JSON, tuỳ chọn)</label>
+              <textarea id="page-extra" class="form-control font-monospace" rows="3" placeholder='VD: {"app_secret":"...","verify_token":"...","webhook_url":"..."}'></textarea>
+              <small class="form-hint mt-1" id="page-extra-hint">Dùng cho các field đặc thù của từng platform (app secret, verify token, webhook...).</small>
+            </div>
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" id="page-active" checked>
+              <span class="form-check-label">Đang hoạt động</span>
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger me-auto d-none" id="delete-page-btn">Xóa</button>
+            <button type="button" class="btn" data-bs-dismiss="modal">Đóng</button>
+            <button type="button" id="save-page-btn" class="btn btn-primary">Lưu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+    <script>
+    /* =========================================================
+       SCHEMA CẦN CÓ TRONG POCKETBASE (dùng chung với composer.html)
+       - pages_config: tenant(text), platform(select: facebook/instagram/whatsapp/zalo/other),
+         label(text), page_id(text), access_token(text), extra_config(text - JSON string, tuỳ chọn),
+         is_active(bool)
+       Rules: giống các collection khác trong app (@request.auth.id != "")
+       ========================================================= */
+
+    function showToast(msg, type = "success") {
+        const toast = document.getElementById("toast");
+        toast.innerHTML = type === 'success'
+            ? `<i class="ti ti-check text-success fs-3"></i> ${msg}`
+            : `<i class="ti ti-alert-triangle text-danger fs-3"></i> ${msg}`;
+        toast.className = `toast-msg ${type} show`;
+        setTimeout(() => toast.classList.remove("show"), 3000);
+    }
+
+    const PAGEID_LABELS = {
+        facebook: 'Page ID',
+        instagram: 'Instagram Business Account ID',
+        whatsapp: 'Phone Number ID',
+        zalo: 'Official Account (OA) ID',
+        other: 'ID kênh / Account ID',
+    };
+    const PLATFORM_ICON = {
+        facebook: 'ti-brand-facebook', instagram: 'ti-brand-instagram',
+        whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle', other: 'ti-api',
+    };
+
+    let pagesConfigCache = [];
+    let activePlatformTab = '';
+
+    // ═══════════════════════════════════════
+    // BOOT
+    // ═══════════════════════════════════════
+    (async () => {
+        await requireAuth();
+        renderSidebar(window.AUTH_USER);
+        await loadPages();
+    })();
+
+    // ═══════════════════════════════════════
+    // TABS
+    // ═══════════════════════════════════════
+    function switchPlatformTab(platform, el) {
+        activePlatformTab = platform;
+        document.querySelectorAll('#platform-tabs .nav-link').forEach(a => a.classList.remove('active'));
+        el.classList.add('active');
+        renderPages();
+    }
+
+    // ═══════════════════════════════════════
+    // PAGES CONFIG
+    // ═══════════════════════════════════════
+    async function loadPages() {
+        const tbody = document.getElementById('pages-table-body');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-secondary">Đang tải...</td></tr>';
+        try {
+            pagesConfigCache = await PB.collection('pages_config').getFullList({
+                sort: 'platform',
+                filter: `tenant = "${window.TENANT}"`
+            });
+            renderPages();
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="6"><div class="alert alert-danger mb-0">Lỗi tải pages_config: ${escHtml(err.message)}<br><span class="fs-6">Kiểm tra collection "pages_config" đã được tạo trong PocketBase chưa (kèm field tenant).</span></div></td></tr>`;
+        }
+    }
+
+    function renderPages() {
+        const tbody = document.getElementById('pages-table-body');
+        tbody.innerHTML = '';
+        const items = pagesConfigCache.filter(pc => !activePlatformTab || pc.platform === activePlatformTab);
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-secondary">Chưa có kênh nào.</td></tr>';
+            return;
+        }
+        items.forEach(pc => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><span class="badge bg-blue-lt"><i class="ti ${PLATFORM_ICON[pc.platform]||'ti-api'} me-1"></i>${escHtml(pc.platform)}</span></td>
+              <td>${escHtml(pc.label||'')}</td>
+              <td class="text-secondary">${escHtml(pc.page_id||'')}</td>
+              <td class="token-mask">••••••••${escHtml((pc.access_token||'').slice(-6))}</td>
+              <td>${pc.is_active ? '<span class="badge bg-green-lt">Hoạt động</span>' : '<span class="badge bg-secondary-lt">Tạm dừng</span>'}</td>
+              <td><button class="btn btn-sm btn-outline-secondary edit-page-btn">Sửa</button></td>`;
+            tr.querySelector('.edit-page-btn').addEventListener('click', () => openPageModal(pc));
+            tbody.appendChild(tr);
+        });
+    }
+
+    document.getElementById('new-page-btn').addEventListener('click', () => openPageModal(null));
+
+    function updatePageFieldLabels() {
+        const platform = document.getElementById('page-platform').value;
+        document.getElementById('page-pageid-label').textContent = PAGEID_LABELS[platform] || 'ID';
+    }
+
+    function openPageModal(pc) {
+        document.getElementById('page-id-hidden').value = pc?.id || '';
+        document.getElementById('page-platform').value = pc?.platform || 'facebook';
+        document.getElementById('page-label').value = pc?.label || '';
+        document.getElementById('page-pageid').value = pc?.page_id || '';
+        document.getElementById('page-token').value = pc?.access_token || '';
+        document.getElementById('page-extra').value = pc?.extra_config || '';
+        document.getElementById('page-active').checked = pc ? !!pc.is_active : true;
+        document.getElementById('delete-page-btn').classList.toggle('d-none', !pc);
+        updatePageFieldLabels();
+        new bootstrap.Modal(document.getElementById('page-modal')).show();
+    }
+
+    document.getElementById('save-page-btn').addEventListener('click', async () => {
+        const id = document.getElementById('page-id-hidden').value;
+        const extraRaw = document.getElementById('page-extra').value.trim();
+        if (extraRaw) {
+            try { JSON.parse(extraRaw); }
+            catch { showToast('Cấu hình thêm phải là JSON hợp lệ', 'error'); return; }
+        }
+        const data = {
+            tenant: window.TENANT,
+            platform: document.getElementById('page-platform').value,
+            label: document.getElementById('page-label').value,
+            page_id: document.getElementById('page-pageid').value,
+            access_token: document.getElementById('page-token').value,
+            extra_config: extraRaw,
+            is_active: document.getElementById('page-active').checked
+        };
+        btnLoading('save-page-btn', 'Đang lưu...');
+        try {
+            if (id) await PB.collection('pages_config').update(id, data);
+            else await PB.collection('pages_config').create(data);
+            bootstrap.Modal.getInstance(document.getElementById('page-modal')).hide();
+            showToast('Đã lưu kênh', 'success');
+            loadPages();
+        } catch (err) {
+            showToast('Lỗi lưu cấu hình: ' + err.message, 'error');
+        } finally {
+            btnReset('save-page-btn');
+        }
+    });
+
+    document.getElementById('delete-page-btn').addEventListener('click', async () => {
+        const id = document.getElementById('page-id-hidden').value;
+        if (!id || !confirm('Xóa kênh này?')) return;
+        try {
+            await PB.collection('pages_config').delete(id);
+            bootstrap.Modal.getInstance(document.getElementById('page-modal')).hide();
+            showToast('Đã xóa', 'success');
+            loadPages();
+        } catch (err) {
+            showToast('Lỗi xóa: ' + err.message, 'error');
+        }
+    });
+    </script>
+</body>
+</html>

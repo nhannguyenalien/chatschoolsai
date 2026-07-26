@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>AI Assistant</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); background-color: #f8f9fa; }
+        
+        .hidden { display: none !important; }
+        .cursor-pointer { cursor: pointer; }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Layout */
+        .chat-container { height: 100vh; max-width: 1200px; margin: 0 auto; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+        @media (min-width: 768px) { .chat-container { height: 95vh; margin-top: 2.5vh; border-radius: 16px; overflow: hidden; border: 1px solid #e6e8eb; } }
+
+        /* Chat Bubbles */
+        .chat-bubble-ai {
+            background-color: #ffffff; color: #212529;
+            border-radius: 1rem; border-top-left-radius: 0.25rem;
+            border: 1px solid #e6e8eb;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+        }
+        .chat-bubble-user {
+            background-color: #eff6ff; color: #1e3a8a;
+            border-radius: 1rem; border-top-right-radius: 0.25rem;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+        }
+
+        /* Markdown Styles within Bubbles */
+        .chat-bubble-ai p, .chat-bubble-user p { margin-bottom: 0.5rem; }
+        .chat-bubble-ai p:last-child, .chat-bubble-user p:last-child { margin-bottom: 0; }
+        .chat-bubble-ai a { color: #206bc4; text-decoration: underline; }
+        .chat-bubble-ai pre { background: #1e293b; color: #f8fafc; padding: 10px; border-radius: 8px; overflow-x: auto; margin-top: 8px; }
+        .chat-bubble-ai code { font-family: monospace; background: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; color: #d63939;}
+        .chat-bubble-ai pre code { background: transparent; padding: 0; color: inherit;}
+
+        /* Typing Animation */
+        .typing-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: #8a94a6;
+            animation: typing 1.2s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); opacity: 0.35; }
+            50% { transform: translateY(-4px); opacity: 1; }
+        }
+
+        /* Verify Modal Custom Style */
+        #verify-modal {
+            position: fixed; inset: 0; z-index: 1055;
+            background: rgba(11,28,48,0.6); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .hover-primary:hover { color: #206bc4 !important; }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center">
+
+<div class="w-100 chat-container d-flex bg-white position-relative">
+    
+    <aside class="offcanvas-md offcanvas-start border-end d-flex flex-column bg-white flex-shrink-0" tabindex="-1" id="sidebar" style="width: 300px;">
+        <div class="offcanvas-header border-bottom d-md-none bg-light">
+            <h5 class="offcanvas-title d-flex align-items-center gap-2 fw-bold">
+                <i class="ti ti-bulb text-yellow fs-2"></i> Ghi chú quan trọng
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebar"></button>
+        </div>
+        
+        <div class="p-3 border-bottom bg-light">
+            <h2 class="fs-4 fw-bold text-body d-none d-md-flex align-items-center gap-2 mb-2">
+                <i class="ti ti-bulb text-yellow fs-2"></i> Ghi chú quan trọng
+            </h2>
+            <p class="text-secondary fs-5 mb-0">
+                Chào mừng <span id="uname-sidebar" class="fw-bold text-primary"></span> đến với hệ thống AI. Vui lòng gửi tin nhắn để bắt đầu.
+            </p>
+        </div>
+
+        <div class="p-3 border-bottom">
+            <label class="form-label fs-5 fw-bold text-secondary mb-2">🔗 Lưu phiên chat sang máy khác:</label>
+            <div class="input-group input-group-flat">
+                <input type="text" id="session-url" readonly class="form-control text-secondary fs-5 bg-transparent" style="cursor: text;">
+                <span class="input-group-text p-0">
+                    <button class="btn btn-icon btn-light border-0 w-100 h-100" onclick="copySessionUrl()" title="Copy đường dẫn" style="border-radius: 0 4px 4px 0;">
+                        <i class="ti ti-copy text-secondary fs-3" id="copy-icon"></i>
+                    </button>
+                </span>
+            </div>
+        </div>
+
+        <div class="p-3 flex-grow-1 overflow-auto">
+            <h2 class="fs-4 fw-bold text-body mb-3 d-flex align-items-center gap-2">
+                <i class="ti ti-folder text-blue fs-2"></i> Tài liệu đã tải lên
+            </h2>
+            <ul class="list-unstyled d-flex flex-column gap-2" id="file-list">
+                <li class="text-secondary fst-italic text-center py-4 fs-5">Chưa có tài liệu nào</li>
+            </ul>
+        </div>
+    </aside>
+
+    <main class="d-flex flex-column flex-grow-1 min-vw-0 position-relative bg-light">
+        
+        <header class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-white flex-shrink-0" style="height: 64px; z-index: 10;">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-icon btn-ghost-secondary d-md-none" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
+                    <i class="ti ti-menu-2"></i>
+                </button>
+                <div class="avatar bg-blue-lt rounded-circle fs-3 fw-bold flex-shrink-0" id="bot-avatar">🤖</div>
+                <div>
+                    <h1 class="m-0 fs-4 fw-bold text-body" id="bot-name">AI Assistant</h1>
+                    <div class="fs-6 text-success fw-medium d-flex align-items-center gap-1">
+                        <span class="badge bg-success badge-blink" style="width:6px;height:6px;padding:0;"></span>
+                        Online
+                    </div>
+                </div>
+            </div>
+            <div class="badge bg-light text-secondary fs-5 fw-semibold d-none d-sm-block py-2 px-3 border" id="uname-header">
+                👤 Tên
+            </div>
+        </header>
+
+        <div class="flex-grow-1 overflow-auto p-3 p-md-4 d-flex flex-column gap-3" id="chat-history"></div>
+
+        <div id="typing-indicator" class="hidden px-3 px-md-4 pb-2 mb-2">
+            <div class="d-flex gap-2" style="max-width: 85%;">
+                <div class="avatar avatar-sm bg-blue-lt rounded-circle flex-shrink-0 fs-5 mt-1" id="typing-avatar">🤖</div>
+                <div class="chat-bubble-ai py-2 px-3 d-flex align-items-center gap-1" style="min-height: 40px;">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-2 p-md-3 bg-white border-top flex-shrink-0">
+            <div class="input-group bg-light border rounded-3 p-1 transition-shadow focus-within-shadow">
+                <label class="btn btn-icon btn-ghost-secondary border-0 mb-0 d-flex align-items-center justify-content-center align-self-end rounded-circle" title="Đính kèm file" style="width:40px;height:40px;">
+                    <i class="ti ti-paperclip fs-2"></i>
+                    <input type="file" id="file-upload" class="d-none" multiple onchange="handleFileUpload(event)"/>
+                </label>
+                
+                <textarea class="form-control bg-transparent border-0 shadow-none resize-none py-2 px-2" 
+                    id="chat-input" placeholder="Nhập tin nhắn..." rows="1" style="min-height: 40px; max-height: 120px;"></textarea>
+
+                <button class="btn btn-primary btn-icon align-self-end rounded-3 mb-0" style="width:40px;height:40px;" disabled id="send-btn" onclick="send()">
+                    <i class="ti ti-send"></i>
+                </button>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<div id="verify-modal" class="hidden">
+    <div class="card shadow-lg" style="width: 100%; max-width: 380px; border-radius: 16px; margin: 0 16px;">
+        <div class="position-absolute top-0 end-0 p-2 z-1">
+            <button class="btn-close" onclick="closeVerifyModal()"></button>
+        </div>
+        
+        <div class="card-body text-center p-4">
+            
+            <div id="verify-step-1">
+                <div class="avatar avatar-lg bg-blue-lt rounded-circle mb-3">
+                    <i class="ti ti-brand-telegram text-blue fs-1"></i>
+                </div>
+                <h3 class="fs-3 fw-bold text-body mb-2">Xác thực danh tính</h3>
+                <p class="text-secondary fs-5 mb-4">Bấm vào nút bên dưới để mở ứng dụng Telegram và chia sẻ số điện thoại an toàn.</p>
+                
+                <a id="telegram-link" href="#" target="_blank" class="btn w-100 fw-bold fs-4 mb-3" style="background-color:#2AABEE; color:white;">
+                    Mở Telegram ngay <i class="ti ti-external-link ms-2"></i>
+                </a>
+                
+                <div class="d-flex align-items-center justify-content-center gap-2 text-warning fs-5 fw-medium mt-2">
+                    <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+                    Đang chờ bạn xác nhận...
+                </div>
+            </div>
+
+            <div id="verify-step-2" class="hidden">
+                <div class="avatar avatar-lg bg-green-lt rounded-circle mb-3">
+                    <i class="ti ti-circle-check-filled text-green fs-1"></i>
+                </div>
+                <h3 class="fs-3 fw-bold text-body mb-2" id="verify-step-2-title">Xác thực thành công!</h3>
+                <p class="text-success fw-medium fs-5 mb-4" id="verified-phone-display"></p>
+                
+                <div class="mb-4 text-start">
+                    <label class="form-label fs-5 fw-bold text-secondary mb-1">Tên hiển thị của bạn:</label>
+                    <input type="text" id="new-username-input" class="form-control" placeholder="Ví dụ: Anh Tuấn...">
+                </div>
+                <button onclick="saveNewName()" class="btn btn-primary w-100 fw-bold fs-4">
+                    Lưu tên & Bắt đầu chat
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+<script>
+/* =========================================
+   1. CORE LOGIC & INITIALIZATION
+========================================= */
+const pb = new PocketBase("https://nhannguyen123-chat.hf.space");
+
+const rawTenant = new URLSearchParams(location.search).get("bot");
+const tenant = /^[a-z0-9_-]{1,40}$/i.test(rawTenant || "") ? rawTenant : "bds";
+
+const adjs = ["Cool","Nhanh","Thông","Hay","Vui","Giỏi","Mượt","Ngầu"];
+const animals = ["Mèo","Chó","Gấu","Cáo","Hổ","Rồng","Thỏ","Vịt"];
+function randomName(){ return adjs[Math.floor(Math.random()*adjs.length)] + " " + animals[Math.floor(Math.random()*animals.length)]; }
+
+let isVerified = false; 
+
+async function checkVerifyStatus() {
+    try {
+        const records = await pb.collection('verifications').getList(1, 1, { filter: `session='${sessionId}' && status='verified'` });
+        isVerified = records.items.length > 0;
+        updateNameUI();
+    } catch (e) { console.log("Lỗi check status:", e); }
+}
+
+let cfg = {
+    bot_name: "AI Assistant",
+    bot_avatar: "🤖",
+    color: "#206bc4", // Tabler Primary
+    webhook: "https://bluetech-ai-gateway.toidayhoc.workers.dev/?platform=web&key=nhan123",
+    greeting: "Xin chào! Tôi có thể giúp gì cho bạn?"
+};
+
+async function loadConfig(){
+    try{
+        const r = await pb.collection("bot_configs").getFirstListItem(`tenant='${tenant}'`);
+        cfg = {
+            bot_name: r.bot_name || cfg.bot_name,
+            bot_avatar: r.bot_avatar || cfg.bot_avatar,
+            color: r.color || cfg.color,
+            webhook: r.webhook || cfg.webhook,
+            greeting: r.greeting || cfg.greeting
+        };
+    } catch(err){ console.log("Use default config"); }
+    
+    document.getElementById("bot-name").textContent = cfg.bot_name;
+    document.getElementById("bot-avatar").textContent = cfg.bot_avatar;
+    document.getElementById("typing-avatar").textContent = cfg.bot_avatar;
+    document.title = cfg.bot_name;
+}
+
+/* =========================================
+   2. UI INTERACTIONS (Input & Buttons)
+========================================= */
+const inputEl = document.getElementById('chat-input');
+const btnEl = document.getElementById('send-btn');
+
+// Focus-within shadow hack for CSS
+document.querySelector('.input-group').addEventListener('focusin', function() { this.classList.add('shadow-sm', 'border-primary'); });
+document.querySelector('.input-group').addEventListener('focusout', function() { this.classList.remove('shadow-sm', 'border-primary'); });
+
+inputEl.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+    
+    if (this.value.trim().length > 0) {
+        btnEl.removeAttribute('disabled');
+    } else {
+        btnEl.setAttribute('disabled', 'true');
+    }
+});
+
+inputEl.addEventListener("keypress", e => {
+    if(e.key === "Enter" && !e.shiftKey){
+        e.preventDefault();
+        send();
+    }
+});
+
+/* =========================================
+   3. CHAT LOGIC (Render & Send)
+========================================= */
+function appendMsg(r, scroll=true){
+    const history = document.getElementById('chat-history');
+    const isUser = !r.is_bot;
+    
+    const welcomeMsg = document.getElementById('welcome-msg');
+    if (welcomeMsg) welcomeMsg.remove();
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `d-flex gap-2 w-100 ${isUser ? 'justify-content-end' : 'justify-content-start'}`;
+    
+    const time = new Date(r.created).toLocaleTimeString("vi-VN", { hour:"2-digit", minute:"2-digit" });
+
+    let avatarHtml = '';
+    if (!isUser) {
+        avatarHtml = `<div class="avatar avatar-sm bg-blue-lt rounded-circle flex-shrink-0 mt-1 fs-5">${cfg.bot_avatar}</div>`;
+    }
+
+    const bubbleClass = isUser ? 'chat-bubble-user py-2 px-3 fs-4' : 'chat-bubble-ai py-2 px-3 fs-4';
+    const alignClass = isUser ? 'align-items-end' : 'align-items-start';
+    const cleanHTML = DOMPurify.sanitize(marked.parse(r.text));
+
+    msgDiv.innerHTML = `
+        ${isUser ? '' : avatarHtml}
+        <div class="d-flex flex-column ${alignClass}" style="max-width: 85%;">
+            <div class="${bubbleClass}">
+                ${cleanHTML}
+            </div>
+            <span class="text-secondary mt-1 px-1" style="font-size: 11px;">${time}</span>
+        </div>
+        ${isUser ? '' : ''}
+    `;
+    
+    history.appendChild(msgDiv);
+    if(scroll) history.scrollTop = history.scrollHeight;
+}
+
+async function loadMsgs(){
+    try{
+        const rows = await pb.collection("messages").getList(1, 100, { sort: "created", filter: `session='${sessionId}' && tenant='${tenant}'` });
+        const history = document.getElementById("chat-history");
+        history.innerHTML = "";
+
+        if(!rows.items.length){
+            history.innerHTML = `
+                <div id="welcome-msg" class="d-flex flex-column align-items-center justify-content-center h-100 text-center opacity-75">
+                    <div class="display-3 mb-3">${cfg.bot_avatar}</div>
+                    <p class="fs-4 text-body mb-2">Xin chào <strong class="fw-bold">${username}</strong>!</p>
+                    <p class="fs-5 text-secondary p-3 bg-white border rounded-3 shadow-sm mx-auto" style="max-width: 80%;">
+                       ${cfg.greeting}
+                    </p>
+                </div>
+            `;
+            return;
+        }
+
+        rows.items.forEach(r => appendMsg(r, false));
+        history.scrollTop = history.scrollHeight;
+    } catch(err){ console.error(err); }
+}
+
+async function send(){
+    const text = inputEl.value.trim();
+    if(!text) return;
+
+    inputEl.value = "";
+    inputEl.style.height = 'auto';
+    btnEl.setAttribute('disabled', 'true');
+
+    document.getElementById("typing-indicator").classList.remove("hidden");
+    const history = document.getElementById("chat-history");
+    history.scrollTop = history.scrollHeight;
+
+    try {
+        await pb.collection("messages").create({ session: sessionId, tenant, username, text, is_bot: false });
+        await fetch(cfg.webhook, {
+            method: "POST", headers: { "Content-Type":"application/json" },
+            body: JSON.stringify({ question: text, session: sessionId, tenant, platform: "web" })
+        });
+    } catch(err) {
+        await pb.collection("messages").create({
+            session: sessionId, tenant, username: cfg.bot_name,
+            text: "⚠️ Kết nối đang gián đoạn, vui lòng thử lại nhé!", is_bot: true
+        });
+    }
+    inputEl.focus();
+}
+
+/* =========================================
+   SESSION & SYNC
+========================================= */
+const urlParams = new URLSearchParams(window.location.search);
+let sessionId = urlParams.get("session") || localStorage.getItem("s_"+tenant) || crypto.randomUUID();
+let username = urlParams.get("u") || localStorage.getItem("u_"+tenant) || randomName();
+
+localStorage.setItem("s_"+tenant, sessionId);
+localStorage.setItem("u_"+tenant, username);
+
+const newUrl = new URL(window.location);
+newUrl.searchParams.set("bot", tenant);
+newUrl.searchParams.set("session", sessionId);
+newUrl.searchParams.set("u", username);
+window.history.replaceState(null, '', newUrl.toString());
+
+const sessionUrlInput = document.getElementById("session-url");
+if (sessionUrlInput) sessionUrlInput.value = newUrl.toString();
+
+function copySessionUrl() {
+    const urlInput = document.getElementById('session-url');
+    const icon = document.getElementById('copy-icon');
+    
+    urlInput.select();
+    urlInput.setSelectionRange(0, 99999); 
+    
+    navigator.clipboard.writeText(urlInput.value).then(() => {
+        icon.className = "ti ti-check text-success fs-3";
+        setTimeout(() => { icon.className = "ti ti-copy text-secondary fs-3"; }, 2000);
+    }).catch(err => alert('Có lỗi xảy ra, vui lòng copy thủ công!'));
+}
+
+/* =========================================
+   4. FILE UPLOAD & REALTIME
+========================================= */
+const FILE_COLUMN = 'file'; 
+
+async function loadFileList() {
+    try {
+        const records = await pb.collection('tai_lieu').getList(1, 50, { filter: `session='${sessionId}' && tenant='${tenant}'`, sort: '-created' });
+        const fileList = document.getElementById('file-list');
+        fileList.innerHTML = ''; 
+
+        if (records.items.length === 0) {
+            fileList.innerHTML = '<li class="text-secondary fst-italic text-center py-2">Chưa có tài liệu nào</li>';
+            return;
+        }
+
+        records.items.forEach(record => {
+            const fileName = record.original_name || "Tài liệu";
+            const fileUrl = pb.files.getUrl(record, record[FILE_COLUMN]); 
+            const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+            
+            let previewHtml = isImage 
+                ? `<img src="${fileUrl}" class="avatar avatar-md rounded object-cover border" alt="preview"/>`
+                : `<div class="avatar avatar-md bg-blue-lt rounded"><i class="ti ti-file-description fs-2"></i></div>`;
+            
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <a href="${fileUrl}" target="_blank" class="text-decoration-none d-flex align-items-center gap-3 p-2 bg-white border rounded-3 hover-border-primary transition-colors cursor-pointer">
+                    ${previewHtml}
+                    <div class="flex-fill min-w-0">
+                        <div class="fs-5 fw-bold text-body text-truncate" title="${fileName}">${fileName}</div>
+                        <div class="fs-6 text-secondary mt-1">Bấm để xem</div>
+                    </div>
+                </a>
+            `;
+            fileList.appendChild(li);
+        });
+    } catch (error) { console.error("Lỗi tải danh sách file:", error); }
+}
+
+async function handleFileUpload(event) {
+    const files = event.target.files;
+    if (files.length === 0) return;
+    if (!checkGuestUploadLimit()) { event.target.value = ''; return; }
+
+    const file = files[0]; 
+    const isImage = file.name.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+
+    const fileNote = prompt(`Vui lòng nhập yêu cầu cho file "${file.name}"\n(Ví dụ: Tóm tắt file này, Tìm thông tin gì trong ảnh?):`);
+    if (!fileNote || fileNote.trim() === "") {
+        alert("⚠️ Bắt buộc phải có ghi chú để AI hiểu file của bạn!");
+        event.target.value = ''; return;
+    }
+
+    const uploadLabel = event.target.parentElement;
+    const originalContent = uploadLabel.innerHTML;
+    uploadLabel.innerHTML = '<div class="spinner-border text-primary spinner-border-sm" role="status"></div>';
+    uploadLabel.style.pointerEvents = 'none'; 
+
+    try {
+        const formData = new FormData();
+        formData.append(FILE_COLUMN, file); 
+        formData.append('tenant', tenant);
+        formData.append('session', sessionId);
+        formData.append('original_name', file.name); 
+
+        const record = await pb.collection('tai_lieu').create(formData);
+        const fileUrl = pb.files.getUrl(record, record[FILE_COLUMN]); 
+        
+        let fileMessage = ""; 
+        let aiPayloadText = ""; 
+        
+        if (isImage) {
+            fileMessage = `🖼️ **Ảnh đã gửi:** ${fileNote}<br><img src="${fileUrl}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; border: 1px solid #e6e8eb;" alt="image"/>`;
+            aiPayloadText = `[Hình ảnh: ${fileUrl}] - Yêu cầu từ khách: ${fileNote}`;
+        } else {
+            fileMessage = `📁 **Đã gửi tài liệu:** <a href="${fileUrl}" target="_blank" style="color: #206bc4; text-decoration: underline;">${file.name}</a><br>📝 **Yêu cầu:** ${fileNote}`;
+            aiPayloadText = `[Tài liệu: ${fileUrl}] - Yêu cầu từ khách: ${fileNote}`;
+        }
+
+        await pb.collection("messages").create({ session: sessionId, tenant, username, text: fileMessage, is_bot: false });
+        incrementGuestUpload();
+        await loadFileList(); 
+
+        document.getElementById("typing-indicator").classList.remove("hidden");
+        const history = document.getElementById("chat-history");
+        history.scrollTop = history.scrollHeight;
+
+        await fetch(cfg.webhook, {
+            method: "POST", headers: { "Content-Type":"application/json" },
+            body: JSON.stringify({ question: aiPayloadText, session: sessionId, tenant, platform: "web" })
+        });
+
+    } catch (error) {
+        alert("Upload thất bại, vui lòng thử lại!");
+    } finally {
+        uploadLabel.innerHTML = originalContent;
+        uploadLabel.style.pointerEvents = 'auto';
+        event.target.value = ''; 
+    }
+}
+
+// REALTIME LISTENER
+pb.collection("messages").subscribe("*", e => {
+    if (e.record.tenant === tenant && e.record.session === sessionId) {
+        if (e.action === "create") {
+            appendMsg(e.record);
+            if (e.record.is_bot) {
+                document.getElementById("typing-indicator").classList.add("hidden");
+                const btn = document.getElementById("send-btn");
+                if (document.getElementById("chat-input").value.trim().length === 0) {
+                    btn.setAttribute('disabled', 'true');
+                } else {
+                    btn.removeAttribute('disabled');
+                }
+            } else {
+                document.getElementById("typing-indicator").classList.remove("hidden");
+                const history = document.getElementById("chat-history");
+                history.scrollTop = history.scrollHeight;
+            }
+        }
+    }
+});
+
+window.addEventListener("beforeunload", () => { pb.collection("messages").unsubscribe(); });
+
+(async () => {
+    await loadConfig();
+    await loadMsgs();
+    await loadFileList();
+    await checkVerifyStatus();
+
+    if (urlParams.get("show_name") === "1") {
+        document.getElementById('verify-modal').classList.remove('hidden');
+        document.getElementById('verify-step-1').classList.add('hidden');
+        document.getElementById('verify-step-2').classList.remove('hidden');
+        document.getElementById('new-username-input').value = "";
+        document.getElementById('new-username-input').placeholder = "Nhập tên thật của bạn (VD: Anh Tuấn)...";
+        
+        const currentUrl = new URL(window.location);
+        currentUrl.searchParams.delete("show_name");
+        window.history.replaceState(null, '', currentUrl.toString());
+    }
+})();
+
+// VERIFICATION & EDIT NAME
+let currentVerifyId = null;
+
+async function startVerification() {
+    document.getElementById('verify-modal').classList.remove('hidden');
+    document.getElementById('verify-step-1').classList.remove('hidden');
+    document.getElementById('verify-step-2').classList.add('hidden');
+    
+    const code = "HT" + Math.floor(100000 + Math.random() * 900000).toString();
+    document.getElementById('telegram-link').href = `https://t.me/verifyschoolaibot?start=${code}`;
+
+    try {
+        const record = await pb.collection('verifications').create({
+            session: sessionId, tenant: tenant, domain: window.location.origin, code: code, status: "pending"
+        });
+        currentVerifyId = record.id;
+
+        pb.collection('verifications').subscribe(currentVerifyId, function (e) {
+            if (e.action === "update" && e.record.status === "verified") {
+                isVerified = true;
+                document.getElementById('verify-step-1').classList.add('hidden');
+                document.getElementById('verify-step-2').classList.remove('hidden');
+                document.getElementById('verified-phone-display').innerText = "SĐT: " + e.record.phone;
+                document.getElementById('verify-step-2-title').innerText = "Xác thực thành công!";
+                document.getElementById('new-username-input').value = ""; 
+                document.getElementById('new-username-input').placeholder = "Nhập tên thật của bạn...";
+                pb.collection('verifications').unsubscribe(currentVerifyId);
+            }
+        });
+    } catch (err) { console.error(err); }
+}
+
+function closeVerifyModal() {
+    document.getElementById('verify-modal').classList.add('hidden');
+    if(currentVerifyId) pb.collection('verifications').unsubscribe(currentVerifyId);
+}
+
+async function saveNewName() {
+    const newName = document.getElementById('new-username-input').value.trim();
+    if (!newName) {
+        alert("Vui lòng nhập tên của bạn để tiện xưng hô nhé!");
+        document.getElementById('new-username-input').focus(); return;
+    }
+
+    username = newName;
+    localStorage.setItem("u_"+tenant, username);
+    
+    const newUrl = new URL(window.location);
+    newUrl.searchParams.set("u", username);
+    window.history.replaceState(null, '', newUrl.toString());
+    
+    const sessionUrlInput = document.getElementById("session-url");
+    if (sessionUrlInput) sessionUrlInput.value = newUrl.toString();
+    
+    updateNameUI();
+    closeVerifyModal();
+
+    await pb.collection("messages").create({
+        session: sessionId, tenant, username: cfg.bot_name,
+        text: `✅ **Hệ thống:** Khách hàng đã thay đổi thông tin định danh thành **${username}**.`, is_bot: true
+    });
+}
+
+function updateNameUI() {
+    const verifyHtml = isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue fs-4 ms-1 align-middle" title="Đã xác thực SĐT"></i>` : ``;
+    const editHtml = isVerified ? `<i class="ti ti-edit text-secondary cursor-pointer fs-4 ms-2 align-middle hover-primary" onclick="openEditNameModal()" title="Đổi tên"></i>` : ``;
+
+    const headerEl = document.getElementById("uname-header");
+    if (headerEl) headerEl.innerHTML = `👤 <span class="fw-bold">${username}</span> ${verifyHtml} ${editHtml}`;
+
+    const sidebarEl = document.getElementById("uname-sidebar");
+    if (sidebarEl) sidebarEl.innerHTML = `${username} ${verifyHtml}`;
+}
+
+function openEditNameModal() {
+    document.getElementById('verify-modal').classList.remove('hidden');
+    document.getElementById('verify-step-1').classList.add('hidden');
+    document.getElementById('verify-step-2').classList.remove('hidden');
+    
+    document.getElementById('verify-step-2-title').innerText = "Cập nhật tên hiển thị";
+    document.getElementById('verified-phone-display').innerText = "Đang dùng tên: " + username;
+    
+    document.getElementById('new-username-input').value = username;
+    document.getElementById('new-username-input').focus();
+}
+
+function checkGuestUploadLimit() {
+    if (isVerified) return true;
+    const today = new Date().toDateString();
+    let guestData = JSON.parse(localStorage.getItem('guest_upload_limit')) || { date: today, count: 0 };
+    if (guestData.date !== today) guestData = { date: today, count: 0 };
+    
+    if (guestData.count >= 3) {
+        alert("Bạn đã dùng hết 3 lượt gửi file ẩn danh hôm nay. Vui lòng xác thực SĐT để dùng không giới hạn!");
+        startVerification(); 
+        return false;
+    }
+    return true;
+}
+
+function incrementGuestUpload() {
+    if (isVerified) return;
+    const today = new Date().toDateString();
+    let guestData = JSON.parse(localStorage.getItem('guest_upload_limit')) || { date: today, count: 0 };
+    guestData.count += 1;
+    localStorage.setItem('guest_upload_limit', JSON.stringify(guestData));
+}
+</script>
+
+</body>
+</html>

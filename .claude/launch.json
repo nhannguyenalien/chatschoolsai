@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dash-tabler-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server", "dash-tabler", "-p", "8811", "-c-1"],
+      "port": 8811
+    }
+  ]
+}

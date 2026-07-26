@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Knowledge Base - Customer AI Hub</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); }
+
+        /* Toast Notifications */
+        .toast-msg { 
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; 
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999; 
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1); 
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+
+        /* Custom Modal Overlay */
+        #edit-modal {
+            position: fixed; inset: 0; z-index: 1055;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(11,28,48,0.5); backdrop-filter: blur(4px);
+            transition: opacity 0.2s;
+        }
+        
+        #char-counter { transition: color 0.2s; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="toast-msg" id="toast"></div>
+
+    <div id="edit-modal" class="d-none">
+        <div class="card shadow-lg" style="width: 100%; max-width: 560px; border-radius: 12px; margin: 0 16px;">
+            <div class="card-header border-bottom-0 pb-0">
+                <h3 class="card-title d-flex align-items-center gap-2">
+                    <i class="ti ti-edit text-primary fs-2"></i> Chỉnh sửa tài liệu
+                </h3>
+                <div class="card-actions">
+                    <button class="btn-close" onclick="closeEditModal()"></button>
+                </div>
+            </div>
+            <div class="card-body pt-3">
+                <div class="mb-3">
+                    <label class="form-label text-uppercase tracking-wide text-secondary">Tiêu Đề</label>
+                    <input type="text" id="edit-title" class="form-control">
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-uppercase tracking-wide text-secondary">Nội Dung</label>
+                    <textarea id="edit-content" class="form-control font-monospace text-secondary" rows="10" style="resize: none;"></textarea>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button class="btn btn-outline-secondary" onclick="closeEditModal()">Huỷ</button>
+                    <button class="btn btn-primary" id="save-edit-btn" onclick="saveEdit()">
+                        <i class="ti ti-device-floppy me-2"></i> Lưu & Re-embed
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-print-none sticky-top bg-white border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <h2 class="page-title d-none d-md-block text-primary fs-2 m-0 ms-3">Knowledge Base</h2>
+                    
+                    <div class="navbar-nav flex-row order-md-last ms-auto">
+                        <div class="nav-item d-none d-md-flex me-3">
+                            <div class="input-icon" style="width: 250px;">
+                                <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+                                <input type="text" id="search-input" class="form-control form-control-rounded" placeholder="Tìm kiếm tài liệu..." oninput="filterDocs(this.value)">
+                            </div>
+                        </div>
+                        <div class="nav-item dropdown">
+                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0">
+                                <span class="avatar avatar-sm rounded-circle" id="user-avatar-header" style="background-image: url('')"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <h2 class="page-title fs-1 mb-1">Cơ Sở Dữ Liệu Kiến Thức</h2>
+                        <div class="text-secondary fs-3">Thêm và quản lý nội dung để bot học. Paste văn bản vào — hệ thống tự động chunk và embedding.</div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card card-sm">
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <span class="bg-primary text-white avatar"><i class="ti ti-file-description"></i></span>
+                                        </div>
+                                        <div class="col">
+                                            <div class="font-weight-medium text-uppercase text-secondary tracking-wide">Tài liệu</div>
+                                            <div class="fs-2 fw-bold text-body" id="stat-docs">—</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card card-sm">
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <span class="bg-green text-white avatar"><i class="ti ti-puzzle"></i></span>
+                                        </div>
+                                        <div class="col">
+                                            <div class="font-weight-medium text-uppercase text-secondary tracking-wide">Chunks</div>
+                                            <div class="fs-2 fw-bold text-body" id="stat-chunks">—</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card card-sm">
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <span class="bg-orange text-white avatar"><i class="ti ti-typography"></i></span>
+                                        </div>
+                                        <div class="col">
+                                            <div class="font-weight-medium text-uppercase text-secondary tracking-wide">Ký tự</div>
+                                            <div class="fs-2 fw-bold text-body" id="stat-chars">—</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards">
+                        <div class="col-lg-4">
+                            <div class="card h-100">
+                                <div class="card-header border-bottom-0 pb-0">
+                                    <h3 class="card-title d-flex align-items-center gap-2">
+                                        <i class="ti ti-square-rounded-plus text-primary fs-2"></i> Thêm Tài Liệu Mới
+                                    </h3>
+                                </div>
+                                <div class="card-body d-flex flex-column pt-3">
+                                    <div class="mb-3">
+                                        <label class="form-label text-uppercase tracking-wide text-secondary">Tiêu Đề <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="doc-title" placeholder="VD: Bảng giá tháng 6, Chính sách...">
+                                    </div>
+                                    <div class="mb-3 flex-grow-1 d-flex flex-column">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label mb-0 text-uppercase tracking-wide text-secondary">Nội Dung <span class="text-danger">*</span></label>
+                                            <span class="text-secondary fs-5" id="char-counter">0 / 50,000</span>
+                                        </div>
+                                        <textarea class="form-control flex-grow-1 font-monospace text-secondary" id="doc-content" placeholder="Paste nội dung tài liệu vào đây..." style="min-height: 250px; resize: none;" oninput="updateCharCount(this)"></textarea>
+                                        <small class="form-hint mt-2">Tối đa 50,000 ký tự (~100 trang). Hệ thống tự chunk + embedding.</small>
+                                    </div>
+                                    <div class="mt-auto pt-3">
+                                        <button class="btn btn-primary w-100" id="save-btn" onclick="saveDoc()">
+                                            <i class="ti ti-cloud-upload me-2"></i> Lưu & Embedding
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-8">
+                            <div class="card h-100 d-flex flex-column">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h3 class="card-title d-flex align-items-center gap-2">
+                                        <i class="ti ti-books text-primary fs-2"></i> Danh Sách Tài Liệu
+                                    </h3>
+                                    <select class="form-select w-auto" id="sort-select" onchange="sortDocs(this.value)">
+                                        <option value="newest">Mới nhất</option>
+                                        <option value="oldest">Cũ nhất</option>
+                                        <option value="az">Theo Tên A-Z</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="table-responsive flex-grow-1">
+                                    <table class="table table-vcenter card-table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Tên Tài Liệu</th>
+                                                <th>Trạng Thái</th>
+                                                <th>Ngày Tạo</th>
+                                                <th class="w-1"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="doc-table-body">
+                                            <tr>
+                                                <td colspan="4" class="text-center py-5 text-secondary">
+                                                    <div class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div> Đang tải...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="card-footer d-flex align-items-center mt-auto">
+                                    <p class="m-0 text-secondary" id="pagination-info">—</p>
+                                    <ul class="pagination m-0 ms-auto" id="pagination-btns"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+    <script>
+    // Hàm hiển thị thông báo thay cho Tailwind Toast
+    function showToast(msg, type = "success") {
+        const toast = document.getElementById("toast");
+        toast.textContent = msg;
+        toast.className = `toast-msg ${type} show`;
+        if(type === 'success') toast.innerHTML = `<i class="ti ti-check text-success fs-3"></i> ${msg}`;
+        else toast.innerHTML = `<i class="ti ti-alert-triangle text-danger fs-3"></i> ${msg}`;
+        setTimeout(() => { toast.classList.remove("show"); }, 3000);
+    }
+
+    // ═══════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════
+    const PAGE_SIZE = 8;
+    let allDocs     = [];   
+    let filteredDocs = [];  
+    let currentPage = 1;
+    let editingDocId = null;
+
+    // ═══════════════════════════════════════
+    // BOOT
+    // ═══════════════════════════════════════
+    (async () => {
+        // Mở comment này ra khi chạy thật với hệ thống auth
+        // await requireAuth();
+
+        // Giả lập thông tin khi chưa có PocketBase auth
+        await requireAuth();
+        renderSidebar(window.AUTH_USER);
+
+        const user   = window.AUTH_USER;
+        const tenant = window.TENANT;
+
+        document.getElementById("nav-tenant-id").textContent      = tenant;
+        document.getElementById("user-tenant-label").textContent  = tenant;
+        document.getElementById("user-name").textContent          = user.name || user.email || "—";
+        if (user.avatarUrl) {
+            document.getElementById("user-avatar").style.backgroundImage = `url('${user.avatarUrl}')`;
+            document.getElementById("user-avatar-header").style.backgroundImage = `url('${user.avatarUrl}')`;
+        }
+
+        await loadDocs();
+    })();
+
+    // ═══════════════════════════════════════
+    // LOAD DOCS
+    // ═══════════════════════════════════════
+    async function loadDocs() {
+        try {
+            const rows = await PB.collection("documents").getList(1, 500, {
+                sort: "-created",
+                filter: `tenant="${window.TENANT}"`
+            });
+            allDocs = rows.items;
+            filteredDocs = [...allDocs];
+
+            renderStats();
+            renderTable();
+        } catch (err) {
+            console.error("loadDocs:", err);
+            document.getElementById("doc-table-body").innerHTML = `
+              <tr><td colspan="4" class="px-4 py-5 text-center text-secondary">Lỗi tải dữ liệu. Vui lòng kiểm tra kết nối PocketBase.</td></tr>
+            `;
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // RENDER STATS
+    // ═══════════════════════════════════════
+    function renderStats() {
+        const totalChars  = allDocs.reduce((s, d) => s + (d.char_count || 0), 0);
+        
+        document.getElementById("stat-docs").textContent   = allDocs.length;
+        document.getElementById("stat-chunks").textContent = "Auto"; 
+        document.getElementById("stat-chars").textContent  = totalChars >= 1000 ? (totalChars / 1000).toFixed(1) + "k" : totalChars;
+    }
+
+    // ═══════════════════════════════════════
+    // RENDER TABLE + PAGINATION
+    // ═══════════════════════════════════════
+    function renderTable() {
+        const tbody = document.getElementById("doc-table-body");
+        const total = filteredDocs.length;
+        const pages = Math.ceil(total / PAGE_SIZE) || 1;
+        currentPage = Math.min(currentPage, pages);
+
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const slice = filteredDocs.slice(start, start + PAGE_SIZE);
+
+        if (!slice.length) {
+            tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-secondary">
+                ${allDocs.length === 0 ? "Chưa có tài liệu nào. Bắt đầu thêm tài liệu bên trái!" : "Không tìm thấy tài liệu phù hợp."}
+            </td></tr>`;
+            document.getElementById("pagination-info").textContent = "0 tài liệu";
+            document.getElementById("pagination-btns").innerHTML  = "";
+            return;
+        }
+
+        // Tái cấu trúc chuỗi render theo class Tabler
+        tbody.innerHTML = slice.map(doc => `
+            <tr>
+                <td>
+                    <div class="d-flex py-1 align-items-center">
+                        <span class="avatar me-3 bg-transparent text-secondary border-0"><i class="ti ti-file-description fs-2"></i></span>
+                        <div class="flex-fill">
+                            <div class="fw-bold text-body">${escHtml(doc.title)}</div>
+                            <div class="text-secondary fs-5 mt-1">
+                                ${doc.char_count ? `~ ${Math.round(doc.char_count / 5)} từ` : "0 từ"}
+                                ${doc.char_count && doc._chunkCount ? " • " : ""}
+                                ${doc._chunkCount ? `${doc._chunkCount} chunks` : ""}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    ${doc.anything_path
+                        ? `<span class="badge bg-green-lt"><i class="ti ti-check me-1"></i> Đã học (AI)</span>`
+                        : `<span class="badge bg-secondary-lt"><i class="ti ti-clock me-1"></i> Chờ đồng bộ</span>`
+                    }
+                </td>
+                <td class="text-secondary">${formatTime(doc.created)}</td>
+                <td class="text-end">
+                    <button onclick="openEditModal('${doc.id}')" class="btn btn-icon btn-ghost-secondary me-1" title="Chỉnh sửa"><i class="ti ti-edit"></i></button>
+                    <button onclick="deleteDoc('${doc.id}', '${escHtml(doc.title)}')" class="btn btn-icon btn-ghost-danger" title="Xoá"><i class="ti ti-trash"></i></button>
+                </td>
+            </tr>
+        `).join("");
+
+        // Pagination info
+        document.getElementById("pagination-info").textContent = `Hiển thị ${start + 1}–${Math.min(start + PAGE_SIZE, total)} trong ${total} tài liệu`;
+
+        // Pagination buttons (dùng Tabler Pagination)
+        const btnsEl = document.getElementById("pagination-btns");
+        if (pages <= 1) { btnsEl.innerHTML = ""; return; }
+
+        let pagesHtml = `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="goPage(${currentPage - 1}); return false;"><i class="ti ti-chevron-left"></i></a>
+        </li>`;
+        
+        for (let i = 1; i <= pages; i++) {
+            pagesHtml += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="goPage(${i}); return false;">${i}</a>
+            </li>`;
+        }
+
+        pagesHtml += `<li class="page-item ${currentPage === pages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="goPage(${currentPage + 1}); return false;"><i class="ti ti-chevron-right"></i></a>
+        </li>`;
+        
+        btnsEl.innerHTML = pagesHtml;
+    }
+
+    function goPage(p) {
+        currentPage = p;
+        renderTable();
+    }
+
+    // ═══════════════════════════════════════
+    // SEARCH + SORT
+    // ═══════════════════════════════════════
+    function filterDocs(q) {
+        const lower = q.toLowerCase();
+        filteredDocs = allDocs.filter(d => d.title.toLowerCase().includes(lower));
+        currentPage = 1;
+        renderTable();
+    }
+
+    function sortDocs(val) {
+        if (val === "newest") filteredDocs.sort((a, b) => new Date(b.created) - new Date(a.created));
+        if (val === "oldest") filteredDocs.sort((a, b) => new Date(a.created) - new Date(b.created));
+        if (val === "az")     filteredDocs.sort((a, b) => a.title.localeCompare(b.title));
+        currentPage = 1;
+        renderTable();
+    }
+
+    // ═══════════════════════════════════════
+    // CHAR COUNTER
+    // ═══════════════════════════════════════
+    function updateCharCount(el) {
+        const len   = el.value.length;
+        const max   = 50000;
+        const el2   = document.getElementById("char-counter");
+        el2.textContent = `${len.toLocaleString()} / ${max.toLocaleString()}`;
+        // Dùng mã màu Tabler
+        el2.style.color = len > max * 0.9 ? "#d63939" : len > max * 0.7 ? "#f76707" : "";
+    }
+
+    // ═══════════════════════════════════════
+    // API ACTIONS
+    // ═══════════════════════════════════════
+    async function saveDoc() {
+        const title   = document.getElementById("doc-title").value.trim();
+        const content = document.getElementById("doc-content").value.trim();
+        const btn     = document.getElementById("save-btn");
+
+        if (!title)   { showToast("Vui lòng nhập tiêu đề", "error"); return; }
+        if (!content) { showToast("Vui lòng nhập nội dung", "error"); return; }
+        if (content.length > 50000) { showToast("Nội dung quá dài (tối đa 50,000 ký tự)", "error"); return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang embedding...';
+
+        try {
+            const res = await fetch(`${window.WORKER_URL}/embed`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                body: JSON.stringify({ tenant: window.TENANT, title, text: content, char_count: content.length })
+            });
+
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || "Embedding thất bại");
+
+            await PB.collection("documents").update(data.doc_id, { char_count: content.length });
+
+            showToast(`✓ Đã đồng bộ "${title}" vào hệ thống AI`, "success");
+            document.getElementById("doc-title").value   = "";
+            document.getElementById("doc-content").value = "";
+            document.getElementById("char-counter").textContent = "0 / 50,000";
+
+            await loadDocs();
+
+        } catch (err) {
+            showToast("Lỗi: " + err.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-cloud-upload me-2"></i> Lưu & Embedding';
+        }
+    }
+
+    async function deleteDoc(docId, title) {
+        if (!confirm(`Xoá tài liệu "${title}"?\n\nBot sẽ không còn dùng nội dung này nữa.`)) return;
+
+        try {
+            const res = await fetch(`${window.WORKER_URL}/doc`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                body: JSON.stringify({ doc_id: docId, tenant: window.TENANT })
+            });
+
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            showToast(`Đã xoá "${title}"`, "success");
+            await loadDocs();
+        } catch (err) {
+            showToast("Lỗi xoá: " + err.message, "error");
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // EDIT MODAL
+    // ═══════════════════════════════════════
+    function openEditModal(docId) {
+        const doc = allDocs.find(d => d.id === docId);
+        if (!doc) return;
+
+        editingDocId = docId;
+        document.getElementById("edit-title").value   = doc.title || "";
+        document.getElementById("edit-content").value = stripHtml(doc.raw_text || "");
+        document.getElementById("edit-modal").classList.remove("d-none");
+    }
+
+    function closeEditModal() {
+        document.getElementById("edit-modal").classList.add("d-none");
+        editingDocId = null;
+    }
+
+    async function saveEdit() {
+        const title   = document.getElementById("edit-title").value.trim();
+        const content = document.getElementById("edit-content").value.trim();
+        const btn     = document.getElementById("save-edit-btn");
+
+        if (!title || !content) { showToast("Vui lòng nhập đầy đủ tiêu đề và nội dung", "error"); return; }
+        if (content.length > 50000) { showToast("Nội dung quá dài", "error"); return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang re-embed...';
+
+        try {
+            const delRes = await fetch(`${window.WORKER_URL}/doc`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                body: JSON.stringify({ doc_id: editingDocId, tenant: window.TENANT })
+            });
+            const delData = await delRes.json();
+            if (!delData.success) throw new Error(delData.error);
+
+            const embedRes = await fetch(`${window.WORKER_URL}/embed`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                body: JSON.stringify({ tenant: window.TENANT, title, text: content, char_count: content.length })
+            });
+            const embedData = await embedRes.json();
+            if (!embedData.success) throw new Error(embedData.error || "Re-embed thất bại");
+
+            await PB.collection("documents").update(embedData.doc_id, { char_count: content.length });
+
+            showToast(`✓ Đã cập nhật "${title}"`, "success");
+            closeEditModal();
+            await loadDocs();
+
+        } catch (err) {
+            showToast("Lỗi: " + err.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-device-floppy me-2"></i> Lưu & Re-embed';
+        }
+    }
+
+    // Đóng modal khi click ra ngoài Overlay
+    document.getElementById("edit-modal").addEventListener("click", function(e) {
+        if (e.target === this) closeEditModal();
+    });
+
+    // Các hàm Helper
+    function stripHtml(html) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        return tmp.textContent || tmp.innerText || "";
+    }
+
+    function escHtml(unsafe) {
+        return (unsafe || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function formatTime(isoString) { 
+        if(!isoString) return "";
+        const d = new Date(isoString);
+        return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
+    }
+    </script>
+</body>
+</html>
