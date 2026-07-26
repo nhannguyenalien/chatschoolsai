@@ -38,6 +38,9 @@ var index_default = {
         else await handlePublishDispatch(env);
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       }
+      if (url.pathname.startsWith("/api/v1/")) {
+        return await handleApiV1(request, url, env, cors);
+      }
       return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
     } catch (err) {
       console.error(err);
@@ -992,11 +995,11 @@ __name(generatePostFromRssItem, "generatePostFromRssItem");
 
 // ================= [AI VẼ ẢNH: DALL-E 3, chỉ chạy khi bài chưa có ảnh/video sẵn] =================
 async function generateImageWithDallE(env, prompt) {
-  if (!env.OPENAI_API_KEY || !prompt) return null;
+  if (!env.OPENAI_KEY || !prompt) return null;
   try {
     const res = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/images/generations`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size: "1024x1024", response_format: "b64_json" }),
       timeout: 6e4
     });
@@ -1133,10 +1136,14 @@ async function processOneRssSource(env, pbToken, source) {
 }
 __name(processOneRssSource, "processOneRssSource");
 
-async function handleRssCrawlAndGenerate(env) {
+// tenantFilter tuỳ chọn — bỏ trống thì chạy cho TẤT CẢ tenant (dùng bởi cron), truyền vào thì
+// chỉ chạy đúng 1 tenant (dùng bởi /api/v1/trigger/rss-crawl khi hệ thống ngoài gọi vào).
+async function handleRssCrawlAndGenerate(env, tenantFilter) {
   const pbToken = await getPbToken(env);
+  let filter = "is_active=true";
+  if (tenantFilter) filter += ` && tenant='${escFilterValue(tenantFilter)}'`;
   const sourcesRes = await fetchWithTimeout(
-    `${env.PB_URL}/api/collections/rss_sources/records?perPage=200&filter=${encodeURIComponent("is_active=true")}&expand=prompt_id`,
+    `${env.PB_URL}/api/collections/rss_sources/records?perPage=200&filter=${encodeURIComponent(filter)}&expand=prompt_id`,
     { headers: { Authorization: pbToken } }
   );
   const sourcesData = await sourcesRes.json();
@@ -1369,10 +1376,11 @@ __name(publishOneTarget, "publishOneTarget");
 // Nếu worker bị Cloudflare ngắt giữa chừng (hết CPU time) ngay sau khi claim, target có thể kẹt
 // vĩnh viễn ở status="publishing". Quá 30 phút vẫn còn "publishing" -> coi như treo, đưa về "error"
 // để không bị bỏ quên (owner sẽ thấy trong "Lỗi" và có thể duyệt lại).
-async function recoverStalePublishing(env, pbToken) {
+async function recoverStalePublishing(env, pbToken, tenantFilter) {
   const staleBefore = new Date(Date.now() - 30 * 60 * 1e3).toISOString();
-  const filter = encodeURIComponent(`status='publishing' && updated <= '${staleBefore}'`);
-  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${filter}`, {
+  let filter = `status='publishing' && updated <= '${staleBefore}'`;
+  if (tenantFilter) filter += ` && tenant='${escFilterValue(tenantFilter)}'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(filter)}`, {
     headers: { Authorization: pbToken }
   });
   const data = await res.json();
@@ -1382,14 +1390,17 @@ async function recoverStalePublishing(env, pbToken) {
 }
 __name(recoverStalePublishing, "recoverStalePublishing");
 
-async function handlePublishDispatch(env) {
+// tenantFilter tuỳ chọn — bỏ trống thì chạy cho TẤT CẢ tenant (dùng bởi cron), truyền vào thì
+// chỉ chạy đúng 1 tenant (dùng bởi /api/v1/trigger/publish khi hệ thống ngoài gọi vào).
+async function handlePublishDispatch(env, tenantFilter) {
   const pbToken = await getPbToken(env);
-  await recoverStalePublishing(env, pbToken);
+  await recoverStalePublishing(env, pbToken, tenantFilter);
 
   const nowISO = (/* @__PURE__ */ new Date()).toISOString();
-  const filter = encodeURIComponent(`(status='approved' || (status='scheduled' && scheduled_at <= '${nowISO}'))`);
+  let filter = `(status='approved' || (status='scheduled' && scheduled_at <= '${nowISO}'))`;
+  if (tenantFilter) filter = `tenant='${escFilterValue(tenantFilter)}' && ${filter}`;
   const res = await fetchWithTimeout(
-    `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${filter}&expand=post_id`,
+    `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(filter)}&expand=post_id`,
     { headers: { Authorization: pbToken } }
   );
   const data = await res.json();
@@ -1404,6 +1415,297 @@ async function handlePublishDispatch(env) {
   }
 }
 __name(handlePublishDispatch, "handlePublishDispatch");
+
+// ================= [API /api/v1/* CHO HỆ THỐNG NGOÀI GỌI VÀO] =================
+// Xác thực bằng API key ri\xEAng của từng tenant (kh\xE1c ADMIN_SECRET d\xF9ng nội bộ ở /run-*),
+// lấy trong bot_configs.api_key — tenant tự tạo/copy ở config.html.
+async function resolveTenantByApiKey(env, pbToken, apiKey) {
+  if (!apiKey) return null;
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&filter=${encodeURIComponent(`api_key='${escFilterValue(apiKey)}'`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.items?.[0] || null;
+}
+__name(resolveTenantByApiKey, "resolveTenantByApiKey");
+
+async function handleApiListPosts(request, env, cors, cfg) {
+  const url = new URL(request.url);
+  const statusFilter = url.searchParams.get("status");
+  const pbToken = await getPbToken(env);
+  const postsRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/posts/records?perPage=50&sort=-created&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}&expand=post_targets_via_post_id,media_via_post_id`,
+    { headers: { Authorization: pbToken } }
+  );
+  const postsData = await postsRes.json();
+  let items = postsData.items || [];
+  if (statusFilter) {
+    items = items.filter((p) => (p.expand?.post_targets_via_post_id || []).some((t) => t.status === statusFilter));
+  }
+  const posts = items.map((p) => ({
+    id: p.id,
+    title: p.title,
+    content: p.content,
+    created: p.created,
+    targets: (p.expand?.post_targets_via_post_id || []).map((t) => ({
+      id: t.id, platform: t.platform, status: t.status, scheduled_at: t.scheduled_at,
+      error_log: t.error_log, published_post_id: t.published_post_id
+    })),
+    media: (p.expand?.media_via_post_id || []).map((m) => ({ url: m.url, type: m.type }))
+  }));
+  return new Response(JSON.stringify({ success: true, posts }), { headers: cors });
+}
+__name(handleApiListPosts, "handleApiListPosts");
+
+async function handleApiCreatePost(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const { title, content, image_prompt, image_url, video_url, platforms, auto_approve } = body;
+  if (!title || !content) {
+    return new Response(JSON.stringify({ error: "Thiếu title hoặc content" }), { status: 400, headers: cors });
+  }
+  const pbToken = await getPbToken(env);
+  const postRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/posts/records`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify({ tenant: cfg.tenant, title, content, image_prompt: image_prompt || "" })
+  });
+  const post = await postRes.json();
+  if (!post.id) {
+    return new Response(JSON.stringify({ error: "Tạo b\xE0i viết thất bại", detail: post }), { status: 502, headers: cors });
+  }
+
+  if (image_url || video_url) {
+    await fetchWithTimeout(`${env.PB_URL}/api/collections/media/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: pbToken },
+      body: JSON.stringify({ tenant: cfg.tenant, post_id: post.id, url: image_url || video_url, type: video_url ? "video" : "image", order: 0 })
+    });
+  }
+
+  const targetPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ["facebook"];
+  const pagesRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/pages_config/records?perPage=100&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}' && is_active=true`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const pagesData = await pagesRes.json();
+  const pages = pagesData.items || [];
+
+  const createdTargets = [];
+  for (const platform of targetPlatforms) {
+    const page = pages.find((p) => p.platform === platform);
+    if (!page) continue;
+    const targetRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: pbToken },
+      body: JSON.stringify({
+        tenant: cfg.tenant, post_id: post.id, platform, page_id: page.page_id,
+        status: auto_approve ? "approved" : "pending"
+      })
+    });
+    const target = await targetRes.json();
+    if (target.id) createdTargets.push({ id: target.id, platform, status: target.status });
+  }
+
+  return new Response(JSON.stringify({ success: true, post_id: post.id, targets: createdTargets }), { headers: cors });
+}
+__name(handleApiCreatePost, "handleApiCreatePost");
+
+async function handleApiApprovePost(env, cors, cfg, postId) {
+  const pbToken = await getPbToken(env);
+  const targetsRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}' && post_id='${escFilterValue(postId)}' && status='pending'`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const targetsData = await targetsRes.json();
+  const targets = targetsData.items || [];
+  for (const t of targets) {
+    await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: pbToken },
+      body: JSON.stringify({ status: "approved" })
+    });
+  }
+  return new Response(JSON.stringify({ success: true, approved: targets.length }), { headers: cors });
+}
+__name(handleApiApprovePost, "handleApiApprovePost");
+
+async function handleApiStatus(env, cors, cfg) {
+  const pbToken = await getPbToken(env);
+  const qt = (filter) => pbCount(env, pbToken, "post_targets", filter);
+  const base = `tenant='${escFilterValue(cfg.tenant)}'`;
+  const [pending, approved, scheduled, publishing, published, error] = await Promise.all([
+    qt(`${base} && status='pending'`),
+    qt(`${base} && status='approved'`),
+    qt(`${base} && status='scheduled'`),
+    qt(`${base} && status='publishing'`),
+    qt(`${base} && status='published'`),
+    qt(`${base} && status='error'`)
+  ]);
+  return new Response(JSON.stringify({ success: true, tenant: cfg.tenant, pending, approved, scheduled, publishing, published, error }), { headers: cors });
+}
+__name(handleApiStatus, "handleApiStatus");
+
+// Gọi lại đúng handler nội bộ (handleChat/handleEmbed/...) nhưng \xE9p cứng tenant từ API key,
+// bỏ qua tenant client tự gửi lên (nếu c\xF3) — tr\xE1nh 1 tenant giả mạo tenant kh\xE1c qua body.
+async function callInternalHandlerWithForcedTenant(request, env, cors, tenant, innerHandler) {
+  const body = await request.json().catch(() => ({}));
+  const forcedRequest = new Request(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: JSON.stringify({ ...body, tenant })
+  });
+  return await innerHandler(forcedRequest, env, cors);
+}
+__name(callInternalHandlerWithForcedTenant, "callInternalHandlerWithForcedTenant");
+
+// ================= [API: CHATBOT] =================
+async function handleApiChat(request, env, cors, cfg) {
+  return await callInternalHandlerWithForcedTenant(request, env, cors, cfg.tenant, handleChat);
+}
+__name(handleApiChat, "handleApiChat");
+
+// ================= [API: BOT CONFIG] =================
+var CONFIG_READABLE_FIELDS = [
+  "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
+  "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
+  "cloudinary_cloud_name", "brand_logo_url"
+];
+var CONFIG_WRITABLE_FIELDS = [
+  "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
+  "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
+  "cloudinary_cloud_name", "cloudinary_api_key", "cloudinary_api_secret", "brand_logo_url"
+];
+
+async function handleApiGetConfig(env, cors, cfg) {
+  const out = { tenant: cfg.tenant };
+  for (const f of CONFIG_READABLE_FIELDS) out[f] = cfg[f] ?? null;
+  return new Response(JSON.stringify({ success: true, config: out }), { headers: cors });
+}
+__name(handleApiGetConfig, "handleApiGetConfig");
+
+async function handleApiUpdateConfig(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const patch = {};
+  for (const f of CONFIG_WRITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, f)) patch[f] = body[f];
+  }
+  if (Object.keys(patch).length === 0) {
+    return new Response(JSON.stringify({ error: "Kh\xF4ng c\xF3 field n\xE0o hợp lệ để cập nhật" }), { status: 400, headers: cors });
+  }
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records/${cfg.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify(patch)
+  });
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: "Cập nhật config thất bại" }), { status: 502, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, updated: Object.keys(patch) }), { headers: cors });
+}
+__name(handleApiUpdateConfig, "handleApiUpdateConfig");
+
+// ================= [API: KNOWLEDGE BASE] =================
+async function handleApiListKnowledge(env, cors, cfg) {
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/documents/records?perPage=100&sort=-created&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}&fields=id,title,char_count,created`,
+    { headers: { Authorization: pbToken } }
+  );
+  const data = await res.json();
+  return new Response(JSON.stringify({ success: true, documents: data.items || [] }), { headers: cors });
+}
+__name(handleApiListKnowledge, "handleApiListKnowledge");
+
+async function handleApiAddKnowledge(request, env, cors, cfg) {
+  return await callInternalHandlerWithForcedTenant(request, env, cors, cfg.tenant, handleEmbed);
+}
+__name(handleApiAddKnowledge, "handleApiAddKnowledge");
+
+async function handleApiDeleteKnowledge(env, cors, cfg, docId) {
+  const pbToken = await getPbToken(env);
+  const forcedRequest = new Request("https://internal/doc", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ doc_id: docId, tenant: cfg.tenant })
+  });
+  return await handleDelete(forcedRequest, env, cors);
+}
+__name(handleApiDeleteKnowledge, "handleApiDeleteKnowledge");
+
+async function handleApiSyncKnowledge(env, cors, cfg) {
+  const forcedRequest = new Request("https://internal/sync-docs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tenant: cfg.tenant })
+  });
+  return await handleSyncDocs(forcedRequest, env, cors);
+}
+__name(handleApiSyncKnowledge, "handleApiSyncKnowledge");
+
+// ================= [API: CHAT LOGS] =================
+async function handleApiListMessages(request, env, cors, cfg) {
+  const url = new URL(request.url);
+  const session = url.searchParams.get("session");
+  let filter = `tenant='${escFilterValue(cfg.tenant)}'`;
+  if (session) filter += ` && session='${escFilterValue(session)}'`;
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/messages/records?perPage=100&sort=-created&filter=${encodeURIComponent(filter)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const data = await res.json();
+  const messages = (data.items || []).map((m) => ({
+    id: m.id, session: m.session, username: m.username, text: m.text,
+    is_bot: m.is_bot, needs_human: m.needs_human || false, created: m.created
+  }));
+  return new Response(JSON.stringify({ success: true, messages }), { headers: cors });
+}
+__name(handleApiListMessages, "handleApiListMessages");
+
+async function handleApiV1(request, url, env, cors) {
+  const apiKey = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim() || url.searchParams.get("api_key") || "";
+  const pbToken = await getPbToken(env);
+  const cfg = await resolveTenantByApiKey(env, pbToken, apiKey);
+  if (!cfg) {
+    return new Response(JSON.stringify({ error: "API key kh\xF4ng hợp lệ — v\xE0o config.html lấy API key của bạn" }), { status: 401, headers: cors });
+  }
+
+  if (url.pathname === "/api/v1/posts" && request.method === "GET") return await handleApiListPosts(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/posts" && request.method === "POST") return await handleApiCreatePost(request, env, cors, cfg);
+
+  const approveMatch = url.pathname.match(/^\/api\/v1\/posts\/([^/]+)\/approve$/);
+  if (approveMatch && request.method === "POST") return await handleApiApprovePost(env, cors, cfg, approveMatch[1]);
+
+  if (url.pathname === "/api/v1/status" && request.method === "GET") return await handleApiStatus(env, cors, cfg);
+
+  if (url.pathname === "/api/v1/trigger/rss-crawl" && request.method === "POST") {
+    await handleRssCrawlAndGenerate(env, cfg.tenant);
+    return new Response(JSON.stringify({ success: true }), { headers: cors });
+  }
+  if (url.pathname === "/api/v1/trigger/publish" && request.method === "POST") {
+    await handlePublishDispatch(env, cfg.tenant);
+    return new Response(JSON.stringify({ success: true }), { headers: cors });
+  }
+
+  if (url.pathname === "/api/v1/chat" && request.method === "POST") return await handleApiChat(request, env, cors, cfg);
+
+  if (url.pathname === "/api/v1/config" && request.method === "GET") return await handleApiGetConfig(env, cors, cfg);
+  if (url.pathname === "/api/v1/config" && request.method === "PATCH") return await handleApiUpdateConfig(request, env, cors, cfg);
+
+  if (url.pathname === "/api/v1/knowledge" && request.method === "GET") return await handleApiListKnowledge(env, cors, cfg);
+  if (url.pathname === "/api/v1/knowledge" && request.method === "POST") return await handleApiAddKnowledge(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/knowledge/sync" && request.method === "POST") return await handleApiSyncKnowledge(env, cors, cfg);
+  const knowledgeDeleteMatch = url.pathname.match(/^\/api\/v1\/knowledge\/([^/]+)$/);
+  if (knowledgeDeleteMatch && request.method === "DELETE") return await handleApiDeleteKnowledge(env, cors, cfg, knowledgeDeleteMatch[1]);
+
+  if (url.pathname === "/api/v1/messages" && request.method === "GET") return await handleApiListMessages(request, env, cors, cfg);
+
+  return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
+}
+__name(handleApiV1, "handleApiV1");
 
 export {
   index_default as default

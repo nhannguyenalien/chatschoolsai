@@ -39,7 +39,8 @@
       { "system": false, "id": "cldapisecret01", "name": "cloudinary_api_secret", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogourl01", "name": "brand_logo_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogopid01", "name": "brand_logo_public_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
-      { "system": false, "id": "brandlogocache01", "name": "brand_logo_cached_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
+      { "system": false, "id": "brandlogocache01", "name": "brand_logo_cached_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "apikeyfld01", "name": "api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
     "listRule": "",

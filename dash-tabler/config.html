@@ -171,6 +171,24 @@
                                 </div>
 
                                 <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-api text-primary fs-2"></i> API cho hệ thống ngoài
+                                        </h3>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Cho phép hệ thống khác (n8n, backend riêng của bạn...) gọi thẳng vào để tạo bài viết, duyệt đăng, xem trạng thái — không cần mở dashboard. Xem tài liệu đầy đủ tại <code>docs/API.md</code> trong repo.</div>
+                                        <label class="form-label text-uppercase tracking-wide text-secondary fs-5">API Key</label>
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control font-monospace" id="apiKeyDisplay" readonly placeholder="Chưa tạo — bấm nút bên phải">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()"><i class="ti ti-copy"></i></button>
+                                            <button class="btn btn-outline-primary" type="button" onclick="generateApiKey()">Tạo / Đổi mới</button>
+                                        </div>
+                                        <small class="form-hint">Gửi kèm header <code>Authorization: Bearer &lt;API key&gt;</code> khi gọi <code>{{WORKER_URL}}/api/v1/...</code>. Đổi mới key sẽ khiến hệ thống ngoài đang dùng key cũ ngừng gọi được — chỉ đổi khi nghi lộ key.</small>
+                                    </div>
+                                </div>
+
+                                <div class="card">
                                     <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
                                         <h3 class="card-title d-flex align-items-center gap-2">
                                             <i class="ti ti-file-description text-primary fs-2"></i> System Persona
@@ -349,6 +367,7 @@
        - brand_logo_url (text) — link ảnh logo do tenant nhập.
        - brand_logo_public_id, brand_logo_cached_url (text) — cache nội bộ do worker tự ghi, KHÔNG hiển thị
          trên UI (worker dùng để biết đã upload logo lên Cloudinary chưa, tránh upload lại mỗi lần đăng bài).
+       - api_key (text) — API key riêng của tenant để hệ thống ngoài gọi /api/v1/... (xem docs/API.md).
        ========================================================= */
 
     // ═══════════════════════════════════════
@@ -411,6 +430,7 @@
             document.getElementById("cloudinaryApiSecret").value = r.cloudinary_api_secret || "";
             document.getElementById("brandLogoUrl").value = r.brand_logo_url || "";
             previewBrandLogo();
+            document.getElementById("apiKeyDisplay").value = r.api_key || "";
             document.getElementById("systemPrompt").value = r.system_prompt || "";
             document.getElementById("tempSlider").value  = r.temperature  || 0.3;
             document.getElementById("tempValue").textContent = r.temperature || 0.3;
@@ -454,6 +474,34 @@
         const img = document.getElementById("brandLogoPreview");
         if (url && url.startsWith("http")) { img.src = url; img.classList.remove("d-none"); }
         else { img.classList.add("d-none"); }
+    }
+
+    // ═══════════════════════════════════════
+    // API KEY (cho hệ thống ngoài gọi /api/v1/...)
+    // ═══════════════════════════════════════
+    async function generateApiKey() {
+        const hasOld = !!document.getElementById("apiKeyDisplay").value;
+        if (hasOld && !confirm("Tạo API key mới sẽ khiến hệ thống đang dùng key cũ ngừng gọi được. Tiếp tục?")) return;
+        const newKey = crypto.randomUUID().replace(/-/g, "");
+        try {
+            if (configRecordId) {
+                await PB.collection("bot_configs").update(configRecordId, { api_key: newKey });
+            } else {
+                const created = await PB.collection("bot_configs").create({ tenant: window.TENANT, api_key: newKey });
+                configRecordId = created.id;
+            }
+            document.getElementById("apiKeyDisplay").value = newKey;
+            showToast("Đã tạo API key mới", "success");
+        } catch (err) {
+            showToast("Lỗi tạo API key: " + err.message, "error");
+        }
+    }
+
+    function copyApiKey() {
+        const val = document.getElementById("apiKeyDisplay").value;
+        if (!val) { showToast("Chưa có API key để copy", "error"); return; }
+        navigator.clipboard.writeText(val);
+        showToast("Đã copy API key", "success");
     }
 
     // ═══════════════════════════════════════
