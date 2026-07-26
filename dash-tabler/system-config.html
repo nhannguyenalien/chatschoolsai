@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>System Config - Super Admin</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        body { font-family: 'Inter', sans-serif; background: #0b1c30; }
+        .toast-msg {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+        .danger-header { background: linear-gradient(135deg, #26374d, #0b1c30); }
+    </style>
+</head>
+<body>
+
+<div class="toast-msg" id="toast"></div>
+
+<!-- LOGIN (PocketBase SUPERUSER, KHÔNG phải tenant) -->
+<div class="page page-center" id="login-screen">
+  <div class="container container-tight py-4">
+    <div class="text-center mb-4">
+      <span class="avatar avatar-lg bg-dark text-white rounded-circle"><i class="ti ti-shield-lock fs-1"></i></span>
+    </div>
+    <div class="card card-md">
+      <div class="card-body">
+        <h2 class="h2 text-center mb-1">System Config</h2>
+        <div class="text-secondary text-center mb-4">Đăng nhập bằng tài khoản <strong>Admin PocketBase</strong> (không phải tài khoản tenant thường)</div>
+        <div id="login-error" class="alert alert-danger d-none p-2 fs-5 mb-3"></div>
+        <div class="mb-3">
+          <label class="form-label">Admin Email</label>
+          <input type="text" id="admin-email" class="form-control" placeholder="admin@yourdomain.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input type="password" id="admin-password" class="form-control" placeholder="••••••••">
+        </div>
+        <button class="btn btn-dark w-100" id="login-btn" onclick="doAdminLogin()">Đăng nhập</button>
+      </div>
+    </div>
+    <div class="text-center text-secondary mt-3 fs-5">
+      Trang này quản lý cấu hình tầng HỆ THỐNG (dùng chung mọi tenant) — không phải cấu hình bot của từng khách hàng.
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="page d-none" id="main-screen">
+  <div class="page-wrapper">
+    <header class="navbar navbar-expand-md danger-header navbar-dark d-print-none">
+      <div class="container-xl">
+        <div class="d-flex align-items-center gap-2 text-white fw-bold">
+          <i class="ti ti-shield-lock fs-2"></i> System Config <span class="badge bg-red-lt ms-2">Super Admin</span>
+        </div>
+        <div class="navbar-nav flex-row order-md-last">
+          <a href="#" class="nav-link text-white-50" onclick="doLogout()"><i class="ti ti-logout me-1"></i>Đăng xuất</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <div class="container-xl">
+
+        <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+          <i class="ti ti-alert-triangle fs-2"></i>
+          <div>Các giá trị dưới đây áp dụng cho <strong>toàn bộ hệ thống, mọi tenant</strong>. Sửa sai có thể làm gián đoạn chatbot/đăng bài của tất cả khách hàng.</div>
+        </div>
+
+        <div class="row row-cards">
+
+          <div class="col-lg-6">
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-robot me-2"></i>AnythingLLM</h3></div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">ANYTHINGLLM_URL</label>
+                  <input type="text" id="cfg-anythingllm-url" class="form-control font-monospace" placeholder="https://your-anythingllm-vps.com/">
+                  <small class="form-hint">Nhớ có dấu <code>/</code> ở cuối, đúng như code đang ghép chuỗi.</small>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">ANYTHINGLLM_API_KEY</label>
+                  <input type="text" id="cfg-anythingllm-key" class="form-control font-monospace" placeholder="sk-...">
+                </div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-brand-telegram me-2"></i>Telegram</h3></div>
+              <div class="card-body">
+                <label class="form-label">TELEGRAM_BOT_TOKEN</label>
+                <input type="text" id="cfg-telegram-token" class="form-control font-monospace" placeholder="123456:ABC-...">
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-photo-ai me-2"></i>OpenAI (vẽ ảnh)</h3></div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">OPENAI_KEY</label>
+                  <input type="text" id="cfg-openai-key" class="form-control font-monospace" placeholder="sk-...">
+                </div>
+                <div class="row g-2">
+                  <div class="col-12 mb-2">
+                    <label class="form-label">OPENAI_BASE_URL</label>
+                    <input type="text" id="cfg-openai-base" class="form-control font-monospace" placeholder="https://api.openai.com/v1">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label">Chat model</label>
+                    <input type="text" id="cfg-openai-chat-model" class="form-control font-monospace" placeholder="gpt-4o-mini">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label">Embedding model</label>
+                    <input type="text" id="cfg-openai-embed-model" class="form-control font-monospace" placeholder="text-embedding-3-small">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-key me-2"></i>Vận hành</h3></div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">ADMIN_SECRET <span class="text-secondary fs-6">(khoá gọi /run-*, /sync-docs)</span></label>
+                  <div class="input-group">
+                    <input type="text" id="cfg-admin-secret" class="form-control font-monospace" placeholder="tự đặt 1 chuỗi bất kỳ, càng dài càng khó đoán">
+                    <button class="btn btn-outline-secondary" type="button" onclick="generateAdminSecret()"><i class="ti ti-dice"></i></button>
+                  </div>
+                </div>
+                <div class="mb-0">
+                  <label class="form-label">DASHBOARD_URL</label>
+                  <input type="url" id="cfg-dashboard-url" class="form-control" placeholder="https://chat.schoolsai.work">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+            <button class="btn btn-primary" id="save-btn" onclick="saveConfig()"><i class="ti ti-device-floppy me-1"></i>Lưu cấu hình</button>
+            <div class="vr d-none d-md-block"></div>
+            <div class="flex-fill">
+              <div class="fw-medium">Đồng bộ lại AnythingLLM (khi đổi VPS mới)</div>
+              <div class="text-secondary fs-5">Đẩy lại system_prompt + toàn bộ tài liệu RAG của MỌI tenant vào ANYTHINGLLM_URL hiện tại. Lưu cấu hình ở trên trước khi bấm.</div>
+            </div>
+            <button class="btn btn-outline-danger" id="sync-btn" onclick="syncAllAnythingLLM()"><i class="ti ti-refresh me-1"></i>Đồng bộ ngay</button>
+          </div>
+        </div>
+
+        <div class="text-secondary fs-5">
+          <i class="ti ti-info-circle me-1"></i>
+          <code>PB_URL</code>, <code>PB_ADMIN_EMAIL</code>, <code>PB_ADMIN_PASS</code> KHÔNG quản lý ở đây — đó là thứ worker cần để tự kết nối vào PocketBase, đưa vào đây sẽ thành vòng lặp con gà quả trứng. Vẫn phải set qua <code>wrangler secret put</code>.
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+/* =========================================================
+   SCHEMA CẦN TẠO MỚI TRONG POCKETBASE (collection "system_config"):
+     anythingllm_url, anythingllm_api_key, telegram_bot_token, openai_key,
+     openai_base_url, openai_chat_model, openai_embedding_model,
+     admin_secret, dashboard_url (đều là text)
+   Rule: listRule/viewRule/createRule/updateRule/deleteRule = null (CHỈ superuser PocketBase
+   mới đọc/ghi được — không có tenant nào được phép động vào, kể cả khi đã đăng nhập).
+   ========================================================= */
+
+// authStore RIÊNG cho trang này, KHÔNG dùng chung window.PB — tránh phiên admin đè lên phiên
+// tenant đang đăng nhập ở các trang dashboard khác trong cùng trình duyệt.
+class IsolatedAuthStore {
+    constructor(key) {
+        this.key = key;
+        let parsed = { token: '', model: null };
+        try { parsed = JSON.parse(localStorage.getItem(key) || 'null') || parsed; } catch {}
+        this.token = parsed.token || '';
+        this.model = parsed.model || null;
+    }
+    get isValid() { return !!this.token; }
+    save(token, model) {
+        this.token = token; this.model = model;
+        localStorage.setItem(this.key, JSON.stringify({ token, model }));
+    }
+    clear() {
+        this.token = ''; this.model = null;
+        localStorage.removeItem(this.key);
+    }
+    onChange() { return () => {}; }
+}
+
+const PBA = new PocketBase(PB_URL, new IsolatedAuthStore('sysadmin_auth'));
+let configRecordId = null;
+
+(async function init() {
+    if (PBA.authStore.isValid) {
+        try {
+            await PBA.admins.authRefresh();
+            showMain();
+        } catch {
+            PBA.authStore.clear();
+            showLogin();
+        }
+    } else {
+        showLogin();
+    }
+})();
+
+function showLogin() {
+    document.getElementById('login-screen').classList.remove('d-none');
+    document.getElementById('main-screen').classList.add('d-none');
+}
+function showMain() {
+    document.getElementById('login-screen').classList.add('d-none');
+    document.getElementById('main-screen').classList.remove('d-none');
+    loadConfig();
+}
+
+async function doAdminLogin() {
+    const email = document.getElementById('admin-email').value.trim();
+    const password = document.getElementById('admin-password').value;
+    const errEl = document.getElementById('login-error');
+    const btn = document.getElementById('login-btn');
+    errEl.classList.add('d-none');
+    if (!email || !password) { errEl.textContent = 'Nhập đủ email và mật khẩu'; errEl.classList.remove('d-none'); return; }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang đăng nhập...';
+    try {
+        await PBA.admins.authWithPassword(email, password);
+        showMain();
+    } catch (err) {
+        errEl.textContent = 'Sai email/mật khẩu admin, hoặc tài khoản này không phải superuser PocketBase.';
+        errEl.classList.remove('d-none');
+    } finally {
+        btn.disabled = false; btn.innerHTML = 'Đăng nhập';
+    }
+}
+
+function doLogout() {
+    PBA.authStore.clear();
+    showLogin();
+}
+
+async function loadConfig() {
+    try {
+        const r = await PBA.collection('system_config').getFirstListItem('');
+        configRecordId = r.id;
+        setVal('cfg-anythingllm-url', r.anythingllm_url);
+        setVal('cfg-anythingllm-key', r.anythingllm_api_key);
+        setVal('cfg-telegram-token', r.telegram_bot_token);
+        setVal('cfg-openai-key', r.openai_key);
+        setVal('cfg-openai-base', r.openai_base_url);
+        setVal('cfg-openai-chat-model', r.openai_chat_model);
+        setVal('cfg-openai-embed-model', r.openai_embedding_model);
+        setVal('cfg-admin-secret', r.admin_secret);
+        setVal('cfg-dashboard-url', r.dashboard_url);
+    } catch (err) {
+        // Chưa có record nào — bình thường ở lần đầu dùng trang này.
+        configRecordId = null;
+    }
+}
+
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; }
+
+function generateAdminSecret() {
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    const hex = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+    document.getElementById('cfg-admin-secret').value = hex;
+}
+
+async function saveConfig() {
+    const btn = document.getElementById('save-btn');
+    const data = {
+        anythingllm_url: document.getElementById('cfg-anythingllm-url').value.trim(),
+        anythingllm_api_key: document.getElementById('cfg-anythingllm-key').value.trim(),
+        telegram_bot_token: document.getElementById('cfg-telegram-token').value.trim(),
+        openai_key: document.getElementById('cfg-openai-key').value.trim(),
+        openai_base_url: document.getElementById('cfg-openai-base').value.trim(),
+        openai_chat_model: document.getElementById('cfg-openai-chat-model').value.trim(),
+        openai_embedding_model: document.getElementById('cfg-openai-embed-model').value.trim(),
+        admin_secret: document.getElementById('cfg-admin-secret').value.trim(),
+        dashboard_url: document.getElementById('cfg-dashboard-url').value.trim(),
+    };
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
+    try {
+        if (configRecordId) {
+            await PBA.collection('system_config').update(configRecordId, data);
+        } else {
+            const created = await PBA.collection('system_config').create(data);
+            configRecordId = created.id;
+        }
+        showToast('Đã lưu cấu hình hệ thống. Có hiệu lực trong tối đa 5 phút (cache nội bộ của worker).', 'success');
+    } catch (err) {
+        showToast('Lỗi lưu: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="ti ti-device-floppy me-1"></i>Lưu cấu hình';
+    }
+}
+
+async function syncAllAnythingLLM() {
+    const btn = document.getElementById('sync-btn');
+    const secret = document.getElementById('cfg-admin-secret').value.trim();
+    if (!secret) { showToast('Chưa có ADMIN_SECRET — điền và Lưu cấu hình trước', 'error'); return; }
+    if (!confirm('Đồng bộ lại TOÀN BỘ tenant vào AnythingLLM hiện tại? Việc này có thể mất vài phút tuỳ số lượng tài liệu.')) return;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang đồng bộ...';
+    try {
+        const res = await fetch(`${WORKER_URL}/sync-docs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
+            body: JSON.stringify({ tenant: 'all' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+        showToast(data.message || 'Đã gửi yêu cầu đồng bộ', 'success');
+    } catch (err) {
+        showToast('Lỗi đồng bộ: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="ti ti-refresh me-1"></i>Đồng bộ ngay';
+    }
+}
+
+function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.innerHTML = type === 'success'
+        ? `<i class="ti ti-check text-success fs-3"></i> ${msg}`
+        : `<i class="ti ti-alert-triangle text-danger fs-3"></i> ${msg}`;
+    toast.className = `toast-msg ${type} show`;
+    setTimeout(() => toast.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>

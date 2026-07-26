@@ -18,28 +18,30 @@ var index_default = {
       if (url.pathname === "/health") {
         return new Response(JSON.stringify({ ok: true, version: "v2.1-anythingllm-stable" }), { headers: cors });
       }
-      if (url.pathname === "/chat" && request.method === "POST") return await handleChat(request, env, cors);
-      if (url.pathname === "/embed" && request.method === "POST") return await handleEmbed(request, env, cors);
-      if (url.pathname === "/doc" && request.method === "DELETE") return await handleDelete(request, env, cors);
-      if (url.pathname === "/sync-docs" && request.method === "POST") return await handleSyncDocs(request, env, cors);
-      if (url.pathname === "/telegram-webhook" && request.method === "POST") {
-        return await handleTelegramWebhook(request, env);
-      }
-      if (url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch") {
+      // Route dùng ANYTHINGLLM/TELEGRAM/OPENAI/ADMIN_SECRET -> nạp system_config trước, ghi đè lên env.
+      const env2 = { ...env, ...await getSystemConfig(env) };
+      if (url.pathname === "/chat" && request.method === "POST") return await handleChat(request, env2, cors);
+      if (url.pathname === "/embed" && request.method === "POST") return await handleEmbed(request, env2, cors);
+      if (url.pathname === "/doc" && request.method === "DELETE") return await handleDelete(request, env2, cors);
+      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch") {
         if (request.method !== "POST") {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
         }
         const providedKey = request.headers.get("X-Admin-Secret") || url.searchParams.get("key");
-        if (!env.ADMIN_SECRET || providedKey !== env.ADMIN_SECRET) {
+        if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) {
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         }
-        if (url.pathname === "/run-digest") await handleDailyDigest(env);
-        else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env);
-        else await handlePublishDispatch(env);
+        if (url.pathname === "/sync-docs") return await handleSyncDocs(request, env2, cors);
+        if (url.pathname === "/run-digest") await handleDailyDigest(env2);
+        else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env2);
+        else await handlePublishDispatch(env2);
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       }
+      if (url.pathname === "/telegram-webhook" && request.method === "POST") {
+        return await handleTelegramWebhook(request, env2);
+      }
       if (url.pathname.startsWith("/api/v1/")) {
-        return await handleApiV1(request, url, env, cors);
+        return await handleApiV1(request, url, env2, cors);
       }
       return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
     } catch (err) {
@@ -48,12 +50,13 @@ var index_default = {
     }
   },
   async scheduled(event, env, ctx) {
+    const env2 = { ...env, ...await getSystemConfig(env) };
     if (event.cron === "30 0 * * *") {
-      ctx.waitUntil(handleRssCrawlAndGenerate(env).catch((err) => console.error("[RSS] Lỗi tổng:", err)));
+      ctx.waitUntil(handleRssCrawlAndGenerate(env2).catch((err) => console.error("[RSS] Lỗi tổng:", err)));
     } else if (event.cron === "*/15 * * * *") {
-      ctx.waitUntil(handlePublishDispatch(env).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
+      ctx.waitUntil(handlePublishDispatch(env2).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
     } else {
-      ctx.waitUntil(handleDailyDigest(env).catch((err) => console.error("[Digest] Lỗi tổng:", err)));
+      ctx.waitUntil(handleDailyDigest(env2).catch((err) => console.error("[Digest] Lỗi tổng:", err)));
     }
   }
 };
@@ -98,6 +101,52 @@ async function getPbToken(env) {
   return _pbToken;
 }
 __name(getPbToken, "getPbToken");
+
+// ================= [SYSTEM CONFIG: đọc từ PocketBase, ghi đè lên Cloudflare secret] =================
+// Cho phép sửa ANYTHINGLLM_URL/API_KEY, TELEGRAM_BOT_TOKEN, OPENAI_KEY, ADMIN_SECRET... qua
+// system-config.html thay vì phải `wrangler secret put` mỗi lần. PB_URL/PB_ADMIN_EMAIL/PB_ADMIN_PASS
+// KHÔNG nằm trong system_config vì đó là thứ worker cần để tự kết nối vào PocketBase — nếu lưu
+// trong PocketBase sẽ thành vòng lặp con gà quả trứng (và rất nguy hiểm nếu lộ).
+var _systemConfigCache = null;
+var _systemConfigCacheTime = 0;
+var SYSTEM_CONFIG_OVERRIDABLE_KEYS = {
+  anythingllm_url: "ANYTHINGLLM_URL",
+  anythingllm_api_key: "ANYTHINGLLM_API_KEY",
+  telegram_bot_token: "TELEGRAM_BOT_TOKEN",
+  openai_key: "OPENAI_KEY",
+  openai_base_url: "OPENAI_BASE_URL",
+  openai_chat_model: "OPENAI_CHAT_MODEL",
+  openai_embedding_model: "OPENAI_EMBEDDING_MODEL",
+  admin_secret: "ADMIN_SECRET",
+  dashboard_url: "DASHBOARD_URL"
+};
+
+async function getSystemConfig(env) {
+  const now = Date.now();
+  if (_systemConfigCache && now - _systemConfigCacheTime < 5 * 60 * 1e3) return _systemConfigCache;
+  const fallback = {};
+  for (const envKey of Object.values(SYSTEM_CONFIG_OVERRIDABLE_KEYS)) fallback[envKey] = env[envKey];
+  try {
+    const pbToken = await getPbToken(env);
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/system_config/records?perPage=1`, {
+      headers: { Authorization: pbToken }
+    });
+    if (!res.ok) return fallback;
+    const data = await res.json();
+    const row = data.items?.[0] || {};
+    const merged = { ...fallback };
+    for (const [pbField, envKey] of Object.entries(SYSTEM_CONFIG_OVERRIDABLE_KEYS)) {
+      if (row[pbField]) merged[envKey] = row[pbField];
+    }
+    _systemConfigCache = merged;
+    _systemConfigCacheTime = now;
+    return merged;
+  } catch (err) {
+    console.error("[SystemConfig] Lỗi đọc system_config, d\xF9ng Cloudflare secret l\xE0m fallback:", err);
+    return fallback;
+  }
+}
+__name(getSystemConfig, "getSystemConfig");
 async function handleChat(request, env, cors) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";

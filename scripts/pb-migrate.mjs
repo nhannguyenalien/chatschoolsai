@@ -53,6 +53,17 @@ async function patchCollection(token, id, body) {
   return data;
 }
 
+async function createCollection(token, body) {
+  const res = await fetch(`${PB_URL}/api/collections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: token },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Tạo collection thất bại: ${JSON.stringify(data)}`);
+  return data;
+}
+
 function ensureField(schema, field) {
   if (schema.find((f) => f.name === field.name)) {
     console.log(`  - field "${field.name}" đã có, bỏ qua`);
@@ -146,6 +157,33 @@ async function migratePostTargets(token) {
   await patchCollection(token, col.id, { schema });
 }
 
+async function migrateSystemConfig(token) {
+  console.log("\n[system_config] — collection MỚI, cấu hình tầng hệ thống (dùng bởi system-config.html)");
+  const existing = await getCollectionByName(token, "system_config");
+  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  console.log("  + tạo collection mới (chỉ superuser PocketBase đọc/ghi được — không tenant nào truy cập được)");
+  await createCollection(token, {
+    name: "system_config",
+    type: "base",
+    schema: [
+      { name: "anythingllm_url", type: "text", required: false, options: {} },
+      { name: "anythingllm_api_key", type: "text", required: false, options: {} },
+      { name: "telegram_bot_token", type: "text", required: false, options: {} },
+      { name: "openai_key", type: "text", required: false, options: {} },
+      { name: "openai_base_url", type: "text", required: false, options: {} },
+      { name: "openai_chat_model", type: "text", required: false, options: {} },
+      { name: "openai_embedding_model", type: "text", required: false, options: {} },
+      { name: "admin_secret", type: "text", required: false, options: {} },
+      { name: "dashboard_url", type: "text", required: false, options: {} },
+    ],
+    listRule: null,
+    viewRule: null,
+    createRule: null,
+    updateRule: null,
+    deleteRule: null,
+  });
+}
+
 (async () => {
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
@@ -155,6 +193,7 @@ async function migratePostTargets(token) {
   await migrateSessionSummaries(token);
   await migratePosts(token);
   await migratePostTargets(token);
+  await migrateSystemConfig(token);
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
 })().catch((err) => {
