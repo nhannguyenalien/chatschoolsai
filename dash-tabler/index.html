@@ -44,42 +44,6 @@
         <div id="sidebar-placeholder"></div>
 
         <div class="page-wrapper">
-            <header class="navbar navbar-expand-md navbar-light d-none d-lg-flex d-print-none sticky-top bg-white border-bottom">
-                <div class="container-xl">
-                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-                    <div class="navbar-nav flex-row order-md-last">
-                        <div class="nav-item d-none d-md-flex me-3">
-                            <a href="#" class="nav-link px-0" data-bs-toggle="tooltip" title="Notifications">
-                                <i class="ti ti-bell fs-2"></i>
-                            </a>
-                        </div>
-                        <div class="nav-item dropdown">
-                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0">
-                                <span class="avatar avatar-sm rounded-circle" id="user-avatar" style="background-image: url('')"></span>
-                                <div class="d-none d-xl-block ps-2">
-                                    <div id="user-display-name">Admin</div>
-                                </div>
-                            </a>
-                        </div>
-                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-                            <a href="#" onclick="doLogout()" class="dropdown-item text-danger">Đăng xuất</a>
-                        </div>
-                    </div>
-                    <div class="collapse navbar-collapse" id="navbar-menu">
-                        <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
-                            <div class="ms-md-auto w-100 w-md-auto">
-                                <div class="input-icon">
-                                    <span class="input-icon-addon"><i class="ti ti-search"></i></span>
-                                    <input type="text" class="form-control form-control-rounded" placeholder="Search...">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
             <div class="page-body mt-4">
                 <div class="container-xl">
                     
@@ -87,11 +51,6 @@
                         <div class="col">
                             <h2 class="page-title fs-1">Customer AI Hub</h2>
                             <div class="text-secondary mt-1">Tổng quan hoạt động bot — <span id="tenant-label" class="fw-bold text-primary">—</span></div>
-                        </div>
-                        <div class="col-auto ms-auto d-print-none">
-                            <button class="btn btn-outline-secondary d-flex align-items-center gap-2" onclick="exportReport()">
-                                <i class="ti ti-download"></i> Export Report
-                            </button>
                         </div>
                     </div>
 
@@ -314,12 +273,8 @@
 
     function applyUserUI(user) {
         const tenant = window.TENANT;
-        document.getElementById("nav-tenant-id").textContent = tenant;
-        document.getElementById("tenant-label").textContent = tenant;
-        document.getElementById("user-display-name").textContent = user.name || user.email || "Admin";
-        if (user.avatarUrl) {
-            document.getElementById("user-avatar").style.backgroundImage = `url('${user.avatarUrl}')`;
-        }
+        if (document.getElementById("nav-tenant-id")) document.getElementById("nav-tenant-id").textContent = tenant;
+        if (document.getElementById("tenant-label")) document.getElementById("tenant-label").textContent = tenant;
     }
 
     async function doLogin() {
@@ -500,10 +455,6 @@
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-danger">Lỗi tải cấu hình</td></tr>`;
         }
-    }
-
-    function exportReport() {
-        showToast("Tính năng export đang phát triển");
     }
 
     function renderShareLink() {

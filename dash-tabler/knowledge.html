@@ -94,11 +94,6 @@
                                 <input type="text" id="search-input" class="form-control form-control-rounded" placeholder="Tìm kiếm tài liệu..." oninput="filterDocs(this.value)">
                             </div>
                         </div>
-                        <div class="nav-item dropdown">
-                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0">
-                                <span class="avatar avatar-sm rounded-circle" id="user-avatar-header" style="background-image: url('')"></span>
-                            </a>
-                        </div>
                     </div>
                 </div>
             </header>
@@ -268,14 +263,9 @@
         await requireAuth();
         renderSidebar(window.AUTH_USER);
 
-        const user   = window.AUTH_USER;
-        const tenant = window.TENANT;
+        const user   = window.AUTH_USER || {};
 
-        document.getElementById("nav-tenant-id").textContent      = tenant;
-        document.getElementById("user-tenant-label").textContent  = tenant;
-        document.getElementById("user-name").textContent          = user.name || user.email || "—";
-        if (user.avatarUrl) {
-            document.getElementById("user-avatar").style.backgroundImage = `url('${user.avatarUrl}')`;
+        if (user.avatarUrl && document.getElementById("user-avatar-header")) {
             document.getElementById("user-avatar-header").style.backgroundImage = `url('${user.avatarUrl}')`;
         }
 
