@@ -23,7 +23,7 @@ var index_default = {
       if (url.pathname === "/chat" && request.method === "POST") return await handleChat(request, env2, cors);
       if (url.pathname === "/embed" && request.method === "POST") return await handleEmbed(request, env2, cors);
       if (url.pathname === "/doc" && request.method === "DELETE") return await handleDelete(request, env2, cors);
-      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch") {
+      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent") {
         if (request.method !== "POST") {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
         }
@@ -34,7 +34,8 @@ var index_default = {
         if (url.pathname === "/sync-docs") return await handleSyncDocs(request, env2, cors);
         if (url.pathname === "/run-digest") await handleDailyDigest(env2);
         else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env2);
-        else await handlePublishDispatch(env2);
+        else if (url.pathname === "/run-publish-dispatch") await handlePublishDispatch(env2);
+        else await handleAgentRun(env2);
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       }
       if (url.pathname === "/telegram-webhook" && request.method === "POST") {
@@ -55,6 +56,8 @@ var index_default = {
       ctx.waitUntil(handleRssCrawlAndGenerate(env2).catch((err) => console.error("[RSS] Lỗi tổng:", err)));
     } else if (event.cron === "*/15 * * * *") {
       ctx.waitUntil(handlePublishDispatch(env2).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
+    } else if (event.cron === "0 * * * *") {
+      ctx.waitUntil(handleAgentRun(env2).catch((err) => console.error("[Agent] Lỗi tổng:", err)));
     } else {
       ctx.waitUntil(handleDailyDigest(env2).catch((err) => console.error("[Digest] Lỗi tổng:", err)));
     }
@@ -1757,6 +1760,10 @@ async function handleApiV1(request, url, env, cors) {
     await handlePublishDispatch(env, cfg.tenant);
     return new Response(JSON.stringify({ success: true }), { headers: cors });
   }
+  if (url.pathname === "/api/v1/trigger/agent" && request.method === "POST") {
+    await handleAgentRun(env, cfg.tenant);
+    return new Response(JSON.stringify({ success: true }), { headers: cors });
+  }
 
   if (url.pathname === "/api/v1/chat" && request.method === "POST") return await handleApiChat(request, env, cors, cfg);
 
@@ -1774,6 +1781,196 @@ async function handleApiV1(request, url, env, cors) {
   return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
 }
 __name(handleApiV1, "handleApiV1");
+
+// ================= [AGENT: LLM tự quyết định gọi tool nào, dựa trên OpenAI function calling] =================
+// Nguyên tắc thiết kế: agent CHỈ được trao các tool AN TOÀN/KHẢ NGHỊCH — không tool nào được
+// bỏ qua bước người duyệt nội dung. trigger_publish chỉ đăng bài ĐÃ được duyệt sẵn, không tự
+// duyệt bài mới. pause_rss_source đảo ngược được (bật lại trong composer.html). Mọi quyết định
+// đều log ra console (xem qua `wrangler tail`) để có thể truy vết sau này.
+var AGENT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "trigger_publish",
+      description: "Đăng ngay các b\xE0i đ\xE3 được người duyệt (status=approved) hoặc tới giờ hẹn. KH\xD4NG tự duyệt nội dung mới — chỉ thực thi c\xE1i người đ\xE3 duyệt sẵn.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "trigger_rss_crawl",
+      description: "Crawl lại c\xE1c nguồn RSS đang hoạt động để AI viết b\xE0i n\xE1p mới (vẫn ở trạng th\xE1i chờ duyệt, kh\xF4ng tự đăng).",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "pause_rss_source",
+      description: "Tạm dừng 1 nguồn RSS đang liên tục lỗi/kh\xF4ng sinh được b\xE0i mới, tr\xE1nh l\xE3ng ph\xED. C\xF3 thể bật lại tay sau trong composer.html.",
+      parameters: {
+        type: "object",
+        properties: {
+          source_id: { type: "string", description: "id của record rss_sources cần tạm dừng" },
+          reason: { type: "string", description: "L\xFD do tạm dừng, ngắn gọn" }
+        },
+        required: ["source_id", "reason"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_alert",
+      description: "Gửi cảnh b\xE1o khẩn qua Telegram cho chủ khi ph\xE1t hiện bất thường cần người chú \xFD ngay.",
+      parameters: {
+        type: "object",
+        properties: { message: { type: "string", description: "Nội dung cảnh b\xE1o, ngắn gọn, tiếng Việt" } },
+        required: ["message"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "no_action",
+      description: "Kh\xF4ng cần l\xE0m g\xEC — mọi thứ đang b\xECnh thường.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  }
+];
+
+async function executeAgentTool(env, pbToken, tenant, name, args) {
+  switch (name) {
+    case "trigger_publish":
+      await handlePublishDispatch(env, tenant);
+      return "Đ\xE3 chạy publish dispatch.";
+    case "trigger_rss_crawl":
+      await handleRssCrawlAndGenerate(env, tenant);
+      return "Đ\xE3 chạy RSS crawl.";
+    case "pause_rss_source": {
+      if (!args.source_id) return "Thiếu source_id, bỏ qua.";
+      await fetchWithTimeout(`${env.PB_URL}/api/collections/rss_sources/records/${args.source_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify({ is_active: false })
+      });
+      return `Đ\xE3 tạm dừng nguồn ${args.source_id}: ${args.reason || ""}`;
+    }
+    case "send_alert": {
+      const cfgRes = await fetchWithTimeout(
+        `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`,
+        { headers: { Authorization: pbToken } }
+      );
+      const cfgData = await cfgRes.json();
+      const chatId = cfgData.items?.[0]?.owner_telegram_chat_id;
+      if (!chatId) return "Kh\xF4ng c\xF3 owner_telegram_chat_id, bỏ qua cảnh b\xE1o.";
+      await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, `\u{1F916} [Agent] ${args.message || ""}`);
+      return "Đ\xE3 gửi cảnh b\xE1o Telegram.";
+    }
+    case "no_action":
+      return "Kh\xF4ng h\xE0nh động.";
+    default:
+      return `Tool kh\xF4ng x\xE1c định: ${name}`;
+  }
+}
+__name(executeAgentTool, "executeAgentTool");
+
+async function getAgentSnapshot(env, pbToken, tenant) {
+  const base = `tenant='${escFilterValue(tenant)}'`;
+  const [pending, errorCount, needsHumanBacklog] = await Promise.all([
+    pbCount(env, pbToken, "post_targets", `${base} && status='pending'`),
+    pbCount(env, pbToken, "post_targets", `${base} && status='error'`),
+    pbCount(env, pbToken, "messages", `${base} && needs_human=true && escalation_resolved=false`)
+  ]);
+  const sourcesRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/rss_sources/records?perPage=50&filter=${encodeURIComponent(base)}&fields=id,label,is_active`,
+    { headers: { Authorization: pbToken } }
+  );
+  const sourcesData = await sourcesRes.json();
+  const errorsRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/post_targets/records?perPage=5&sort=-updated&filter=${encodeURIComponent(`${base} && status='error'`)}&fields=platform,error_log`,
+    { headers: { Authorization: pbToken } }
+  );
+  const errorsData = await errorsRes.json();
+  return {
+    pending,
+    errorCount,
+    needsHumanBacklog,
+    sources: sourcesData.items || [],
+    recentErrors: (errorsData.items || []).map((t) => `${t.platform}: ${t.error_log}`)
+  };
+}
+__name(getAgentSnapshot, "getAgentSnapshot");
+
+async function runAgentForTenant(env, pbToken, tenant) {
+  const snapshot = await getAgentSnapshot(env, pbToken, tenant);
+  console.log(`[Agent] tenant=${tenant} snapshot: pending=${snapshot.pending} error=${snapshot.errorCount} needsHuman=${snapshot.needsHumanBacklog} sources=${snapshot.sources.length}`);
+  // Không gọi LLM nếu không có gì bất thường -> tiết kiệm token, giống nguyên tắc của digest.
+  if (snapshot.pending === 0 && snapshot.errorCount === 0 && snapshot.needsHumanBacklog === 0) {
+    console.log(`[Agent] tenant=${tenant}: kh\xF4ng c\xF3 g\xEC bất thường, bỏ qua (kh\xF4ng gọi LLM).`);
+    return;
+  }
+
+  const systemPrompt = `Bạn l\xE0 AI agent vận h\xE0nh hệ thống chatbot + đăng b\xE0i social cho 1 tenant. Dựa v\xE0o dữ liệu hiện tại, h\xE3y gọi đ\xFAng tool ph\xF9 hợp (c\xF3 thể gọi nhiều tool, hoặc no_action nếu kh\xF4ng cần l\xE0m g\xEC). KH\xD4NG được tự \xFD duyệt nội dung mới — trigger_publish chỉ thực thi những g\xEC NGƯỜI Đ\xC3 DUYỆT SẴN. Chỉ pause_rss_source khi thấy dấu hiệu r\xF5 r\xE0ng nguồn đ\xF3 đang gặp vấn đề (dựa v\xE0o lỗi gần đ\xE2y). Chỉ send_alert khi thực sự cần người ch\xFA \xFD ngay, kh\xF4ng lạm dụng.`;
+  const userMessage = `Trạng th\xE1i hiện tại của tenant "${tenant}":
+- B\xE0i đang chờ duyệt: ${snapshot.pending}
+- B\xE0i lỗi đăng: ${snapshot.errorCount}
+- C\xE2u hỏi AI chưa chắc chắn, chưa xử l\xFD (needs_human): ${snapshot.needsHumanBacklog}
+- Nguồn RSS: ${JSON.stringify(snapshot.sources)}
+- Lỗi gần đ\xE2y: ${snapshot.recentErrors.join("; ") || "kh\xF4ng c\xF3"}`;
+
+  try {
+    const res = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userMessage }],
+        tools: AGENT_TOOLS,
+        tool_choice: "auto"
+      }),
+      timeout: 3e4
+    });
+    const data = await res.json();
+    const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
+    if (toolCalls.length === 0) {
+      console.log(`[Agent] tenant=${tenant}: model kh\xF4ng gọi tool n\xE0o (${data.choices?.[0]?.message?.content || ""})`);
+      return;
+    }
+    for (const call of toolCalls) {
+      const name = call.function?.name;
+      let args = {};
+      try { args = JSON.parse(call.function?.arguments || "{}"); } catch {}
+      const result = await executeAgentTool(env, pbToken, tenant, name, args);
+      console.log(`[Agent] tenant=${tenant} tool=${name} args=${JSON.stringify(args)} -> ${result}`);
+    }
+  } catch (err) {
+    console.error(`[Agent] Lỗi chạy agent cho tenant ${tenant}:`, err);
+  }
+}
+__name(runAgentForTenant, "runAgentForTenant");
+
+async function handleAgentRun(env, tenantFilter) {
+  const pbToken = await getPbToken(env);
+  if (tenantFilter) {
+    await runAgentForTenant(env, pbToken, tenantFilter);
+    return;
+  }
+  const configsRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records?perPage=200&fields=tenant`, {
+    headers: { Authorization: pbToken }
+  });
+  const configsData = await configsRes.json();
+  for (const cfg of configsData.items || []) {
+    try {
+      await runAgentForTenant(env, pbToken, cfg.tenant);
+    } catch (err) {
+      console.error(`[Agent] Lỗi tenant ${cfg.tenant}:`, err);
+    }
+  }
+}
+__name(handleAgentRun, "handleAgentRun");
 
 export {
   index_default as default

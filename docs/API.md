@@ -132,6 +132,28 @@ Chạy ngay bước "đăng các bài đã `approved`/tới giờ `scheduled`" c
 
 ---
 
+## `POST /api/v1/trigger/agent` — Chạy Agent ngay cho tenant này
+
+Bình thường Agent tự chạy mỗi giờ (`0 * * * *`). Gọi endpoint này để chạy ngay không cần chờ.
+
+**Cách hoạt động:** Agent đọc snapshot hiện tại của tenant (bài chờ duyệt, bài lỗi, escalation tồn đọng, tình trạng nguồn RSS), đưa cho model (`OPENAI_CHAT_MODEL`, cấu hình ở `system-config.html`) kèm 5 tool nó được phép gọi:
+
+| Tool | Việc gì | An toàn vì |
+|---|---|---|
+| `trigger_publish` | Đăng bài đã duyệt | Không tự duyệt nội dung mới, chỉ thực thi cái người đã duyệt |
+| `trigger_rss_crawl` | Crawl RSS, viết bài nháp | Bài vẫn ở trạng thái chờ duyệt |
+| `pause_rss_source` | Tạm dừng nguồn RSS lỗi liên tục | Đảo ngược được (bật lại trong composer.html) |
+| `send_alert` | Gửi cảnh báo Telegram cho chủ | Chỉ là thông báo, không thay đổi dữ liệu |
+| `no_action` | Không làm gì | Agent luôn có lựa chọn "không cần làm gì" |
+
+Nếu tenant không có gì bất thường (mọi số liệu đều 0), Agent **bỏ qua hoàn toàn, không gọi model** — tiết kiệm token, giống nguyên tắc digest.
+
+**Response:** `{"success": true}` — xem log thật (đã gọi tool nào, quyết định ra sao) qua `npx wrangler tail`.
+
+**Trạng thái verify:** đã xác nhận sống — routing, auth, đọc snapshot đúng cho từng tenant, và tự bỏ qua đúng khi không có gì bất thường (test trên toàn bộ tenant thật, xem log). **Chưa xác nhận được nhánh gọi model + tool thật** vì lúc test AnythingLLM đang sập nên không tạo được escalation thật để kích hoạt nhánh này — cần test lại sau khi AnythingLLM sống lại hoặc khi có tenant nào thực sự có bài lỗi/chờ duyệt.
+
+---
+
 ## `POST /api/v1/chat` — Gọi chatbot
 
 Gửi 1 câu hỏi, nhận câu trả lời AI ngay trong response (giống hệt widget chat, nhưng xác thực bằng API key thay vì để tenant tự khai trong body). Dùng khi hệ thống ngoài muốn tự hỏi bot thay vì nhúng widget.
@@ -252,12 +274,13 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 | Nhóm | Endpoint | Auth |
 |---|---|---|
 | Bài đăng social | `POST/GET /api/v1/posts`, `POST /api/v1/posts/:id/approve`, `GET /api/v1/status`, `POST /api/v1/trigger/rss-crawl`, `POST /api/v1/trigger/publish` | API key riêng tenant |
+| Agent tự quyết định | `POST /api/v1/trigger/agent` | API key riêng tenant |
 | Chatbot | `POST /api/v1/chat` | API key riêng tenant |
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |
 | Knowledge base | `GET/POST /api/v1/knowledge`, `DELETE /api/v1/knowledge/:id`, `POST /api/v1/knowledge/sync` | API key riêng tenant |
 | Chat logs | `GET /api/v1/messages` | API key riêng tenant |
 | Widget công khai (không dùng cho hệ thống ngoài) | `POST /chat`, `POST /embed`, `DELETE /doc`, `POST /sync-docs` | không — tenant tự khai trong body, dành cho widget nhúng công khai trên website khách, KHÔNG nên gọi trực tiếp các endpoint này từ hệ thống ngoài (dùng bản `/api/v1/*` tương ứng ở trên thay thế, có xác thực đàng hoàng) |
-| Vận hành nội bộ (chỉ admin hệ thống) | `POST /run-digest`, `/run-rss-crawl`, `/run-publish-dispatch` | header `X-Admin-Secret` = `ADMIN_SECRET` chung — chạy cho **TẤT CẢ** tenant cùng lúc |
+| Vận hành nội bộ (chỉ admin hệ thống) | `POST /run-digest`, `/run-rss-crawl`, `/run-publish-dispatch`, `/run-agent` | header `X-Admin-Secret` = `ADMIN_SECRET` chung — chạy cho **TẤT CẢ** tenant cùng lúc |
 | Khác | `GET /health` (không auth), `POST /telegram-webhook` (Telegram tự gọi) | — |
 
 **Vì sao `/chat`, `/embed`... cũ vẫn còn tồn tại song song với `/api/v1/*` mới:** vì widget chat nhúng công khai trên website của khách hàng (không đăng nhập) vẫn cần gọi được — không thể bắt mọi khách ghé website phải có API key. `/api/v1/*` là lối vào riêng, có xác thực, dành cho **hệ thống backend** của bạn hoặc của khách hàng gọi vào, tách biệt hoàn toàn với đường widget công khai.

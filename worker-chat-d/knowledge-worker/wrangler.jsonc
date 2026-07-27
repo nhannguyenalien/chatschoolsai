@@ -32,6 +32,7 @@
     // 01:00 UTC = 08:00 giờ VN — báo cáo tổng hợp ngày hôm trước.
     // 00:30 UTC = 07:30 giờ VN — crawl RSS + AI viết bài nháp (post_targets status=pending, chờ duyệt).
     // Mỗi 15 phút — đăng thật các bài đã duyệt (status=approved) hoặc tới giờ hẹn (scheduled).
-    "crons": ["0 1 * * *", "30 0 * * *", "*/15 * * * *"]
+    // Đầu mỗi giờ — agent tự xem tình trạng từng tenant và quyết định hành động (xem AGENT_TOOLS).
+    "crons": ["0 1 * * *", "30 0 * * *", "*/15 * * * *", "0 * * * *"]
   }
 }
