@@ -150,7 +150,7 @@ Nếu tenant không có gì bất thường (mọi số liệu đều 0), Agent 
 
 **Response:** `{"success": true}` — xem log thật (đã gọi tool nào, quyết định ra sao) qua `npx wrangler tail`.
 
-**Trạng thái verify:** đã xác nhận sống — routing, auth, đọc snapshot đúng cho từng tenant, và tự bỏ qua đúng khi không có gì bất thường (test trên toàn bộ tenant thật, xem log). **Chưa xác nhận được nhánh gọi model + tool thật** vì lúc test AnythingLLM đang sập nên không tạo được escalation thật để kích hoạt nhánh này — cần test lại sau khi AnythingLLM sống lại hoặc khi có tenant nào thực sự có bài lỗi/chờ duyệt.
+**Trạng thái verify:** đã xác nhận sống end-to-end trên dữ liệu thật — routing, auth, đọc snapshot đúng cho từng tenant, tự bỏ qua khi không có gì bất thường, VÀ nhánh gọi model + tool thật (test bằng cách tạo 1 escalation thật qua `/api/v1/chat`, agent phát hiện đúng, gọi được model qua proxy OpenAI kèm tool, model tự quyết định hợp lý).
 
 ---
 
