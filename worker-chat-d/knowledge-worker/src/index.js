@@ -1841,6 +1841,26 @@ var AGENT_TOOLS = [
   }
 ];
 
+// Ghi lại mỗi quyết định của agent để hiển thị trong config.html — tenant tự đọc bằng
+// đúng phiên PocketBase của họ (không cần API key riêng cho việc này).
+async function logAgentDecision(env, pbToken, tenant, toolName, args, result) {
+  try {
+    await fetchWithTimeout(`${env.PB_URL}/api/collections/agent_logs/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: pbToken },
+      body: JSON.stringify({
+        tenant,
+        tool_name: toolName,
+        tool_args: JSON.stringify(args || {}),
+        tool_result: String(result || "").slice(0, 1000)
+      })
+    });
+  } catch (err) {
+    console.error(`[Agent] Lỗi ghi log cho tenant ${tenant}:`, err);
+  }
+}
+__name(logAgentDecision, "logAgentDecision");
+
 async function executeAgentTool(env, pbToken, tenant, name, args) {
   switch (name) {
     case "trigger_publish":
@@ -1936,7 +1956,9 @@ async function runAgentForTenant(env, pbToken, tenant) {
     const data = await res.json();
     const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
     if (toolCalls.length === 0) {
-      console.log(`[Agent] tenant=${tenant}: model kh\xF4ng gọi tool n\xE0o (${data.choices?.[0]?.message?.content || ""})`);
+      const note = data.choices?.[0]?.message?.content || "";
+      console.log(`[Agent] tenant=${tenant}: model kh\xF4ng gọi tool n\xE0o (${note})`);
+      await logAgentDecision(env, pbToken, tenant, "no_action", {}, note || "Model kh\xF4ng gọi tool n\xE0o.");
       return;
     }
     for (const call of toolCalls) {
@@ -1945,9 +1967,11 @@ async function runAgentForTenant(env, pbToken, tenant) {
       try { args = JSON.parse(call.function?.arguments || "{}"); } catch {}
       const result = await executeAgentTool(env, pbToken, tenant, name, args);
       console.log(`[Agent] tenant=${tenant} tool=${name} args=${JSON.stringify(args)} -> ${result}`);
+      await logAgentDecision(env, pbToken, tenant, name, args, result);
     }
   } catch (err) {
     console.error(`[Agent] Lỗi chạy agent cho tenant ${tenant}:`, err);
+    await logAgentDecision(env, pbToken, tenant, "error", {}, String(err.message || err)).catch(() => {});
   }
 }
 __name(runAgentForTenant, "runAgentForTenant");

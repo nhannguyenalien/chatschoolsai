@@ -189,6 +189,21 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
                                         <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-robot-face text-primary fs-2"></i> AI Agent Vận Hành
+                                        </h3>
+                                        <button class="btn btn-primary btn-sm" id="run-agent-btn" onclick="runAgentNow()"><i class="ti ti-player-play me-1"></i> Chạy Agent ngay</button>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Agent tự chạy mỗi giờ: đọc tình trạng bài chờ duyệt/lỗi/khách cần hỗ trợ, rồi tự quyết định đăng bài đã duyệt, tạm dừng nguồn RSS lỗi, hoặc báo bạn qua Telegram. Không tự duyệt nội dung mới.</div>
+                                        <div id="agent-log-list" class="d-flex flex-column gap-2">
+                                            <div class="text-secondary fs-5">Đang tải lịch sử...</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
                                             <i class="ti ti-file-description text-primary fs-2"></i> System Persona
                                         </h3>
                                         <button class="btn btn-sm btn-ghost-primary" onclick="insertTemplate()">
@@ -407,6 +422,7 @@
         }
 
         await loadConfig();
+        await loadAgentLogs();
     })();
 
     // ═══════════════════════════════════════
@@ -500,6 +516,76 @@
         if (!val) { showToast("Chưa có API key để copy", "error"); return; }
         navigator.clipboard.writeText(val);
         showToast("Đã copy API key", "success");
+    }
+
+    // ═══════════════════════════════════════
+    // AI AGENT (chạy tay + xem lịch sử quyết định)
+    // ═══════════════════════════════════════
+    const AGENT_TOOL_ICON = {
+        trigger_publish: "ti-send", trigger_rss_crawl: "ti-rss", pause_rss_source: "ti-player-pause",
+        send_alert: "ti-bell", no_action: "ti-check", error: "ti-alert-triangle"
+    };
+    const AGENT_TOOL_LABEL = {
+        trigger_publish: "Đăng bài đã duyệt", trigger_rss_crawl: "Crawl RSS", pause_rss_source: "Tạm dừng nguồn RSS",
+        send_alert: "Gửi cảnh báo", no_action: "Không hành động", error: "Lỗi"
+    };
+
+    async function runAgentNow() {
+        const apiKey = document.getElementById("apiKeyDisplay").value.trim();
+        if (!apiKey) {
+            showToast("Chưa có API key — bấm 'Tạo / Đổi mới' ở card bên trên trước", "error");
+            return;
+        }
+        const btn = document.getElementById("run-agent-btn");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang chạy...';
+        try {
+            const res = await fetch(`${WORKER_URL}/api/v1/trigger/agent`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${apiKey}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+            showToast("Agent đã chạy xong, xem kết quả bên dưới", "success");
+            await loadAgentLogs();
+        } catch (err) {
+            showToast("Lỗi chạy Agent: " + err.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-player-play me-1"></i> Chạy Agent ngay';
+        }
+    }
+
+    async function loadAgentLogs() {
+        const el = document.getElementById("agent-log-list");
+        try {
+            const logs = await PB.collection("agent_logs").getList(1, 10, {
+                sort: "-created",
+                filter: `tenant="${window.TENANT}"`
+            });
+            if (logs.items.length === 0) {
+                el.innerHTML = '<div class="text-secondary fs-5">Chưa có lần chạy nào — bấm "Chạy Agent ngay" hoặc chờ tới giờ (agent tự chạy mỗi giờ).</div>';
+                return;
+            }
+            el.innerHTML = logs.items.map(log => {
+                const icon = AGENT_TOOL_ICON[log.tool_name] || "ti-robot";
+                const label = AGENT_TOOL_LABEL[log.tool_name] || log.tool_name || "—";
+                const time = new Date(log.created).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                return `
+                  <div class="border rounded p-2 d-flex align-items-start gap-2">
+                    <i class="ti ${icon} text-primary fs-3 mt-1"></i>
+                    <div class="flex-fill">
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="fw-medium">${label}</span>
+                        <span class="text-secondary fs-6">${time}</span>
+                      </div>
+                      <div class="text-secondary fs-6">${escHtml(log.tool_result || "")}</div>
+                    </div>
+                  </div>`;
+            }).join("");
+        } catch (err) {
+            el.innerHTML = `<div class="text-danger fs-5">Lỗi tải lịch sử: ${escHtml(err.message)}</div>`;
+        }
     }
 
     // ═══════════════════════════════════════

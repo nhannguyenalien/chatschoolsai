@@ -184,6 +184,28 @@ async function migrateSystemConfig(token) {
   });
 }
 
+async function migrateAgentLogs(token) {
+  console.log("\n[agent_logs] — collection MỚI, lưu lại quyết định của AI Agent để hiện trong config.html");
+  const existing = await getCollectionByName(token, "agent_logs");
+  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  console.log("  + tạo collection mới");
+  await createCollection(token, {
+    name: "agent_logs",
+    type: "base",
+    schema: [
+      { name: "tenant", type: "text", required: true, options: {} },
+      { name: "tool_name", type: "text", required: false, options: {} },
+      { name: "tool_args", type: "text", required: false, options: {} },
+      { name: "tool_result", type: "text", required: false, options: {} },
+    ],
+    listRule: '@request.auth.id != ""',
+    viewRule: '@request.auth.id != ""',
+    createRule: '@request.auth.id != ""',
+    updateRule: '@request.auth.id != ""',
+    deleteRule: '@request.auth.id != ""',
+  });
+}
+
 (async () => {
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
@@ -194,6 +216,7 @@ async function migrateSystemConfig(token) {
   await migratePosts(token);
   await migratePostTargets(token);
   await migrateSystemConfig(token);
+  await migrateAgentLogs(token);
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
 })().catch((err) => {
