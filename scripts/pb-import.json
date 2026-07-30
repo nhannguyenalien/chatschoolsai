@@ -186,6 +186,7 @@
     "options": {}
   },
   {
+    "id": "agenttools001",
     "name": "agent_tools",
     "type": "base",
     "system": false,
