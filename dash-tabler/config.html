@@ -202,6 +202,62 @@
                                 </div>
 
                                 <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-plug-connected text-primary fs-2"></i> Tool tùy chỉnh cho Agent (API ngoài)
+                                        </h3>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Khai báo API ngoài bằng JSON — không cần code. Agent sẽ tự quyết định khi nào gọi tool này dựa vào phần "Mô tả" bạn ghi.</div>
+
+                                        <div id="custom-tool-list" class="d-flex flex-column gap-2 mb-4">
+                                            <div class="text-secondary fs-5">Đang tải...</div>
+                                        </div>
+
+                                        <div class="border rounded p-3">
+                                            <div class="fw-medium mb-2">+ Thêm tool mới</div>
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label fs-6 mb-1">Tên tool (chỉ chữ/số/gạch dưới)</label>
+                                                    <input type="text" class="form-control" id="ct-name" placeholder="vd: check_shipping_status">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fs-6 mb-1">Method</label>
+                                                    <select class="form-select" id="ct-method">
+                                                        <option value="GET">GET</option>
+                                                        <option value="POST">POST</option>
+                                                        <option value="PUT">PUT</option>
+                                                        <option value="PATCH">PATCH</option>
+                                                        <option value="DELETE">DELETE</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label fs-6 mb-1">Mô tả (Agent dựa vào đây để biết khi nào gọi)</label>
+                                                    <input type="text" class="form-control" id="ct-description" placeholder="vd: Kiểm tra trạng thái đơn hàng đang giao khi khách hỏi">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label fs-6 mb-1">URL (dùng {tên_tham_số} để chèn giá trị, vd: https://api.vd.com/orders/{order_id})</label>
+                                                    <input type="text" class="form-control font-monospace" id="ct-url" placeholder="https://api.example.com/orders/{order_id}">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fs-6 mb-1">JSON Schema tham số</label>
+                                                    <textarea class="form-control font-monospace fs-6" id="ct-params" rows="4">{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]}</textarea>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fs-6 mb-1">Headers (JSON, để trống nếu không cần)</label>
+                                                    <textarea class="form-control font-monospace fs-6" id="ct-headers" rows="4" placeholder='{"Authorization":"Bearer sk-xxxx"}'></textarea>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label fs-6 mb-1">Result path (tùy chọn — đường dẫn lấy kết quả từ response JSON, vd: data.status)</label>
+                                                    <input type="text" class="form-control font-monospace" id="ct-resultpath" placeholder="vd: data.status (để trống = lấy nguyên response)">
+                                                </div>
+                                            </div>
+                                            <button class="btn btn-primary btn-sm mt-3" onclick="addCustomTool()"><i class="ti ti-plus me-1"></i> Thêm tool</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card">
                                     <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
                                         <h3 class="card-title d-flex align-items-center gap-2">
                                             <i class="ti ti-file-description text-primary fs-2"></i> System Persona
@@ -423,6 +479,7 @@
 
         await loadConfig();
         await loadAgentLogs();
+        await loadCustomTools();
     })();
 
     // ═══════════════════════════════════════
@@ -585,6 +642,110 @@
             }).join("");
         } catch (err) {
             el.innerHTML = `<div class="text-danger fs-5">Lỗi tải lịch sử: ${escHtml(err.message)}</div>`;
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // TOOL TÙY CHỈNH CHO AGENT (khách tự khai báo JSON, không cần code)
+    // ═══════════════════════════════════════
+    async function loadCustomTools() {
+        const el = document.getElementById("custom-tool-list");
+        try {
+            const tools = await PB.collection("agent_tools").getList(1, 50, {
+                sort: "-created",
+                filter: `tenant="${window.TENANT}"`
+            });
+            if (tools.items.length === 0) {
+                el.innerHTML = '<div class="text-secondary fs-5">Chưa có tool nào — thêm ở form bên dưới.</div>';
+                return;
+            }
+            el.innerHTML = tools.items.map(t => `
+                <div class="border rounded p-2 d-flex align-items-start gap-2">
+                    <i class="ti ${t.is_active ? 'ti-plug-connected text-success' : 'ti-plug-connected-x text-secondary'} fs-3 mt-1"></i>
+                    <div class="flex-fill">
+                        <div class="fw-medium">${escHtml(t.name)} <span class="badge bg-secondary-lt ms-1">${escHtml(t.method || 'GET')}</span></div>
+                        <div class="text-secondary fs-6">${escHtml(t.description || '')}</div>
+                        <div class="text-secondary fs-6 font-monospace">${escHtml(t.url_template || '')}</div>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleCustomTool('${t.id}', ${t.is_active ? 'true' : 'false'})" title="${t.is_active ? 'Tắt' : 'Bật'}">
+                            <i class="ti ${t.is_active ? 'ti-pause' : 'ti-play'}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomTool('${t.id}')" title="Xóa"><i class="ti ti-trash"></i></button>
+                    </div>
+                </div>`).join("");
+        } catch (err) {
+            el.innerHTML = `<div class="text-danger fs-5">Lỗi tải danh sách tool: ${escHtml(err.message)}</div>`;
+        }
+    }
+
+    async function addCustomTool() {
+        const name = document.getElementById("ct-name").value.trim();
+        const description = document.getElementById("ct-description").value.trim();
+        const method = document.getElementById("ct-method").value;
+        const url_template = document.getElementById("ct-url").value.trim();
+        const paramsRaw = document.getElementById("ct-params").value.trim();
+        const headersRaw = document.getElementById("ct-headers").value.trim();
+        const result_path = document.getElementById("ct-resultpath").value.trim();
+
+        if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+            showToast("Tên tool chỉ được chứa chữ, số và gạch dưới (không dấu, không khoảng trắng)", "error");
+            return;
+        }
+        if (!url_template) {
+            showToast("Thiếu URL", "error");
+            return;
+        }
+        try {
+            JSON.parse(paramsRaw || "{}");
+        } catch {
+            showToast("JSON Schema tham số không hợp lệ", "error");
+            return;
+        }
+        if (headersRaw) {
+            try { JSON.parse(headersRaw); } catch {
+                showToast("Headers không phải JSON hợp lệ", "error");
+                return;
+            }
+        }
+        try {
+            await PB.collection("agent_tools").create({
+                tenant: window.TENANT,
+                name, description, method,
+                url_template,
+                parameters_schema: paramsRaw || '{"type":"object","properties":{},"required":[]}',
+                headers_template: headersRaw,
+                result_path,
+                is_active: true
+            });
+            showToast("Đã thêm tool mới cho Agent", "success");
+            document.getElementById("ct-name").value = "";
+            document.getElementById("ct-description").value = "";
+            document.getElementById("ct-url").value = "";
+            document.getElementById("ct-headers").value = "";
+            document.getElementById("ct-resultpath").value = "";
+            await loadCustomTools();
+        } catch (err) {
+            showToast("Lỗi thêm tool: " + err.message, "error");
+        }
+    }
+
+    async function toggleCustomTool(id, currentActive) {
+        try {
+            await PB.collection("agent_tools").update(id, { is_active: !currentActive });
+            await loadCustomTools();
+        } catch (err) {
+            showToast("Lỗi cập nhật tool: " + err.message, "error");
+        }
+    }
+
+    async function deleteCustomTool(id) {
+        if (!confirm("Xóa tool này khỏi Agent?")) return;
+        try {
+            await PB.collection("agent_tools").delete(id);
+            await loadCustomTools();
+        } catch (err) {
+            showToast("Lỗi xóa tool: " + err.message, "error");
         }
     }
 

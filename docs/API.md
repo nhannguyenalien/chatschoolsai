@@ -148,6 +148,19 @@ Bình thường Agent tự chạy mỗi giờ (`0 * * * *`). Gọi endpoint này
 
 Nếu tenant không có gì bất thường (mọi số liệu đều 0), Agent **bỏ qua hoàn toàn, không gọi model** — tiết kiệm token, giống nguyên tắc digest.
 
+**Tool tùy chỉnh (khách tự khai báo, không cần code):** ngoài 5 tool có sẵn ở trên, mỗi tenant có thể tự thêm tool gọi API ngoài bất kỳ, khai báo trực tiếp trong `config.html` → card "Tool tùy chỉnh cho Agent" (lưu vào collection `agent_tools`). Mỗi tool cần:
+
+| Trường | Ý nghĩa |
+|---|---|
+| `name` | Tên tool (chỉ chữ/số/`_`) — model gọi tool bằng đúng tên này |
+| `description` | Mô tả cho model biết **khi nào** nên gọi tool này |
+| `parameters_schema` | JSON Schema chuẩn OpenAI function-calling cho tham số |
+| `method`, `url_template` | HTTP method + URL, dùng `{tên_tham_số}` để chèn giá trị model chọn vào URL |
+| `headers_template` | JSON headers (vd API key của dịch vụ ngoài) |
+| `result_path` | (tùy chọn) đường dẫn lấy field trong response JSON làm kết quả, vd `data.status` |
+
+Agent nạp toàn bộ tool đang `is_active=true` của tenant mỗi lần chạy, gộp chung với 5 tool có sẵn rồi gửi cho model — không cần deploy lại code cho mỗi API mới.
+
 **Response:** `{"success": true}` — xem log thật (đã gọi tool nào, quyết định ra sao) qua `npx wrangler tail`.
 
 **Trạng thái verify:** đã xác nhận sống end-to-end trên dữ liệu thật — routing, auth, đọc snapshot đúng cho từng tenant, tự bỏ qua khi không có gì bất thường, VÀ nhánh gọi model + tool thật (test bằng cách tạo 1 escalation thật qua `/api/v1/chat`, agent phát hiện đúng, gọi được model qua proxy OpenAI kèm tool, model tự quyết định hợp lý).

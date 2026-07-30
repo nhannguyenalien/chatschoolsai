@@ -206,6 +206,33 @@ async function migrateAgentLogs(token) {
   });
 }
 
+async function migrateAgentTools(token) {
+  console.log("\n[agent_tools] — collection MỚI, khách tự khai báo tool JSON cho Agent gọi (không cần code)");
+  const existing = await getCollectionByName(token, "agent_tools");
+  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  console.log("  + tạo collection mới");
+  await createCollection(token, {
+    name: "agent_tools",
+    type: "base",
+    schema: [
+      { name: "tenant", type: "text", required: true, options: {} },
+      { name: "name", type: "text", required: true, options: {} },
+      { name: "description", type: "text", required: false, options: {} },
+      { name: "parameters_schema", type: "text", required: false, options: {} },
+      { name: "method", type: "select", required: false, options: { maxSelect: 1, values: ["GET", "POST", "PUT", "PATCH", "DELETE"] } },
+      { name: "url_template", type: "text", required: false, options: {} },
+      { name: "headers_template", type: "text", required: false, options: {} },
+      { name: "result_path", type: "text", required: false, options: {} },
+      { name: "is_active", type: "bool", required: false, options: {} },
+    ],
+    listRule: '@request.auth.id != ""',
+    viewRule: '@request.auth.id != ""',
+    createRule: '@request.auth.id != ""',
+    updateRule: '@request.auth.id != ""',
+    deleteRule: '@request.auth.id != ""',
+  });
+}
+
 (async () => {
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
@@ -217,6 +244,7 @@ async function migrateAgentLogs(token) {
   await migratePostTargets(token);
   await migrateSystemConfig(token);
   await migrateAgentLogs(token);
+  await migrateAgentTools(token);
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
 })().catch((err) => {

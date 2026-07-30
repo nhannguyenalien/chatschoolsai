@@ -1861,7 +1861,57 @@ async function logAgentDecision(env, pbToken, tenant, toolName, args, result) {
 }
 __name(logAgentDecision, "logAgentDecision");
 
-async function executeAgentTool(env, pbToken, tenant, name, args) {
+// Tool do khách tự khai báo bằng JSON (không cần code) — lưu trong collection agent_tools.
+async function loadCustomAgentTools(env, pbToken, tenant) {
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.items || [];
+}
+__name(loadCustomAgentTools, "loadCustomAgentTools");
+
+function customToolToOpenAiSchema(t) {
+  let parameters;
+  try {
+    parameters = JSON.parse(t.parameters_schema || "");
+  } catch {
+    parameters = { type: "object", properties: {}, required: [] };
+  }
+  return { type: "function", function: { name: t.name, description: t.description || "", parameters } };
+}
+__name(customToolToOpenAiSchema, "customToolToOpenAiSchema");
+
+// Thực thi tool tùy chỉnh: gọi thẳng URL khách khai báo, thay {tên_tham_số} trong URL
+// bằng giá trị model chọn, các tham số còn lại gửi trong JSON body (nếu không phải GET).
+async function executeCustomAgentTool(toolDef, args) {
+  let url = toolDef.url_template || "";
+  for (const [k, v] of Object.entries(args || {})) {
+    url = url.split(`{${k}}`).join(encodeURIComponent(v));
+  }
+  let headers = { "Content-Type": "application/json" };
+  if (toolDef.headers_template) {
+    try { headers = { ...headers, ...JSON.parse(toolDef.headers_template) }; } catch {}
+  }
+  const method = (toolDef.method || "GET").toUpperCase();
+  const opts = { method, headers, timeout: 2e4 };
+  if (method !== "GET" && method !== "HEAD") opts.body = JSON.stringify(args || {});
+  const res = await fetchWithTimeout(url, opts);
+  const text = await res.text();
+  let out = text;
+  try {
+    const json = JSON.parse(text);
+    out = toolDef.result_path
+      ? String(toolDef.result_path.split(".").reduce((o, k) => (o == null ? o : o[k]), json) ?? text)
+      : JSON.stringify(json);
+  } catch {}
+  return out.slice(0, 1000);
+}
+__name(executeCustomAgentTool, "executeCustomAgentTool");
+
+async function executeAgentTool(env, pbToken, tenant, name, args, customTools = []) {
   switch (name) {
     case "trigger_publish":
       await handlePublishDispatch(env, tenant);
@@ -1891,8 +1941,11 @@ async function executeAgentTool(env, pbToken, tenant, name, args) {
     }
     case "no_action":
       return "Kh\xF4ng h\xE0nh động.";
-    default:
+    default: {
+      const custom = customTools.find((t) => t.name === name);
+      if (custom) return await executeCustomAgentTool(custom, args);
       return `Tool kh\xF4ng x\xE1c định: ${name}`;
+    }
   }
 }
 __name(executeAgentTool, "executeAgentTool");
@@ -1942,13 +1995,15 @@ async function runAgentForTenant(env, pbToken, tenant) {
 - Lỗi gần đ\xE2y: ${snapshot.recentErrors.join("; ") || "kh\xF4ng c\xF3"}`;
 
   try {
+    const customTools = await loadCustomAgentTools(env, pbToken, tenant);
+    const tools = [...AGENT_TOOLS, ...customTools.map(customToolToOpenAiSchema)];
     const res = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userMessage }],
-        tools: AGENT_TOOLS,
+        tools,
         tool_choice: "auto"
       }),
       timeout: 3e4
@@ -1965,7 +2020,7 @@ async function runAgentForTenant(env, pbToken, tenant) {
       const name = call.function?.name;
       let args = {};
       try { args = JSON.parse(call.function?.arguments || "{}"); } catch {}
-      const result = await executeAgentTool(env, pbToken, tenant, name, args);
+      const result = await executeAgentTool(env, pbToken, tenant, name, args, customTools);
       console.log(`[Agent] tenant=${tenant} tool=${name} args=${JSON.stringify(args)} -> ${result}`);
       await logAgentDecision(env, pbToken, tenant, name, args, result);
     }
