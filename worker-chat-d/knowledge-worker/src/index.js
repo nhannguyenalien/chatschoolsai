@@ -23,7 +23,7 @@ var index_default = {
       if (url.pathname === "/chat" && request.method === "POST") return await handleChat(request, env2, cors);
       if (url.pathname === "/embed" && request.method === "POST") return await handleEmbed(request, env2, cors);
       if (url.pathname === "/doc" && request.method === "DELETE") return await handleDelete(request, env2, cors);
-      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent") {
+      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent" || url.pathname === "/ping-anyllm") {
         if (request.method !== "POST") {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
         }
@@ -35,7 +35,8 @@ var index_default = {
         if (url.pathname === "/run-digest") await handleDailyDigest(env2);
         else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env2);
         else if (url.pathname === "/run-publish-dispatch") await handlePublishDispatch(env2);
-        else await handleAgentRun(env2);
+        else if (url.pathname === "/run-agent") await handleAgentRun(env2);
+        else await pingAnythingLLM();
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       }
       if (url.pathname === "/telegram-webhook" && request.method === "POST") {
@@ -58,6 +59,7 @@ var index_default = {
       ctx.waitUntil(handlePublishDispatch(env2).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
     } else if (event.cron === "0 * * * *") {
       ctx.waitUntil(handleAgentRun(env2).catch((err) => console.error("[Agent] Lỗi tổng:", err)));
+      ctx.waitUntil(pingAnythingLLM());
     } else {
       ctx.waitUntil(handleDailyDigest(env2).catch((err) => console.error("[Digest] Lỗi tổng:", err)));
     }
@@ -68,6 +70,18 @@ var HANDOFF_INSTRUCTION = `
 
 QUAN TRỌNG: Nếu bạn kh\xF4ng chắc chắn hoặc kh\xF4ng c\xF3 đủ th\xF4ng tin để trả lời ch\xEDnh x\xE1c c\xE2u hỏi của kh\xE1ch, h\xE3y trả lời phần bạn biết (nếu c\xF3), sau đ\xF3 kết th\xFAc CH\xCDNH X\xC1C bằng chuỗi: ${HANDOFF_MARKER} (kh\xF4ng th\xEAm k\xFD tự n\xE0o sau chuỗi n\xE0y). Chỉ d\xF9ng chuỗi n\xE0y khi thực sự kh\xF4ng chắc, kh\xF4ng lạm dụng.`;
 var delay = /* @__PURE__ */ __name((ms) => new Promise((res) => setTimeout(res, ms)), "delay");
+// HF Space free tier tự ngủ khi rảnh — ping nhẹ mỗi giờ để giữ AnythingLLM luôn sẵn sàng.
+var ANYLLM_KEEPALIVE_URL = "https://nhannguyen123-anyllm.hf.space/";
+async function pingAnythingLLM() {
+  try {
+    const res = await fetchWithTimeout(ANYLLM_KEEPALIVE_URL, { method: "GET", timeout: 15e3 });
+    console.log(`[Ping AnythingLLM] status=${res.status}`);
+  } catch (err) {
+    console.error("[Ping AnythingLLM] Lỗi:", err.message);
+  }
+}
+__name(pingAnythingLLM, "pingAnythingLLM");
+
 async function fetchWithTimeout(resource, options = {}) {
   const { timeout = 45e3 } = options;
   const controller = new AbortController();
