@@ -1705,6 +1705,7 @@ var CONFIG_CHAT_TOOLS = [
         type: "object",
         properties: {
           bot_name: { type: "string" },
+          bot_avatar: { type: "string", description: "emoji hoặc icon đại diện cho bot, vd 🤖" },
           color: { type: "string" },
           webhook: { type: "string" },
           greeting: { type: "string" },
@@ -1770,6 +1771,24 @@ var CONFIG_CHAT_TOOLS = [
   }
 ];
 
+// Dùng chung cho tool get_current_config VÀ để nhét thẳng vào system prompt mỗi lần chat —
+// model nhỏ (gpt-4o-mini) không phải lúc nào cũng chủ động gọi tool để đọc dữ liệu trước khi trả lời,
+// nên đưa sẵn dữ liệu thật vào context để loại bỏ khả năng model tự đoán/bịa ra giá trị.
+async function getConfigSnapshot(env, pbToken, cfg) {
+  const [pagesRes, toolsRes] = await Promise.all([
+    fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } }),
+    fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } })
+  ]);
+  const pagesData = await pagesRes.json();
+  const toolsData = await toolsRes.json();
+  const out = {};
+  for (const f of CONFIG_READABLE_FIELDS) out[f] = cfg[f] ?? null;
+  out.pages = (pagesData.items || []).map((p) => ({ platform: p.platform, label: p.label, page_id: p.page_id, is_active: p.is_active }));
+  out.custom_tools = (toolsData.items || []).map((t) => ({ name: t.name, description: t.description, is_active: t.is_active }));
+  return out;
+}
+__name(getConfigSnapshot, "getConfigSnapshot");
+
 async function executeConfigChatTool(env, pbToken, cfg, name, args) {
   switch (name) {
     case "update_bot_config": {
@@ -1817,17 +1836,8 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args) {
       return `Đ\xE3 thêm tool "${args.name}" cho Agent.`;
     }
     case "get_current_config": {
-      const [pagesRes, toolsRes] = await Promise.all([
-        fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } }),
-        fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } })
-      ]);
-      const pagesData = await pagesRes.json();
-      const toolsData = await toolsRes.json();
-      const out = {};
-      for (const f of CONFIG_READABLE_FIELDS) out[f] = cfg[f] ?? null;
-      out.pages = (pagesData.items || []).map((p) => ({ platform: p.platform, label: p.label, page_id: p.page_id, is_active: p.is_active }));
-      out.custom_tools = (toolsData.items || []).map((t) => ({ name: t.name, description: t.description, is_active: t.is_active }));
-      return JSON.stringify(out);
+      const snapshot = await getConfigSnapshot(env, pbToken, cfg);
+      return JSON.stringify(snapshot);
     }
     default:
       return `Tool kh\xF4ng x\xE1c định: ${name}`;
@@ -1842,7 +1852,14 @@ async function handleApiAgentChat(request, env, cors, cfg) {
     return new Response(JSON.stringify({ error: "Thiếu messages" }), { status: 400, headers: cors });
   }
   const pbToken = await getPbToken(env);
-  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo, hoặc th\xEAm API ngo\xE0i cho Agent) — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4. Nếu thiếu th\xF4ng tin bắt buộc (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. D\xF9ng get_current_config khi khách hỏi hiện tại đang cấu h\xECnh g\xEC. Trả lời ngắn gọn, tiếng Việt.`;
+  // Nhét sẵn dữ liệu thật vào system prompt thay vì chỉ trông chờ model tự gọi get_current_config —
+  // model nhỏ đôi khi bỏ qua việc gọi tool để đọc, dẫn đến bịa ra giá trị. Có sẵn context thì dù model
+  // có gọi tool hay không, câu trả lời vẫn đúng với dữ liệu thật.
+  const snapshot = await getConfigSnapshot(env, pbToken, cfg);
+  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, avatar, lời ch\xE0o, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo, hoặc th\xEAm API ngo\xE0i cho Agent) — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4.
+Cấu h\xECnh HIỆN TẠI của tenant n\xE0y (dữ liệu thật lấy từ DB, KH\xD4NG được đo\xE1n kh\xE1c đi khi trả lời khách):
+${JSON.stringify(snapshot)}
+Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\xE3 kết nối trang n\xE0o...), dựa v\xE0o dữ liệu tr\xEAn để trả lời — vẫn c\xF3 thể gọi lại get_current_config nếu cần dữ liệu mới nhất sau khi vừa ghi thay đổi. Nếu thiếu th\xF4ng tin bắt buộc khi ghi (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. Trả lời ngắn gọn, tiếng Việt.`;
   const messages = [{ role: "system", content: systemPrompt }, ...history];
   try {
     const res1 = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
@@ -1879,6 +1896,16 @@ async function handleApiAgentChat(request, env, cors, cfg) {
   }
 }
 __name(handleApiAgentChat, "handleApiAgentChat");
+
+// Danh sách tool THẬT của agent-chat — lấy trực tiếp từ CONFIG_CHAT_TOOLS (nguồn duy nhất),
+// để UI luôn khớp với những gì backend thực sự làm được, không phải tự tay ghi tài liệu riêng rồi lệch dần.
+// Lưu ý: đây là tool của TRỢ LÝ CHAT (config-chat), khác với tool của AI Agent vận hành tự động
+// (AGENT_TOOLS + agent_tools tùy chỉnh) chạy mỗi giờ — 2 agent tách biệt, không dùng chung tool.
+async function handleApiAgentChatTools(cors) {
+  const tools = CONFIG_CHAT_TOOLS.map((t) => ({ name: t.function.name, description: t.function.description }));
+  return new Response(JSON.stringify({ success: true, tools }), { headers: cors });
+}
+__name(handleApiAgentChatTools, "handleApiAgentChatTools");
 
 // ================= [API: KNOWLEDGE BASE] =================
 async function handleApiListKnowledge(env, cors, cfg) {
@@ -1973,6 +2000,7 @@ async function handleApiV1(request, url, env, cors) {
   if (url.pathname === "/api/v1/config" && request.method === "PATCH") return await handleApiUpdateConfig(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/agent-chat" && request.method === "POST") return await handleApiAgentChat(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/agent-chat/tools" && request.method === "GET") return await handleApiAgentChatTools(cors);
 
   if (url.pathname === "/api/v1/knowledge" && request.method === "GET") return await handleApiListKnowledge(env, cors, cfg);
   if (url.pathname === "/api/v1/knowledge" && request.method === "POST") return await handleApiAddKnowledge(request, env, cors, cfg);

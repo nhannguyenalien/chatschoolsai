@@ -51,6 +51,8 @@ const I18N_DICT = {
     ac_warning_html: 'Nội dung bạn gõ (kể cả token/API key nếu có) sẽ được gửi qua model AI để xử lý. Chỉ dán token khi bạn tin tưởng proxy AI đang cấu hình cho hệ thống (xem <a href="config.html">Bot Settings</a>).',
     ac_input_placeholder: "Nhập yêu cầu cấu hình... (Enter để gửi)",
     ac_empty: "Chưa có tin nhắn nào — thử 1 gợi ý bên dưới, hoặc gõ yêu cầu của bạn.",
+    ac_capabilities_title: "Agent có thể làm được gì?",
+    ac_capabilities_hint: "Danh sách này lấy trực tiếp từ backend — luôn đúng với những gì Agent thật sự làm được, không phải tài liệu viết tay có thể lỗi thời.",
 
     // knowledge.html
     kb_title_top: "Knowledge Base",
@@ -129,6 +131,8 @@ const I18N_DICT = {
     ac_warning_html: 'What you type (including any pasted tokens/API keys) is sent through the AI model for processing. Only paste tokens if you trust the AI proxy configured for this system (see <a href="config.html">Bot Settings</a>).',
     ac_input_placeholder: "Type a configuration request... (Enter to send)",
     ac_empty: "No messages yet — try a suggestion below, or type your own request.",
+    ac_capabilities_title: "What can this Agent do?",
+    ac_capabilities_hint: "This list comes straight from the backend — always accurate to what the Agent can actually do, not a hand-written doc that can go stale.",
 
     kb_title_top: "Knowledge Base",
     kb_title: "Knowledge Base",

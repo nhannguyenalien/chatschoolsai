@@ -237,7 +237,30 @@ Response:
 { "success": true, "reply": "Đã kết nối trang facebook: 123456789" }
 ```
 
-Lưu ý bảo mật: nội dung gửi lên (kể cả token/API key nếu khách dán vào chat) sẽ đi qua model AI (`OPENAI_BASE_URL`) để xử lý — không phải chỉ đi thẳng vào DB. Đã có cảnh báo hiển thị ngay trên UI `config.html`.
+Lưu ý bảo mật: nội dung gửi lên (kể cả token/API key nếu khách dán vào chat) sẽ đi qua model AI (`OPENAI_BASE_URL`) để xử lý — không phải chỉ đi thẳng vào DB. Đã có cảnh báo hiển thị ngay trên UI `agent-chat.html`.
+
+Để tránh model tự đoán/bịa giá trị khi khách hỏi "hiện tại đang cấu hình gì", server tự nhét sẵn snapshot cấu hình thật (bot config + trang đã kết nối + tool tùy chỉnh) vào system prompt mỗi lần gọi — không chỉ trông chờ model chủ động gọi tool `get_current_config`.
+
+---
+
+## `GET /api/v1/agent-chat/tools` — Danh sách tool THẬT của Trợ lý cấu hình
+
+Trả về đúng danh sách tool mà `/api/v1/agent-chat` có thể gọi — lấy trực tiếp từ mảng `CONFIG_CHAT_TOOLS` trong code (nguồn duy nhất), không phải tài liệu viết tay có thể lệch dần theo thời gian. Dùng để hiển thị "Agent có thể làm được gì?" trên UI.
+
+Response:
+```json
+{
+  "success": true,
+  "tools": [
+    { "name": "update_bot_config", "description": "..." },
+    { "name": "add_page_config", "description": "..." },
+    { "name": "add_agent_tool", "description": "..." },
+    { "name": "get_current_config", "description": "..." }
+  ]
+}
+```
+
+Lưu ý: đây là tool của **Trợ lý cấu hình** (chat trực tiếp với khách), khác với tool của **AI Agent vận hành** tự động chạy mỗi giờ (`AGENT_TOOLS` + `agent_tools` tùy chỉnh trong `config.html`) — 2 agent tách biệt, không dùng chung danh sách tool.
 
 ---
 
@@ -309,7 +332,7 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 |---|---|---|
 | Bài đăng social | `POST/GET /api/v1/posts`, `POST /api/v1/posts/:id/approve`, `GET /api/v1/status`, `POST /api/v1/trigger/rss-crawl`, `POST /api/v1/trigger/publish` | API key riêng tenant |
 | Agent tự quyết định | `POST /api/v1/trigger/agent` | API key riêng tenant |
-| Chat với Trợ lý cấu hình | `POST /api/v1/agent-chat` | API key riêng tenant |
+| Chat với Trợ lý cấu hình | `POST /api/v1/agent-chat`, `GET /api/v1/agent-chat/tools` | API key riêng tenant |
 | Chatbot | `POST /api/v1/chat` | API key riêng tenant |
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |
 | Knowledge base | `GET/POST /api/v1/knowledge`, `DELETE /api/v1/knowledge/:id`, `POST /api/v1/knowledge/sync` | API key riêng tenant |

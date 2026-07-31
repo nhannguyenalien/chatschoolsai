@@ -32,44 +32,7 @@
         .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
         .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
 
-        .chat-shell {
-            height: calc(100vh - 220px);
-            min-height: 420px;
-            display: flex;
-            flex-direction: column;
-        }
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-        .chat-bubble {
-            max-width: 75%;
-            padding: 0.6rem 0.9rem;
-            border-radius: 14px;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            white-space: pre-wrap;
-        }
-        .chat-bubble.user {
-            align-self: flex-end;
-            background: var(--tblr-primary);
-            color: #fff;
-            border-bottom-right-radius: 4px;
-        }
-        .chat-bubble.assistant {
-            align-self: flex-start;
-            background: var(--tblr-bg-surface-secondary, #f4f6fa);
-            color: var(--tblr-body-color);
-            border-bottom-left-radius: 4px;
-        }
-        .chat-bubble.assistant.error {
-            background: rgba(214, 57, 57, 0.1);
-            color: #d63939;
-        }
+        .chat-card { height: calc(100vh - 220px); min-height: 480px; }
         .chat-suggestions button { white-space: normal; text-align: left; }
     </style>
 </head>
@@ -116,16 +79,38 @@
                         <div data-i18n-html="ac_warning_html">Nội dung bạn gõ (kể cả token/API key nếu có) sẽ được gửi qua model AI để xử lý. Chỉ dán token khi bạn tin tưởng proxy AI đang cấu hình cho hệ thống (xem <a href="config.html">Bot Settings</a>).</div>
                     </div>
 
-                    <div class="card">
-                        <div class="chat-shell">
-                            <div id="chat-messages" class="chat-messages">
-                                <div class="text-secondary fs-5" data-i18n="loading">Đang tải...</div>
+                    <div class="row row-cards">
+                        <div class="col-lg-8">
+                            <div class="card chat-card d-flex flex-column">
+                                <div class="card-body scrollable flex-fill" id="chat-messages">
+                                    <div class="chat">
+                                        <div class="chat-bubbles" id="chat-bubbles-list"></div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <div class="chat-suggestions d-flex flex-wrap gap-2 mb-2" id="chat-suggestions"></div>
+                                    <div class="input-group input-group-flat">
+                                        <input type="text" class="form-control" id="chat-input" autocomplete="off" data-i18n-placeholder="ac_input_placeholder" placeholder="Nhập yêu cầu cấu hình... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendAgentChat();">
+                                        <span class="input-group-text p-0">
+                                            <button class="btn btn-primary m-1" id="chat-send-btn" onclick="sendAgentChat()"><i class="ti ti-send"></i></button>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="border-top p-3">
-                                <div class="chat-suggestions d-flex flex-wrap gap-2 mb-2" id="chat-suggestions"></div>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="chat-input" data-i18n-placeholder="ac_input_placeholder" placeholder="Nhập yêu cầu cấu hình... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendAgentChat();">
-                                    <button class="btn btn-primary" id="chat-send-btn" onclick="sendAgentChat()"><i class="ti ti-send me-1"></i> Gửi</button>
+                        </div>
+
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title d-flex align-items-center gap-2" data-i18n="ac_capabilities_title">
+                                        <i class="ti ti-list-check text-primary fs-3"></i> Agent có thể làm được gì?
+                                    </h3>
+                                </div>
+                                <div class="card-body" id="agent-capabilities-list">
+                                    <div class="text-secondary fs-5" data-i18n="loading">Đang tải...</div>
+                                </div>
+                                <div class="card-footer text-secondary fs-6" data-i18n="ac_capabilities_hint">
+                                    Danh sách này lấy trực tiếp từ backend — luôn đúng với những gì Agent thật sự làm được, không phải tài liệu viết tay có thể lỗi thời.
                                 </div>
                             </div>
                         </div>
@@ -150,6 +135,7 @@
 
     let chatApiKey = null;
     let chatHistory = [];
+    let isSending = false;
 
     const CHAT_SUGGESTIONS = [
         "Kết nối trang Facebook id 123456789 token EAAxxxx",
@@ -170,20 +156,62 @@
         document.getElementById("chat-input").focus();
     }
 
+    const AGENT_AVATAR = '<span class="avatar avatar-2 bg-primary-lt text-primary"><i class="ti ti-robot"></i></span>';
+    const ME_AVATAR = '<span class="avatar avatar-2 bg-secondary-lt text-secondary"><i class="ti ti-user"></i></span>';
+
+    function chatBubbleHtml({ isMe, author, time, bodyHtml, isTyping }) {
+        const avatar = isMe ? ME_AVATAR : AGENT_AVATAR;
+        const bubbleClass = "chat-bubble" + (isMe ? " chat-bubble-me" : "");
+        const title = isTyping ? "" : `
+            <div class="chat-bubble-title">
+              <div class="row">
+                <div class="col chat-bubble-author">${escHtml(author)}</div>
+                <div class="col-auto chat-bubble-date">${time}</div>
+              </div>
+            </div>`;
+        return `
+          <div class="chat-item">
+            <div class="row align-items-end ${isMe ? "justify-content-end" : ""}">
+              ${!isMe ? `<div class="col-auto">${avatar}</div>` : ""}
+              <div class="col col-lg-8">
+                <div class="${bubbleClass}">
+                  ${title}
+                  <div class="chat-bubble-body">${bodyHtml}</div>
+                </div>
+              </div>
+              ${isMe ? `<div class="col-auto">${avatar}</div>` : ""}
+            </div>
+          </div>`;
+    }
+
+    function nowLabel() {
+        return new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    }
+
     function renderChatMessages() {
-        const el = document.getElementById("chat-messages");
+        const list = document.getElementById("chat-bubbles-list");
+        const scrollEl = document.getElementById("chat-messages");
         if (chatHistory.length === 0) {
-            el.innerHTML = `<div class="text-secondary fs-5">${escHtml(t("ac_empty"))}</div>`;
+            list.innerHTML = `<div class="text-secondary fs-5">${escHtml(t("ac_empty"))}</div>`;
             return;
         }
-        el.innerHTML = chatHistory.map(m => {
-            const cls = m.role === "user" ? "user" : (m.error ? "assistant error" : "assistant");
-            return `<div class="chat-bubble ${cls}">${escHtml(m.content).replace(/\n/g, "<br>")}</div>`;
-        }).join("");
-        el.scrollTop = el.scrollHeight;
+        list.innerHTML = chatHistory.map(m => chatBubbleHtml({
+            isMe: m.role === "user",
+            author: m.role === "user" ? (window.AUTH_USER?.name || window.AUTH_USER?.email || "Bạn") : "Agent",
+            time: m.time || nowLabel(),
+            bodyHtml: `<p class="${m.error ? 'text-danger' : ''}">${escHtml(m.content).replace(/\n/g, "<br>")}</p>`
+        })).join("");
+        if (isSending) {
+            list.innerHTML += chatBubbleHtml({
+                isMe: false, isTyping: true,
+                bodyHtml: '<p class="text-secondary text-italic">đang xử lý<span class="animated-dots"></span></p>'
+            });
+        }
+        scrollEl.scrollTop = scrollEl.scrollHeight;
     }
 
     async function sendAgentChat() {
+        if (isSending) return;
         const input = document.getElementById("chat-input");
         const text = input.value.trim();
         if (!text) return;
@@ -191,27 +219,55 @@
             showToast("Chưa có API key — vào Bot Settings để tạo trước", "error");
             return;
         }
-        chatHistory.push({ role: "user", content: text });
-        renderChatMessages();
+        chatHistory.push({ role: "user", content: text, time: nowLabel() });
         input.value = "";
+        isSending = true;
+        renderChatMessages();
         const btn = document.getElementById("chat-send-btn");
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
         try {
             const res = await fetch(`${WORKER_URL}/api/v1/agent-chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${chatApiKey}` },
-                body: JSON.stringify({ messages: chatHistory })
+                body: JSON.stringify({ messages: chatHistory.map(({ role, content }) => ({ role, content })) })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
-            chatHistory.push({ role: "assistant", content: data.reply || "(không có phản hồi)" });
+            chatHistory.push({ role: "assistant", content: data.reply || "(không có phản hồi)", time: nowLabel() });
         } catch (err) {
-            chatHistory.push({ role: "assistant", content: "Lỗi: " + err.message, error: true });
+            chatHistory.push({ role: "assistant", content: "Lỗi: " + err.message, error: true, time: nowLabel() });
         } finally {
+            isSending = false;
             renderChatMessages();
             btn.disabled = false;
-            btn.innerHTML = '<i class="ti ti-send me-1"></i> Gửi';
+        }
+    }
+
+    const CAP_ICON = {
+        update_bot_config: "ti-settings",
+        add_page_config: "ti-brand-facebook",
+        add_agent_tool: "ti-plug-connected",
+        get_current_config: "ti-eye"
+    };
+
+    async function loadAgentCapabilities() {
+        const el = document.getElementById("agent-capabilities-list");
+        try {
+            const res = await fetch(`${WORKER_URL}/api/v1/agent-chat/tools`, {
+                headers: { Authorization: `Bearer ${chatApiKey}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+            el.innerHTML = data.tools.map(tool => `
+                <div class="d-flex align-items-start gap-2 mb-3">
+                    <i class="ti ${CAP_ICON[tool.name] || 'ti-point'} text-primary fs-3 mt-1"></i>
+                    <div>
+                        <div class="fw-medium">${escHtml(tool.name.replace(/_/g, " "))}</div>
+                        <div class="text-secondary fs-6">${escHtml(tool.description)}</div>
+                    </div>
+                </div>`).join("");
+        } catch (err) {
+            el.innerHTML = `<div class="text-danger fs-5">Lỗi tải danh sách: ${escHtml(err.message)}</div>`;
         }
     }
 
@@ -234,14 +290,17 @@
         }
 
         if (!chatApiKey) {
-            document.getElementById("chat-messages").innerHTML =
+            document.getElementById("chat-bubbles-list").innerHTML =
                 `<div class="text-danger fs-5">Chưa có API key cho tenant này — vào <a href="config.html">Bot Settings</a>, bấm "Tạo / Đổi mới" ở card "API cho hệ thống ngoài" trước, rồi quay lại đây.</div>`;
+            document.getElementById("agent-capabilities-list").innerHTML =
+                `<div class="text-secondary fs-5">Cần API key để xem danh sách này.</div>`;
             document.getElementById("chat-input").disabled = true;
             document.getElementById("chat-send-btn").disabled = true;
             return;
         }
 
         renderChatMessages();
+        await loadAgentCapabilities();
     })();
     </script>
 
