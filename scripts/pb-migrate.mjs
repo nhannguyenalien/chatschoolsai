@@ -233,6 +233,27 @@ async function migrateAgentTools(token) {
   });
 }
 
+async function migrateAgentChatMessages(token) {
+  console.log("\n[agent_chat_messages] — collection MỚI, lưu lịch sử chat với Trợ lý cấu hình (agent-chat.html)");
+  const existing = await getCollectionByName(token, "agent_chat_messages");
+  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  console.log("  + tạo collection mới");
+  await createCollection(token, {
+    name: "agent_chat_messages",
+    type: "base",
+    schema: [
+      { name: "tenant", type: "text", required: true, options: {} },
+      { name: "role", type: "select", required: true, options: { maxSelect: 1, values: ["user", "assistant"] } },
+      { name: "content", type: "text", required: false, options: {} },
+    ],
+    listRule: '@request.auth.id != ""',
+    viewRule: '@request.auth.id != ""',
+    createRule: '@request.auth.id != ""',
+    updateRule: '@request.auth.id != ""',
+    deleteRule: '@request.auth.id != ""',
+  });
+}
+
 (async () => {
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
@@ -245,6 +266,7 @@ async function migrateAgentTools(token) {
   await migrateSystemConfig(token);
   await migrateAgentLogs(token);
   await migrateAgentTools(token);
+  await migrateAgentChatMessages(token);
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
 })().catch((err) => {

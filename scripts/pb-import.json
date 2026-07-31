@@ -208,5 +208,23 @@
     "updateRule": "@request.auth.id != \"\"",
     "deleteRule": "@request.auth.id != \"\"",
     "options": {}
+  },
+  {
+    "id": "agentchatmsg01",
+    "name": "agent_chat_messages",
+    "type": "base",
+    "system": false,
+    "schema": [
+      { "system": false, "id": "acm_tenant", "name": "tenant", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "acm_role", "name": "role", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["user", "assistant"] } },
+      { "system": false, "id": "acm_content", "name": "content", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "@request.auth.id != \"\"",
+    "deleteRule": "@request.auth.id != \"\"",
+    "options": {}
   }
 ]

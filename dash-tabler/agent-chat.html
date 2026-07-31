@@ -136,6 +136,11 @@
     let chatApiKey = null;
     let chatHistory = [];
     let isSending = false;
+    let tenantRef = "";
+    let historyPage = 1;
+    let historyTotalPages = 1;
+    let isLoadingMore = false;
+    const HISTORY_PAGE_SIZE = 10;
 
     const CHAT_SUGGESTIONS = [
         "Kết nối trang Facebook id 123456789 token EAAxxxx",
@@ -188,7 +193,7 @@
         return new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
     }
 
-    function renderChatMessages() {
+    function renderChatMessages(scrollToBottom = true) {
         const list = document.getElementById("chat-bubbles-list");
         const scrollEl = document.getElementById("chat-messages");
         if (chatHistory.length === 0) {
@@ -207,7 +212,63 @@
                 bodyHtml: '<p class="text-secondary text-italic">đang xử lý<span class="animated-dots"></span></p>'
             });
         }
-        scrollEl.scrollTop = scrollEl.scrollHeight;
+        if (scrollToBottom) scrollEl.scrollTop = scrollEl.scrollHeight;
+    }
+
+    async function persistChatMessage(role, content) {
+        try {
+            await PB.collection("agent_chat_messages").create({ tenant: tenantRef, role, content });
+        } catch (err) {
+            console.error("Lỗi lưu lịch sử chat:", err);
+        }
+    }
+
+    async function fetchHistoryPage(page) {
+        const result = await PB.collection("agent_chat_messages").getList(page, HISTORY_PAGE_SIZE, {
+            sort: "-created",
+            filter: `tenant="${tenantRef}"`
+        });
+        historyTotalPages = result.totalPages;
+        // items trả về mới nhất trước -> đảo lại cho đúng thứ tự thời gian trong trang này
+        return result.items.slice().reverse().map(item => ({
+            role: item.role,
+            content: item.content,
+            time: new Date(item.created).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+        }));
+    }
+
+    async function loadInitialHistory() {
+        try {
+            chatHistory = await fetchHistoryPage(1);
+            historyPage = 1;
+        } catch (err) {
+            chatHistory = [];
+        }
+        renderChatMessages();
+    }
+
+    async function loadOlderMessages() {
+        if (isLoadingMore || historyPage >= historyTotalPages) return;
+        isLoadingMore = true;
+        const scrollEl = document.getElementById("chat-messages");
+        const list = document.getElementById("chat-bubbles-list");
+        const spinner = document.createElement("div");
+        spinner.className = "text-center text-secondary fs-6 py-2";
+        spinner.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang tải thêm...';
+        list.prepend(spinner);
+        const prevHeight = scrollEl.scrollHeight;
+        try {
+            const older = await fetchHistoryPage(historyPage + 1);
+            chatHistory = [...older, ...chatHistory];
+            historyPage += 1;
+            renderChatMessages(false);
+            scrollEl.scrollTop = scrollEl.scrollHeight - prevHeight;
+        } catch (err) {
+            spinner.remove();
+            showToast("Lỗi tải thêm lịch sử: " + err.message, "error");
+        } finally {
+            isLoadingMore = false;
+        }
     }
 
     async function sendAgentChat() {
@@ -223,6 +284,7 @@
         input.value = "";
         isSending = true;
         renderChatMessages();
+        persistChatMessage("user", text);
         const btn = document.getElementById("chat-send-btn");
         btn.disabled = true;
         try {
@@ -233,7 +295,9 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
-            chatHistory.push({ role: "assistant", content: data.reply || "(không có phản hồi)", time: nowLabel() });
+            const reply = data.reply || "(không có phản hồi)";
+            chatHistory.push({ role: "assistant", content: reply, time: nowLabel() });
+            persistChatMessage("assistant", reply);
         } catch (err) {
             chatHistory.push({ role: "assistant", content: "Lỗi: " + err.message, error: true, time: nowLabel() });
         } finally {
@@ -276,6 +340,7 @@
         renderSidebar(window.AUTH_USER);
 
         const tenant = window.TENANT || "";
+        tenantRef = tenant;
         if (document.getElementById("nav-tenant-id")) {
             document.getElementById("nav-tenant-id").textContent = tenant;
         }
@@ -299,7 +364,11 @@
             return;
         }
 
-        renderChatMessages();
+        document.getElementById("chat-messages").addEventListener("scroll", (e) => {
+            if (e.target.scrollTop < 40) loadOlderMessages();
+        });
+
+        await loadInitialHistory();
         await loadAgentCapabilities();
     })();
     </script>
