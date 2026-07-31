@@ -220,6 +220,27 @@ Field được phép sửa: `bot_name, bot_avatar, color, webhook, greeting, sys
 
 ---
 
+## `POST /api/v1/agent-chat` — Chat với Trợ lý cấu hình
+
+Nói chuyện tự nhiên thay vì tự vào từng form — model tự chọn tool để ghi cấu hình qua PocketBase (system prompt, tên bot, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo, thêm tool API ngoài cho Agent). Client tự giữ lịch sử hội thoại và gửi kèm mỗi lần gọi (stateless phía server).
+
+Request:
+```json
+{
+  "messages": [
+    { "role": "user", "content": "kết nối trang Facebook id 123456789 token EAAxxxx" }
+  ]
+}
+```
+Response:
+```json
+{ "success": true, "reply": "Đã kết nối trang facebook: 123456789" }
+```
+
+Lưu ý bảo mật: nội dung gửi lên (kể cả token/API key nếu khách dán vào chat) sẽ đi qua model AI (`OPENAI_BASE_URL`) để xử lý — không phải chỉ đi thẳng vào DB. Đã có cảnh báo hiển thị ngay trên UI `config.html`.
+
+---
+
 ## `GET /api/v1/knowledge` / `POST /api/v1/knowledge` / `DELETE /api/v1/knowledge/:id` — Knowledge Base
 
 **GET** — danh sách tài liệu đã nạp:
@@ -288,12 +309,13 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 |---|---|---|
 | Bài đăng social | `POST/GET /api/v1/posts`, `POST /api/v1/posts/:id/approve`, `GET /api/v1/status`, `POST /api/v1/trigger/rss-crawl`, `POST /api/v1/trigger/publish` | API key riêng tenant |
 | Agent tự quyết định | `POST /api/v1/trigger/agent` | API key riêng tenant |
+| Chat với Trợ lý cấu hình | `POST /api/v1/agent-chat` | API key riêng tenant |
 | Chatbot | `POST /api/v1/chat` | API key riêng tenant |
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |
 | Knowledge base | `GET/POST /api/v1/knowledge`, `DELETE /api/v1/knowledge/:id`, `POST /api/v1/knowledge/sync` | API key riêng tenant |
 | Chat logs | `GET /api/v1/messages` | API key riêng tenant |
 | Widget công khai (không dùng cho hệ thống ngoài) | `POST /chat`, `POST /embed`, `DELETE /doc`, `POST /sync-docs` | không — tenant tự khai trong body, dành cho widget nhúng công khai trên website khách, KHÔNG nên gọi trực tiếp các endpoint này từ hệ thống ngoài (dùng bản `/api/v1/*` tương ứng ở trên thay thế, có xác thực đàng hoàng) |
-| Vận hành nội bộ (chỉ admin hệ thống) | `POST /run-digest`, `/run-rss-crawl`, `/run-publish-dispatch`, `/run-agent` | header `X-Admin-Secret` = `ADMIN_SECRET` chung — chạy cho **TẤT CẢ** tenant cùng lúc |
+| Vận hành nội bộ (chỉ admin hệ thống) | `POST /run-digest`, `/run-rss-crawl`, `/run-publish-dispatch`, `/run-agent`, `/ping-anyllm` | header `X-Admin-Secret` = `ADMIN_SECRET` chung — chạy cho **TẤT CẢ** tenant cùng lúc |
 | Khác | `GET /health` (không auth), `POST /telegram-webhook` (Telegram tự gọi) | — |
 
 **Vì sao `/chat`, `/embed`... cũ vẫn còn tồn tại song song với `/api/v1/*` mới:** vì widget chat nhúng công khai trên website của khách hàng (không đăng nhập) vẫn cần gọi được — không thể bắt mọi khách ghé website phải có API key. `/api/v1/*` là lối vào riêng, có xác thực, dành cho **hệ thống backend** của bạn hoặc của khách hàng gọi vào, tách biệt hoàn toàn với đường widget công khai.

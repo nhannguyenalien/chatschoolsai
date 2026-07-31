@@ -77,6 +77,24 @@
                         <div class="text-secondary mt-1 fs-3">Thiết lập nhân cách, hành vi và thông số kỹ thuật cho chatbot của bạn.</div>
                     </div>
 
+                    <div class="card mb-4">
+                        <div class="card-header border-bottom-0 pb-0">
+                            <h3 class="card-title d-flex align-items-center gap-2">
+                                <i class="ti ti-message-2-bot text-primary fs-2"></i> Chat với Trợ lý cấu hình
+                            </h3>
+                        </div>
+                        <div class="card-body pt-2">
+                            <div class="text-secondary fs-5 mb-3">Nói chuyện bình thường — trợ lý tự hiểu và lưu cấu hình giúp bạn (system prompt, kết nối Facebook/Instagram, Telegram báo động, thêm API ngoài cho Agent...), đỡ phải mò từng form bên dưới. <span class="text-warning">Lưu ý:</span> nội dung bạn gõ (kể cả token/API key nếu có) sẽ được gửi qua model AI để xử lý — chỉ dùng nếu bạn tin tưởng proxy AI đang cấu hình cho hệ thống.</div>
+                            <div id="config-chat-messages" class="d-flex flex-column gap-2 mb-3" style="max-height: 320px; overflow-y: auto;">
+                                <div class="text-secondary fs-5">Vd: "đổi tên bot thành Trợ lý Vàng", "kết nối trang Facebook id 123456 token EAAxxx", "báo owner qua Telegram chat id 987654 khi có khách cần hỗ trợ"...</div>
+                            </div>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="config-chat-input" placeholder="Nhập yêu cầu cấu hình..." onkeydown="if(event.key==='Enter') sendConfigChat();">
+                                <button class="btn btn-primary" id="config-chat-send-btn" onclick="sendConfigChat()"><i class="ti ti-send"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row row-cards">
                         
                         <div class="col-lg-8">
@@ -746,6 +764,61 @@
             await loadCustomTools();
         } catch (err) {
             showToast("Lỗi xóa tool: " + err.message, "error");
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // CHAT VỚI TRỢ LÝ CẤU HÌNH (agent tự gọi API để lưu config thay khách)
+    // ═══════════════════════════════════════
+    let configChatHistory = [];
+
+    function appendConfigChatBubble(role, text) {
+        const el = document.getElementById("config-chat-messages");
+        if (el.dataset.hasHint !== "cleared") {
+            el.innerHTML = "";
+            el.dataset.hasHint = "cleared";
+        }
+        const bubble = document.createElement("div");
+        bubble.className = role === "user"
+            ? "align-self-end bg-primary text-white rounded p-2 fs-5"
+            : "align-self-start bg-secondary-lt rounded p-2 fs-5";
+        bubble.style.maxWidth = "85%";
+        bubble.innerHTML = escHtml(text).replace(/\n/g, "<br>");
+        el.appendChild(bubble);
+        el.scrollTop = el.scrollHeight;
+    }
+
+    async function sendConfigChat() {
+        const input = document.getElementById("config-chat-input");
+        const text = input.value.trim();
+        if (!text) return;
+        const apiKey = document.getElementById("apiKeyDisplay").value.trim();
+        if (!apiKey) {
+            showToast("Chưa có API key — bấm 'Tạo / Đổi mới' ở card 'API cho hệ thống ngoài' trước", "error");
+            return;
+        }
+        appendConfigChatBubble("user", text);
+        configChatHistory.push({ role: "user", content: text });
+        input.value = "";
+        const btn = document.getElementById("config-chat-send-btn");
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${WORKER_URL}/api/v1/agent-chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+                body: JSON.stringify({ messages: configChatHistory })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+            appendConfigChatBubble("assistant", data.reply || "(không có phản hồi)");
+            configChatHistory.push({ role: "assistant", content: data.reply || "" });
+            // Cấu hình có thể vừa bị thay đổi -> tải lại để các card bên dưới phản ánh đúng.
+            await loadConfig();
+            await loadCustomTools();
+        } catch (err) {
+            appendConfigChatBubble("assistant", "Lỗi: " + err.message);
+        } finally {
+            btn.disabled = false;
         }
     }
 

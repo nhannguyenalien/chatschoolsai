@@ -1692,6 +1692,194 @@ async function handleApiUpdateConfig(request, env, cors, cfg) {
 }
 __name(handleApiUpdateConfig, "handleApiUpdateConfig");
 
+// ================= [API: CHAT VỚI TRỢ LÝ CẤU HÌNH] =================
+// Khách chat tự nhiên -> model tự chọn tool để ghi cấu hình qua PocketBase,
+// đỡ phải mở từng form nhập tay. Tái dùng CONFIG_WRITABLE_FIELDS/READABLE_FIELDS ở trên.
+var CONFIG_CHAT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "update_bot_config",
+      description: "Cập nhật cấu h\xECnh bot: t\xEAn bot, m\xE0u, webhook, lời ch\xE0o, system prompt, model, temperature, max_tokens, streaming, Telegram chat id của chủ, Cloudinary. Chỉ truyền field n\xE0o khách thực sự muốn đổi.",
+      parameters: {
+        type: "object",
+        properties: {
+          bot_name: { type: "string" },
+          color: { type: "string" },
+          webhook: { type: "string" },
+          greeting: { type: "string" },
+          system_prompt: { type: "string" },
+          model: { type: "string" },
+          temperature: { type: "number" },
+          max_tokens: { type: "number" },
+          streaming: { type: "boolean" },
+          owner_telegram_chat_id: { type: "string", description: "Chat ID Telegram của chủ để nhận cảnh b\xE1o/handoff" },
+          cloudinary_cloud_name: { type: "string" },
+          cloudinary_api_key: { type: "string" },
+          cloudinary_api_secret: { type: "string" },
+          brand_logo_url: { type: "string" }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_page_config",
+      description: "Kết nối 1 trang mạng x\xE3 hội (Facebook/Instagram/WhatsApp/Zalo) để đăng b\xE0i/chat qua đ\xF3.",
+      parameters: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["facebook", "instagram", "whatsapp", "zalo", "other"] },
+          label: { type: "string", description: "T\xEAn gợi nhớ cho trang n\xE0y" },
+          page_id: { type: "string" },
+          access_token: { type: "string" }
+        },
+        required: ["platform", "page_id", "access_token"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_agent_tool",
+      description: "Th\xEAm 1 API ngo\xE0i để AI Agent vận h\xE0nh c\xF3 thể tự gọi (vd tra cứu vận đơn, CRM ri\xEAng...).",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "chỉ chữ/số/gạch dưới, kh\xF4ng dấu c\xE1ch" },
+          description: { type: "string", description: "M\xF4 tả để Agent biết khi n\xE0o gọi tool n\xE0y" },
+          method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+          url_template: { type: "string", description: "d\xF9ng {tên_tham_số} để chèn gi\xE1 trị, vd https://api.vd.com/orders/{order_id}" },
+          parameters_schema: { type: "string", description: "JSON Schema dạng chuỗi cho tham số, vd {\"type\":\"object\",\"properties\":{\"order_id\":{\"type\":\"string\"}},\"required\":[\"order_id\"]}" },
+          headers_template: { type: "string", description: "JSON dạng chuỗi cho headers, vd {\"Authorization\":\"Bearer xxx\"}" },
+          result_path: { type: "string", description: "đường dẫn lấy kết quả từ response JSON, vd data.status" }
+        },
+        required: ["name", "url_template"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_current_config",
+      description: "Xem lại cấu h\xECnh hiện tại (bot config, c\xE1c trang đ\xE3 kết nối, c\xE1c tool tùy chỉnh) khi khách hỏi.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  }
+];
+
+async function executeConfigChatTool(env, pbToken, cfg, name, args) {
+  switch (name) {
+    case "update_bot_config": {
+      const patch = {};
+      for (const f of CONFIG_WRITABLE_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(args, f)) patch[f] = args[f];
+      }
+      if (Object.keys(patch).length === 0) return "Kh\xF4ng c\xF3 field n\xE0o hợp lệ để cập nhật.";
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records/${cfg.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify(patch)
+      });
+      if (!res.ok) return "Cập nhật thất bại.";
+      return `Đ\xE3 cập nhật: ${Object.keys(patch).join(", ")}`;
+    }
+    case "add_page_config": {
+      if (!args.platform || !args.page_id || !args.access_token) return "Thiếu platform/page_id/access_token.";
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify({
+          tenant: cfg.tenant, platform: args.platform, label: args.label || "",
+          page_id: args.page_id, access_token: args.access_token, is_active: true
+        })
+      });
+      if (!res.ok) return "Th\xEAm trang thất bại.";
+      return `Đ\xE3 kết nối trang ${args.platform}: ${args.label || args.page_id}`;
+    }
+    case "add_agent_tool": {
+      if (!args.name || !/^[a-zA-Z0-9_]+$/.test(args.name)) return "T\xEAn tool kh\xF4ng hợp lệ (chỉ chữ/số/gạch dưới).";
+      if (!args.url_template) return "Thiếu url_template.";
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify({
+          tenant: cfg.tenant, name: args.name, description: args.description || "",
+          parameters_schema: args.parameters_schema || '{"type":"object","properties":{},"required":[]}',
+          method: args.method || "GET", url_template: args.url_template,
+          headers_template: args.headers_template || "", result_path: args.result_path || "",
+          is_active: true
+        })
+      });
+      if (!res.ok) return "Th\xEAm tool thất bại.";
+      return `Đ\xE3 thêm tool "${args.name}" cho Agent.`;
+    }
+    case "get_current_config": {
+      const [pagesRes, toolsRes] = await Promise.all([
+        fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } }),
+        fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } })
+      ]);
+      const pagesData = await pagesRes.json();
+      const toolsData = await toolsRes.json();
+      const out = {};
+      for (const f of CONFIG_READABLE_FIELDS) out[f] = cfg[f] ?? null;
+      out.pages = (pagesData.items || []).map((p) => ({ platform: p.platform, label: p.label, page_id: p.page_id, is_active: p.is_active }));
+      out.custom_tools = (toolsData.items || []).map((t) => ({ name: t.name, description: t.description, is_active: t.is_active }));
+      return JSON.stringify(out);
+    }
+    default:
+      return `Tool kh\xF4ng x\xE1c định: ${name}`;
+  }
+}
+__name(executeConfigChatTool, "executeConfigChatTool");
+
+async function handleApiAgentChat(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const history = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+  if (history.length === 0) {
+    return new Response(JSON.stringify({ error: "Thiếu messages" }), { status: 400, headers: cors });
+  }
+  const pbToken = await getPbToken(env);
+  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo, hoặc th\xEAm API ngo\xE0i cho Agent) — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4. Nếu thiếu th\xF4ng tin bắt buộc (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. D\xF9ng get_current_config khi khách hỏi hiện tại đang cấu h\xECnh g\xEC. Trả lời ngắn gọn, tiếng Việt.`;
+  const messages = [{ role: "system", content: systemPrompt }, ...history];
+  try {
+    const res1 = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages, tools: CONFIG_CHAT_TOOLS, tool_choice: "auto" }),
+      timeout: 3e4
+    });
+    const data1 = await res1.json();
+    const msg1 = data1.choices?.[0]?.message || {};
+    const toolCalls = msg1.tool_calls || [];
+    if (toolCalls.length === 0) {
+      return new Response(JSON.stringify({ success: true, reply: msg1.content || "" }), { headers: cors });
+    }
+    messages.push(msg1);
+    for (const call of toolCalls) {
+      const name = call.function?.name;
+      let args = {};
+      try { args = JSON.parse(call.function?.arguments || "{}"); } catch {}
+      const result = await executeConfigChatTool(env, pbToken, cfg, name, args);
+      messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 2000) });
+    }
+    const res2 = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages }),
+      timeout: 3e4
+    });
+    const data2 = await res2.json();
+    const finalReply = data2.choices?.[0]?.message?.content || "Đ\xE3 thực hiện xong.";
+    return new Response(JSON.stringify({ success: true, reply: finalReply }), { headers: cors });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
+  }
+}
+__name(handleApiAgentChat, "handleApiAgentChat");
+
 // ================= [API: KNOWLEDGE BASE] =================
 async function handleApiListKnowledge(env, cors, cfg) {
   const pbToken = await getPbToken(env);
@@ -1783,6 +1971,8 @@ async function handleApiV1(request, url, env, cors) {
 
   if (url.pathname === "/api/v1/config" && request.method === "GET") return await handleApiGetConfig(env, cors, cfg);
   if (url.pathname === "/api/v1/config" && request.method === "PATCH") return await handleApiUpdateConfig(request, env, cors, cfg);
+
+  if (url.pathname === "/api/v1/agent-chat" && request.method === "POST") return await handleApiAgentChat(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/knowledge" && request.method === "GET") return await handleApiListKnowledge(env, cors, cfg);
   if (url.pathname === "/api/v1/knowledge" && request.method === "POST") return await handleApiAddKnowledge(request, env, cors, cfg);
