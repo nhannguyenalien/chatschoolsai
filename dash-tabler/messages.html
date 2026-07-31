@@ -15,6 +15,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -65,8 +66,8 @@
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
                         <span class="navbar-toggler-icon"></span>
                     </button>
-                    <h2 class="page-title d-none d-md-block text-body fs-2 m-0 ms-3">Nhật ký trò chuyện</h2>
-                    
+                    <h2 class="page-title d-none d-md-block text-body fs-2 m-0 ms-3" data-i18n="msg_title_top">Nhật ký trò chuyện</h2>
+
                 </div>
             </header>
 
@@ -75,27 +76,27 @@
                 <div class="d-flex flex-column border-end bg-white" style="width: 100%; max-width: 340px; flex-shrink: 0;" id="session-list">
                     <div class="p-3 border-bottom flex-shrink-0">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h3 class="fs-4 fw-bold m-0 text-body">Phiên gần đây</h3>
+                            <h3 class="fs-4 fw-bold m-0 text-body" data-i18n="msg_recent_sessions">Phiên gần đây</h3>
                             <span class="badge bg-primary-lt" id="active-count">0 Hoạt động</span>
                         </div>
                         <div class="d-flex gap-2 overflow-auto hide-scrollbar">
-                            <button class="btn btn-sm btn-primary rounded-pill" id="filter-all-btn" onclick="switchSessionFilter('all', this)">Tất cả</button>
+                            <button class="btn btn-sm btn-primary rounded-pill" id="filter-all-btn" onclick="switchSessionFilter('all', this)" data-i18n="msg_filter_all">Tất cả</button>
                             <button class="btn btn-sm btn-ghost-secondary rounded-pill" id="filter-escalation-btn" onclick="switchSessionFilter('needs_human', this)">
-                                Cần xử lý <span class="badge bg-danger ms-1 d-none" id="escalation-badge">0</span>
+                                <span data-i18n="msg_filter_needs_human">Cần xử lý</span> <span class="badge bg-danger ms-1 d-none" id="escalation-badge">0</span>
                             </button>
                         </div>
                     </div>
                     <div class="list-group list-group-flush overflow-auto flex-grow-1" id="session-list-items">
-                        <div class="p-5 text-center text-secondary">Đang tải dữ liệu...</div>
+                        <div class="p-5 text-center text-secondary" data-i18n="loading">Đang tải dữ liệu...</div>
                     </div>
                 </div>
 
                 <div class="d-flex flex-column flex-grow-1 bg-light position-relative" id="chat-view">
-                    
+
                     <div id="chat-welcome" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-light z-2">
                         <i class="ti ti-messages text-secondary opacity-25 mb-3" style="font-size: 60px;"></i>
-                        <h3 class="text-secondary fs-2 fw-medium">Chọn một phiên chat</h3>
-                        <p class="text-muted">Bấm vào khách hàng bên trái để xem tin nhắn</p>
+                        <h3 class="text-secondary fs-2 fw-medium" data-i18n="msg_select_session">Chọn một phiên chat</h3>
+                        <p class="text-muted" data-i18n="msg_select_session_hint">Bấm vào khách hàng bên trái để xem tin nhắn</p>
                     </div>
 
                     <div class="p-3 border-bottom bg-white d-flex align-items-center justify-content-between flex-shrink-0 z-1" style="height: 64px;">

@@ -12,6 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -60,16 +61,16 @@
 
                     <div class="mb-4">
                         <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
-                            <a href="index.html" class="text-reset text-decoration-none">Overview</a>
+                            <a href="index.html" class="text-reset text-decoration-none" data-i18n="nav_overview">Overview</a>
                             <i class="ti ti-chevron-right fs-6"></i>
-                            <span class="text-primary fw-medium">Cấu hình Kênh</span>
+                            <span class="text-primary fw-medium" data-i18n="sm_title">Cấu hình Kênh</span>
                         </div>
-                        <h2 class="page-title fs-1">Cấu hình Kênh</h2>
-                        <div class="text-secondary mt-1 fs-3">Quản lý Page/Account và token cho Facebook, Instagram, WhatsApp, Zalo và các API chat khác.</div>
+                        <h2 class="page-title fs-1" data-i18n="sm_title">Cấu hình Kênh</h2>
+                        <div class="text-secondary mt-1 fs-3" data-i18n="sm_subtitle">Quản lý Page/Account và token cho Facebook, Instagram, WhatsApp, Zalo và các API chat khác.</div>
                     </div>
 
                     <ul class="nav nav-pills mb-3" id="platform-tabs" role="tablist">
-                        <li class="nav-item"><a href="#" class="nav-link active" data-platform="" onclick="switchPlatformTab('', this)">Tất cả</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link active" data-platform="" onclick="switchPlatformTab('', this)" data-i18n="msg_filter_all">Tất cả</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="facebook" onclick="switchPlatformTab('facebook', this)"><i class="ti ti-brand-facebook me-1"></i>Facebook</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="instagram" onclick="switchPlatformTab('instagram', this)"><i class="ti ti-brand-instagram me-1"></i>Instagram</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="whatsapp" onclick="switchPlatformTab('whatsapp', this)"><i class="ti ti-brand-whatsapp me-1"></i>WhatsApp</a></li>

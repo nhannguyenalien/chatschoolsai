@@ -13,6 +13,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -58,16 +59,16 @@
 
                     <div class="mb-4">
                         <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
-                            <a href="index.html" class="text-reset text-decoration-none">Overview</a>
+                            <a href="index.html" class="text-reset text-decoration-none" data-i18n="nav_overview">Overview</a>
                             <i class="ti ti-chevron-right fs-6"></i>
-                            <span class="text-primary fw-medium">Analytics</span>
+                            <span class="text-primary fw-medium" data-i18n="an_title">Analytics</span>
                         </div>
                         <div class="d-flex align-items-center flex-wrap gap-2">
                             <div>
-                                <h2 class="page-title fs-1">Analytics</h2>
-                                <div class="text-secondary mt-1 fs-3">Theo dõi tình trạng đăng bài trên tất cả nền tảng.</div>
+                                <h2 class="page-title fs-1" data-i18n="an_title">Analytics</h2>
+                                <div class="text-secondary mt-1 fs-3" data-i18n="an_subtitle">Theo dõi tình trạng đăng bài trên tất cả nền tảng.</div>
                             </div>
-                            <button onclick="refreshAll()" class="btn btn-outline-secondary ms-auto"><i class="ti ti-refresh" id="refresh-icon"></i> Làm mới</button>
+                            <button onclick="refreshAll()" class="btn btn-outline-secondary ms-auto"><i class="ti ti-refresh" id="refresh-icon"></i> <span data-i18n="post_btn_refresh">Làm mới</span></button>
                         </div>
                     </div>
 

@@ -12,6 +12,7 @@
   <script src="_shared/config.js"></script>
   <script src="_shared/auth.js"></script>
   <script src="_shared/ui.js"></script>
+  <script src="_shared/i18n.js"></script>
   <script src="_shared/sidebar.js"></script>
 
   <style>
@@ -111,12 +112,12 @@
         <!-- Page header -->
         <div class="row align-items-center mb-4">
           <div class="col">
-            <h2 class="page-title">Bài Đăng BDS</h2>
-            <div class="text-secondary mt-1">Quản lý, duyệt và theo dõi bài đăng tự động lên mạng xã hội</div>
+            <h2 class="page-title" data-i18n="post_title">Bài Đăng BDS</h2>
+            <div class="text-secondary mt-1" data-i18n="post_subtitle">Quản lý, duyệt và theo dõi bài đăng tự động lên mạng xã hội</div>
           </div>
           <div class="col-auto ms-auto d-print-none d-flex gap-2 flex-wrap">
             <button onclick="refreshPosts()" class="btn btn-outline-secondary d-flex align-items-center gap-1">
-              <i class="ti ti-refresh" id="refresh-icon"></i> Làm mới
+              <i class="ti ti-refresh" id="refresh-icon"></i> <span data-i18n="post_btn_refresh">Làm mới</span>
             </button>
             <button id="bulk-btn" onclick="bulkApprove()" class="btn btn-success d-none align-items-center gap-1">
               <i class="ti ti-check"></i> Duyệt đã chọn (<span id="bulk-count">0</span>)

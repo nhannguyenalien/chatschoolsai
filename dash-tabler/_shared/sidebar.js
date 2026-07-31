@@ -8,22 +8,22 @@ const SIDEBAR_NAV = [
   {
     section: null,
     items: [
-      { href: 'index.html',    icon: 'ti-layout-dashboard', label: 'Overview' },
-      { href: 'config.html',   icon: 'ti-settings',         label: 'Bot Settings' },
-      { href: 'agent-chat.html', icon: 'ti-message-2-bot',  label: 'Chat với Agent' },
-      { href: 'knowledge.html',icon: 'ti-book',             label: 'Knowledge Base' },
-      { href: 'messages.html', icon: 'ti-message-circle',   label: 'Chat Logs' },
-      { href: 'leads.html',    icon: 'ti-users',            label: 'Leads' },
-      { href: 'billing.html',  icon: 'ti-receipt',          label: 'Billing' },
+      { href: 'index.html',    icon: 'ti-layout-dashboard', labelKey: 'nav_overview' },
+      { href: 'config.html',   icon: 'ti-settings',         labelKey: 'nav_bot_settings' },
+      { href: 'agent-chat.html', icon: 'ti-message-2-bot',  labelKey: 'nav_agent_chat' },
+      { href: 'knowledge.html',icon: 'ti-book',             labelKey: 'nav_knowledge' },
+      { href: 'messages.html', icon: 'ti-message-circle',   labelKey: 'nav_messages' },
+      { href: 'leads.html',    icon: 'ti-users',            labelKey: 'nav_leads' },
+      { href: 'billing.html',  icon: 'ti-receipt',          labelKey: 'nav_billing' },
     ]
   },
   {
     section: 'Social Media',
     items: [
-      { href: 'post.html',      icon: 'ti-article',        label: 'Bài Đăng BDS' },
-      { href: 'composer.html',  icon: 'ti-edit',           label: 'Soạn Bài' },
-      { href: 'analytics.html', icon: 'ti-chart-bar',      label: 'Analytics' },
-      { href: 'sm-config.html', icon: 'ti-brand-facebook', label: 'Cấu hình Pages' },
+      { href: 'post.html',      icon: 'ti-article',        labelKey: 'nav_posts' },
+      { href: 'composer.html',  icon: 'ti-edit',           labelKey: 'nav_composer' },
+      { href: 'analytics.html', icon: 'ti-chart-bar',      labelKey: 'nav_analytics' },
+      { href: 'sm-config.html', icon: 'ti-brand-facebook', labelKey: 'nav_sm_config' },
     ]
   }
 ];
@@ -33,6 +33,7 @@ function renderSidebar(user) {
   if (!el) return;
 
   const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+  const currentLang = typeof getLang === 'function' ? getLang() : 'vi';
   const tenant = window.TENANT || '—';
   const userName = user?.name || user?.email || 'Admin';
   const avatarUrl = user?.avatarUrl || user?.avatar
@@ -49,13 +50,14 @@ function renderSidebar(user) {
     const itemsHtml = group.items.map(item => {
       const isActive = currentPage === item.href ||
         (item.href !== 'index.html' && currentPage.startsWith(item.href.replace('.html','')));
+      const label = typeof t === 'function' ? t(item.labelKey) : item.labelKey;
       return `
         <li class="nav-item">
           <a class="nav-link ${isActive ? 'active' : ''}" href="${item.href}">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <i class="ti ${item.icon}"></i>
             </span>
-            <span class="nav-link-title">${item.label}</span>
+            <span class="nav-link-title" data-i18n="${item.labelKey}">${label}</span>
           </a>
         </li>`;
     }).join('');
@@ -98,6 +100,10 @@ function renderSidebar(user) {
 
           <!-- User footer -->
           <div class="mt-auto pt-3 border-top border-white-10">
+            <div class="d-flex align-items-center gap-1 px-2 pb-2">
+              <button type="button" class="btn btn-sm ${currentLang === 'vi' ? 'btn-primary' : 'btn-outline-secondary'} py-0 px-2" onclick="setLang('vi')">VI</button>
+              <button type="button" class="btn btn-sm ${currentLang === 'en' ? 'btn-primary' : 'btn-outline-secondary'} py-0 px-2" onclick="setLang('en')">EN</button>
+            </div>
             <div class="d-flex align-items-center gap-2 px-2 py-2">
               <span class="avatar avatar-sm rounded-circle"
                 style="background-image:url('${avatarUrl}')"
@@ -108,7 +114,7 @@ function renderSidebar(user) {
                 <div class="text-white fw-medium text-truncate fs-5" id="sidebar-username">${userName}</div>
                 <div class="text-white-50 text-truncate fs-6" id="sidebar-tenant">${tenant}</div>
               </div>
-              <a href="#" onclick="logout()" class="text-white-50 nav-link p-1" title="Đăng xuất">
+              <a href="#" onclick="logout()" class="text-white-50 nav-link p-1" data-i18n-title="logout" title="${typeof t === 'function' ? t('logout') : 'Đăng xuất'}">
                 <i class="ti ti-logout"></i>
               </a>
             </div>
@@ -117,6 +123,10 @@ function renderSidebar(user) {
         </div>
       </div>
     </aside>`;
+
+  // Sidebar chỉ là 1 phần của trang — áp dụng luôn i18n cho toàn bộ DOM còn lại
+  // để mỗi trang không phải tự nhớ gọi applyI18n() riêng.
+  if (typeof applyI18n === 'function') applyI18n();
 }
 
 // Cập nhật avatar/name sau khi auth

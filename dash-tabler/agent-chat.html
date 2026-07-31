@@ -12,6 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -102,28 +103,28 @@
 
                     <div class="mb-4">
                         <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
-                            <a href="index.html" class="text-reset text-decoration-none hover-primary">Overview</a>
+                            <a href="index.html" class="text-reset text-decoration-none hover-primary" data-i18n="nav_overview">Overview</a>
                             <i class="ti ti-chevron-right fs-6"></i>
-                            <span class="text-primary fw-medium">Chat với Agent AI</span>
+                            <span class="text-primary fw-medium" data-i18n="ac_breadcrumb">Chat với Agent AI</span>
                         </div>
-                        <h2 class="page-title fs-1">Chat với Agent AI</h2>
-                        <div class="text-secondary mt-1 fs-3">Nói chuyện bình thường — Agent tự hiểu và cấu hình hệ thống giúp bạn qua API, không cần vào từng form.</div>
+                        <h2 class="page-title fs-1" data-i18n="ac_title">Chat với Agent AI</h2>
+                        <div class="text-secondary mt-1 fs-3" data-i18n="ac_subtitle">Nói chuyện bình thường — Agent tự hiểu và cấu hình hệ thống giúp bạn qua API, không cần vào từng form.</div>
                     </div>
 
                     <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
                         <i class="ti ti-alert-triangle fs-2"></i>
-                        <div>Nội dung bạn gõ (kể cả token/API key nếu có) sẽ được gửi qua model AI để xử lý. Chỉ dán token khi bạn tin tưởng proxy AI đang cấu hình cho hệ thống (xem <a href="config.html">Bot Settings</a>).</div>
+                        <div data-i18n-html="ac_warning_html">Nội dung bạn gõ (kể cả token/API key nếu có) sẽ được gửi qua model AI để xử lý. Chỉ dán token khi bạn tin tưởng proxy AI đang cấu hình cho hệ thống (xem <a href="config.html">Bot Settings</a>).</div>
                     </div>
 
                     <div class="card">
                         <div class="chat-shell">
                             <div id="chat-messages" class="chat-messages">
-                                <div class="text-secondary fs-5">Đang tải...</div>
+                                <div class="text-secondary fs-5" data-i18n="loading">Đang tải...</div>
                             </div>
                             <div class="border-top p-3">
                                 <div class="chat-suggestions d-flex flex-wrap gap-2 mb-2" id="chat-suggestions"></div>
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="chat-input" placeholder="Nhập yêu cầu cấu hình... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendAgentChat();">
+                                    <input type="text" class="form-control" id="chat-input" data-i18n-placeholder="ac_input_placeholder" placeholder="Nhập yêu cầu cấu hình... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendAgentChat();">
                                     <button class="btn btn-primary" id="chat-send-btn" onclick="sendAgentChat()"><i class="ti ti-send me-1"></i> Gửi</button>
                                 </div>
                             </div>
@@ -172,7 +173,7 @@
     function renderChatMessages() {
         const el = document.getElementById("chat-messages");
         if (chatHistory.length === 0) {
-            el.innerHTML = '<div class="text-secondary fs-5">Chưa có tin nhắn nào — thử 1 gợi ý bên dưới, hoặc gõ yêu cầu của bạn.</div>';
+            el.innerHTML = `<div class="text-secondary fs-5">${escHtml(t("ac_empty"))}</div>`;
             return;
         }
         el.innerHTML = chatHistory.map(m => {

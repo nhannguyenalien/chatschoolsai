@@ -12,6 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -85,13 +86,13 @@
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
                         <span class="navbar-toggler-icon"></span>
                     </button>
-                    <h2 class="page-title d-none d-md-block text-primary fs-2 m-0 ms-3">Knowledge Base</h2>
-                    
+                    <h2 class="page-title d-none d-md-block text-primary fs-2 m-0 ms-3" data-i18n="kb_title_top">Knowledge Base</h2>
+
                     <div class="navbar-nav flex-row order-md-last ms-auto">
                         <div class="nav-item d-none d-md-flex me-3">
                             <div class="input-icon" style="width: 250px;">
                                 <span class="input-icon-addon"><i class="ti ti-search"></i></span>
-                                <input type="text" id="search-input" class="form-control form-control-rounded" placeholder="Tìm kiếm tài liệu..." oninput="filterDocs(this.value)">
+                                <input type="text" id="search-input" class="form-control form-control-rounded" data-i18n-placeholder="kb_search_placeholder" placeholder="Tìm kiếm tài liệu..." oninput="filterDocs(this.value)">
                             </div>
                         </div>
                     </div>
@@ -102,8 +103,8 @@
                 <div class="container-xl">
 
                     <div class="mb-4">
-                        <h2 class="page-title fs-1 mb-1">Cơ Sở Dữ Liệu Kiến Thức</h2>
-                        <div class="text-secondary fs-3">Thêm và quản lý nội dung để bot học. Paste văn bản vào — hệ thống tự động chunk và embedding.</div>
+                        <h2 class="page-title fs-1 mb-1" data-i18n="kb_title">Cơ Sở Dữ Liệu Kiến Thức</h2>
+                        <div class="text-secondary fs-3" data-i18n="kb_subtitle">Thêm và quản lý nội dung để bot học. Paste văn bản vào — hệ thống tự động chunk và embedding.</div>
                     </div>
 
                     <div class="row row-cards mb-4">

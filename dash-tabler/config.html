@@ -12,6 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -69,20 +70,20 @@
 
                     <div class="mb-4">
                         <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
-                            <a href="index.html" class="text-reset text-decoration-none hover-primary">Overview</a>
+                            <a href="index.html" class="text-reset text-decoration-none hover-primary" data-i18n="nav_overview">Overview</a>
                             <i class="ti ti-chevron-right fs-6"></i>
-                            <span class="text-primary fw-medium">Bot Configuration</span>
+                            <span class="text-primary fw-medium" data-i18n="cfg_breadcrumb">Bot Configuration</span>
                         </div>
-                        <h2 class="page-title fs-1">Configure Assistant</h2>
-                        <div class="text-secondary mt-1 fs-3">Thiết lập nhân cách, hành vi và thông số kỹ thuật cho chatbot của bạn.</div>
+                        <h2 class="page-title fs-1" data-i18n="cfg_title">Configure Assistant</h2>
+                        <div class="text-secondary mt-1 fs-3" data-i18n="cfg_subtitle">Thiết lập nhân cách, hành vi và thông số kỹ thuật cho chatbot của bạn.</div>
                     </div>
 
                     <a href="agent-chat.html" class="card mb-4 text-reset text-decoration-none hover-primary">
                         <div class="card-body d-flex align-items-center gap-3">
                             <i class="ti ti-message-2-bot text-primary fs-1"></i>
                             <div class="flex-fill">
-                                <div class="fw-medium fs-3">Chat với Agent AI</div>
-                                <div class="text-secondary fs-5">Nói chuyện bình thường để cấu hình hệ thống — đỡ phải mò từng form bên dưới. Xem trang riêng.</div>
+                                <div class="fw-medium fs-3" data-i18n="cfg_agentchat_banner_title">Chat với Agent AI</div>
+                                <div class="text-secondary fs-5" data-i18n="cfg_agentchat_banner_sub">Nói chuyện bình thường để cấu hình hệ thống — đỡ phải mò từng form bên dưới. Xem trang riêng.</div>
                             </div>
                             <i class="ti ti-chevron-right fs-2 text-secondary"></i>
                         </div>
@@ -182,7 +183,7 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0">
                                         <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-api text-primary fs-2"></i> API cho hệ thống ngoài
+                                            <i class="ti ti-api text-primary fs-2"></i> <span data-i18n="cfg_card_api_title">API cho hệ thống ngoài</span>
                                         </h3>
                                     </div>
                                     <div class="card-body pt-2">
@@ -200,7 +201,7 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
                                         <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-robot-face text-primary fs-2"></i> AI Agent Vận Hành
+                                            <i class="ti ti-robot-face text-primary fs-2"></i> <span data-i18n="cfg_card_agent_title">AI Agent Vận Hành</span>
                                         </h3>
                                         <button class="btn btn-primary btn-sm" id="run-agent-btn" onclick="runAgentNow()"><i class="ti ti-player-play me-1"></i> Chạy Agent ngay</button>
                                     </div>
@@ -215,7 +216,7 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0">
                                         <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-plug-connected text-primary fs-2"></i> Tool tùy chỉnh cho Agent (API ngoài)
+                                            <i class="ti ti-plug-connected text-primary fs-2"></i> <span data-i18n="cfg_card_tools_title">Tool tùy chỉnh cho Agent (API ngoài)</span>
                                         </h3>
                                     </div>
                                     <div class="card-body pt-2">
@@ -271,7 +272,7 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
                                         <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-file-description text-primary fs-2"></i> System Persona
+                                            <i class="ti ti-file-description text-primary fs-2"></i> <span data-i18n="cfg_card_persona_title">System Persona</span>
                                         </h3>
                                         <button class="btn btn-sm btn-ghost-primary" onclick="insertTemplate()">
                                             <i class="ti ti-books me-1"></i> Templates
