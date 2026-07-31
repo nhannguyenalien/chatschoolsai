@@ -10,6 +10,7 @@ const SIDEBAR_NAV = [
     items: [
       { href: 'index.html',    icon: 'ti-layout-dashboard', label: 'Overview' },
       { href: 'config.html',   icon: 'ti-settings',         label: 'Bot Settings' },
+      { href: 'agent-chat.html', icon: 'ti-message-2-bot',  label: 'Chat với Agent' },
       { href: 'knowledge.html',icon: 'ti-book',             label: 'Knowledge Base' },
       { href: 'messages.html', icon: 'ti-message-circle',   label: 'Chat Logs' },
       { href: 'leads.html',    icon: 'ti-users',            label: 'Leads' },

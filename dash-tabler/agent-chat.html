@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Chat với Agent AI - Customer AI Hub</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); }
+
+        .toast-msg {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+
+        .chat-shell {
+            height: calc(100vh - 220px);
+            min-height: 420px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .chat-bubble {
+            max-width: 75%;
+            padding: 0.6rem 0.9rem;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--tblr-primary);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: var(--tblr-bg-surface-secondary, #f4f6fa);
+            color: var(--tblr-body-color);
+            border-bottom-left-radius: 4px;
+        }
+        .chat-bubble.assistant.error {
+            background: rgba(214, 57, 57, 0.1);
+            color: #d63939;
+        }
+        .chat-suggestions button { white-space: normal; text-align: left; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="toast-msg" id="toast"></div>
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none d-print-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
+                        <span class="avatar avatar-sm bg-primary text-white"><i class="ti ti-robot"></i></span>
+                        <span class="ms-2 fw-bold text-primary">AI Admin</span>
+                    </div>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item d-flex align-items-center">
+                            <span class="avatar avatar-sm rounded-circle" id="user-avatar-mobile" style="background-image: url('')"></span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
+                            <a href="index.html" class="text-reset text-decoration-none hover-primary">Overview</a>
+                            <i class="ti ti-chevron-right fs-6"></i>
+                            <span class="text-primary fw-medium">Chat với Agent AI</span>
+                        </div>
+                        <h2 class="page-title fs-1">Chat với Agent AI</h2>
+                        <div class="text-secondary mt-1 fs-3">Nói chuyện bình thường — Agent tự hiểu và cấu hình hệ thống giúp bạn qua API, không cần vào từng form.</div>
+                    </div>
+
+                    <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+                        <i class="ti ti-alert-triangle fs-2"></i>
+                        <div>Nội dung bạn gõ (kể cả token/API key nếu có) sẽ được gửi qua model AI để xử lý. Chỉ dán token khi bạn tin tưởng proxy AI đang cấu hình cho hệ thống (xem <a href="config.html">Bot Settings</a>).</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="chat-shell">
+                            <div id="chat-messages" class="chat-messages">
+                                <div class="text-secondary fs-5">Đang tải...</div>
+                            </div>
+                            <div class="border-top p-3">
+                                <div class="chat-suggestions d-flex flex-wrap gap-2 mb-2" id="chat-suggestions"></div>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="chat-input" placeholder="Nhập yêu cầu cấu hình... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendAgentChat();">
+                                    <button class="btn btn-primary" id="chat-send-btn" onclick="sendAgentChat()"><i class="ti ti-send me-1"></i> Gửi</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+    <script>
+    function showToast(msg, type = "success") {
+        const toast = document.getElementById("toast");
+        toast.textContent = msg;
+        toast.className = `toast-msg ${type} show`;
+        if (type === 'success') toast.innerHTML = `<i class="ti ti-check text-success fs-3"></i> ${msg}`;
+        else toast.innerHTML = `<i class="ti ti-alert-triangle text-danger fs-3"></i> ${msg}`;
+        setTimeout(() => { toast.classList.remove("show"); }, 3000);
+    }
+
+    let chatApiKey = null;
+    let chatHistory = [];
+
+    const CHAT_SUGGESTIONS = [
+        "Kết nối trang Facebook id 123456789 token EAAxxxx",
+        "Báo owner qua Telegram chat id 987654 khi có khách cần hỗ trợ",
+        "Xem lại cấu hình hiện tại",
+        "Đổi system prompt thành ...",
+    ];
+
+    function renderSuggestions() {
+        const el = document.getElementById("chat-suggestions");
+        el.innerHTML = CHAT_SUGGESTIONS.map((s, i) =>
+            `<button type="button" class="btn btn-outline-secondary btn-sm" onclick="useSuggestion(${i})">${escHtml(s)}</button>`
+        ).join("");
+    }
+
+    function useSuggestion(i) {
+        document.getElementById("chat-input").value = CHAT_SUGGESTIONS[i];
+        document.getElementById("chat-input").focus();
+    }
+
+    function renderChatMessages() {
+        const el = document.getElementById("chat-messages");
+        if (chatHistory.length === 0) {
+            el.innerHTML = '<div class="text-secondary fs-5">Chưa có tin nhắn nào — thử 1 gợi ý bên dưới, hoặc gõ yêu cầu của bạn.</div>';
+            return;
+        }
+        el.innerHTML = chatHistory.map(m => {
+            const cls = m.role === "user" ? "user" : (m.error ? "assistant error" : "assistant");
+            return `<div class="chat-bubble ${cls}">${escHtml(m.content).replace(/\n/g, "<br>")}</div>`;
+        }).join("");
+        el.scrollTop = el.scrollHeight;
+    }
+
+    async function sendAgentChat() {
+        const input = document.getElementById("chat-input");
+        const text = input.value.trim();
+        if (!text) return;
+        if (!chatApiKey) {
+            showToast("Chưa có API key — vào Bot Settings để tạo trước", "error");
+            return;
+        }
+        chatHistory.push({ role: "user", content: text });
+        renderChatMessages();
+        input.value = "";
+        const btn = document.getElementById("chat-send-btn");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        try {
+            const res = await fetch(`${WORKER_URL}/api/v1/agent-chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${chatApiKey}` },
+                body: JSON.stringify({ messages: chatHistory })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+            chatHistory.push({ role: "assistant", content: data.reply || "(không có phản hồi)" });
+        } catch (err) {
+            chatHistory.push({ role: "assistant", content: "Lỗi: " + err.message, error: true });
+        } finally {
+            renderChatMessages();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-send me-1"></i> Gửi';
+        }
+    }
+
+    (async () => {
+        await requireAuth();
+        renderSidebar(window.AUTH_USER);
+
+        const tenant = window.TENANT || "";
+        if (document.getElementById("nav-tenant-id")) {
+            document.getElementById("nav-tenant-id").textContent = tenant;
+        }
+
+        renderSuggestions();
+
+        try {
+            const cfg = await PB.collection("bot_configs").getFirstListItem(`tenant="${tenant}"`);
+            chatApiKey = cfg.api_key || null;
+        } catch {
+            chatApiKey = null;
+        }
+
+        if (!chatApiKey) {
+            document.getElementById("chat-messages").innerHTML =
+                `<div class="text-danger fs-5">Chưa có API key cho tenant này — vào <a href="config.html">Bot Settings</a>, bấm "Tạo / Đổi mới" ở card "API cho hệ thống ngoài" trước, rồi quay lại đây.</div>`;
+            document.getElementById("chat-input").disabled = true;
+            document.getElementById("chat-send-btn").disabled = true;
+            return;
+        }
+
+        renderChatMessages();
+    })();
+    </script>
+
+</body>
+</html>
