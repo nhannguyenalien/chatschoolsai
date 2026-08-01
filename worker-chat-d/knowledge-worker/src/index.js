@@ -1819,14 +1819,93 @@ async function recoverStalePublishing(env, pbToken, tenantFilter) {
 }
 __name(recoverStalePublishing, "recoverStalePublishing");
 
+// ================= [LỊCH ĐĂNG BÀI TỰ ĐỘNG: luật ngày/giờ theo loại nội dung] =================
+// Khách duyệt bài + chọn status="scheduled" nhưng để trống "Lên lịch lúc" (scheduled_at="") trong
+// composer.html -> bài này coi như "xếp hàng chờ lên lịch". Hàm này chạy định kỳ (piggyback lên
+// handlePublishDispatch), khớp luật đang bật với hôm nay, rồi gán giờ cụ thể cho bài xếp hàng CŨ NHẤT
+// (FIFO) của đúng loại nội dung (blog=wordpress/sanity, social=facebook/instagram/linkedin).
+var SCHEDULE_CONTENT_TYPE_PLATFORMS = {
+  blog: ["wordpress", "sanity"],
+  social: ["facebook", "instagram", "linkedin"]
+};
+
+function scheduleDayMatches(daysConfig, date) {
+  if (!Array.isArray(daysConfig) || daysConfig.length === 0 || daysConfig.includes("all")) return true;
+  const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return daysConfig.includes(dayNames[date.getDay()]);
+}
+__name(scheduleDayMatches, "scheduleDayMatches");
+
+async function assignScheduledSlots(env, tenantFilter) {
+  const pbToken = await getPbToken(env);
+  let filter = "is_active=true";
+  if (tenantFilter) filter += ` && tenant='${escFilterValue(tenantFilter)}'`;
+  const rulesRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/publish_schedules/records?perPage=200&filter=${encodeURIComponent(filter)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  if (!rulesRes.ok) return;
+  const rulesData = await rulesRes.json();
+  const now = /* @__PURE__ */ new Date();
+
+  for (const rule of rulesData.items || []) {
+    let days = [], times = [];
+    try { days = JSON.parse(rule.days || "[]"); } catch {}
+    try { times = JSON.parse(rule.times || "[]"); } catch {}
+    if (!scheduleDayMatches(days, now)) continue;
+    const platforms = SCHEDULE_CONTENT_TYPE_PLATFORMS[rule.content_type] || [];
+    if (platforms.length === 0 || times.length === 0) continue;
+    const platformExpr = platforms.map((p) => `platform='${p}'`).join(" || ");
+
+    for (const time of times) {
+      const [hh, mm] = String(time).split(":").map((n) => parseInt(n, 10));
+      if (Number.isNaN(hh) || Number.isNaN(mm)) continue;
+      const slot = new Date(now);
+      slot.setHours(hh, mm, 0, 0);
+      const slotISO = slot.toISOString();
+
+      try {
+        const existingRes = await fetchWithTimeout(
+          `${env.PB_URL}/api/collections/post_targets/records?perPage=1&filter=${encodeURIComponent(`tenant='${escFilterValue(rule.tenant)}' && (${platformExpr}) && scheduled_at='${slotISO}'`)}`,
+          { headers: { Authorization: pbToken } }
+        );
+        const existingData = await existingRes.json();
+        if ((existingData.totalItems || 0) > 0) continue;
+
+        const candidateRes = await fetchWithTimeout(
+          `${env.PB_URL}/api/collections/post_targets/records?perPage=1&sort=created&filter=${encodeURIComponent(`tenant='${escFilterValue(rule.tenant)}' && (${platformExpr}) && status='scheduled' && scheduled_at=''`)}`,
+          { headers: { Authorization: pbToken } }
+        );
+        const candidateData = await candidateRes.json();
+        const candidate = candidateData.items?.[0];
+        if (!candidate) continue;
+
+        await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records/${candidate.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: pbToken },
+          body: JSON.stringify({ scheduled_at: slotISO })
+        });
+        console.log(`[Schedule] Đ\xE3 xếp target ${candidate.id} v\xE0o slot ${slotISO} (rule ${rule.id}, tenant ${rule.tenant})`);
+      } catch (err) {
+        console.error(`[Schedule] Lỗi xử l\xFD rule ${rule.id}:`, err);
+      }
+    }
+  }
+}
+__name(assignScheduledSlots, "assignScheduledSlots");
+
 // tenantFilter tuỳ chọn — bỏ trống thì chạy cho TẤT CẢ tenant (dùng bởi cron), truyền vào thì
 // chỉ chạy đúng 1 tenant (dùng bởi /api/v1/trigger/publish khi hệ thống ngoài gọi vào).
 async function handlePublishDispatch(env, tenantFilter) {
   const pbToken = await getPbToken(env);
   await recoverStalePublishing(env, pbToken, tenantFilter);
+  await assignScheduledSlots(env, tenantFilter);
 
   const nowISO = (/* @__PURE__ */ new Date()).toISOString();
-  let filter = `(status='approved' || (status='scheduled' && scheduled_at <= '${nowISO}'))`;
+  // scheduled_at != '' LÀ BẮT BUỘC: target đang "xếp hàng chờ lên lịch tự động" (status=scheduled,
+  // scheduled_at để trống) không được coi là "đã tới giờ" — chuỗi rỗng so sánh "<=" với ngày thật
+  // có thể trả về true (so sánh chuỗi), làm đăng sớm ngoài ý muốn trước khi assignScheduledSlots kịp gán giờ.
+  let filter = `(status='approved' || (status='scheduled' && scheduled_at != '' && scheduled_at <= '${nowISO}'))`;
   if (tenantFilter) filter = `tenant='${escFilterValue(tenantFilter)}' && ${filter}`;
   const res = await fetchWithTimeout(
     `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(filter)}&expand=post_id`,
@@ -2352,6 +2431,84 @@ async function handleApiListMessages(request, env, cors, cfg) {
 }
 __name(handleApiListMessages, "handleApiListMessages");
 
+// ================= [API: LỊCH ĐĂNG BÀI TỰ ĐỘNG] =================
+async function handleApiListSchedules(env, cors, cfg) {
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/publish_schedules/records?perPage=100&sort=-created&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const data = await res.json();
+  const schedules = (data.items || []).map((s) => ({
+    id: s.id,
+    content_type: s.content_type,
+    days: (() => { try { return JSON.parse(s.days || "[]"); } catch { return []; } })(),
+    times: (() => { try { return JSON.parse(s.times || "[]"); } catch { return []; } })(),
+    is_active: !!s.is_active
+  }));
+  return new Response(JSON.stringify({ success: true, schedules }), { headers: cors });
+}
+__name(handleApiListSchedules, "handleApiListSchedules");
+
+async function handleApiCreateSchedule(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  if (!["blog", "social"].includes(body.content_type)) {
+    return new Response(JSON.stringify({ error: 'content_type phải l\xE0 "blog" hoặc "social"' }), { status: 400, headers: cors });
+  }
+  if (!Array.isArray(body.times) || body.times.length === 0) {
+    return new Response(JSON.stringify({ error: 'Thiếu times (mảng giờ dạng "HH:MM")' }), { status: 400, headers: cors });
+  }
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify({
+      tenant: cfg.tenant,
+      content_type: body.content_type,
+      days: JSON.stringify(Array.isArray(body.days) ? body.days : []),
+      times: JSON.stringify(body.times),
+      is_active: body.is_active !== false
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) return new Response(JSON.stringify({ error: "Tạo lịch thất bại" }), { status: 502, headers: cors });
+  return new Response(JSON.stringify({ success: true, id: data.id }), { headers: cors });
+}
+__name(handleApiCreateSchedule, "handleApiCreateSchedule");
+
+async function handleApiUpdateSchedule(request, env, cors, cfg, id) {
+  const body = await request.json().catch(() => ({}));
+  const patch = {};
+  if (body.content_type) patch.content_type = body.content_type;
+  if (Array.isArray(body.days)) patch.days = JSON.stringify(body.days);
+  if (Array.isArray(body.times)) patch.times = JSON.stringify(body.times);
+  if (typeof body.is_active === "boolean") patch.is_active = body.is_active;
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}?filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify(patch)
+  });
+  if (!res.ok) return new Response(JSON.stringify({ error: "Cập nhật lịch thất bại (kiểm tra id)" }), { status: 404, headers: cors });
+  return new Response(JSON.stringify({ success: true }), { headers: cors });
+}
+__name(handleApiUpdateSchedule, "handleApiUpdateSchedule");
+
+async function handleApiDeleteSchedule(env, cors, cfg, id) {
+  const pbToken = await getPbToken(env);
+  // Xác nhận record thuộc đúng tenant trước khi xoá — tránh tenant A xoá được lịch của tenant B qua id đoán mò.
+  const checkRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}`, { headers: { Authorization: pbToken } });
+  if (!checkRes.ok) return new Response(JSON.stringify({ error: "Kh\xF4ng t\xECm thấy lịch" }), { status: 404, headers: cors });
+  const record = await checkRes.json();
+  if (record.tenant !== cfg.tenant) return new Response(JSON.stringify({ error: "Kh\xF4ng c\xF3 quyền" }), { status: 403, headers: cors });
+  await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: pbToken }
+  });
+  return new Response(JSON.stringify({ success: true }), { headers: cors });
+}
+__name(handleApiDeleteSchedule, "handleApiDeleteSchedule");
+
 async function handleApiV1(request, url, env, cors, ctx) {
   const apiKey = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim() || url.searchParams.get("api_key") || "";
   const pbToken = await getPbToken(env);
@@ -2407,6 +2564,12 @@ async function handleApiV1(request, url, env, cors, ctx) {
   if (knowledgeDeleteMatch && request.method === "DELETE") return await handleApiDeleteKnowledge(env, cors, cfg, knowledgeDeleteMatch[1]);
 
   if (url.pathname === "/api/v1/messages" && request.method === "GET") return await handleApiListMessages(request, env, cors, cfg);
+
+  if (url.pathname === "/api/v1/schedules" && request.method === "GET") return await handleApiListSchedules(env, cors, cfg);
+  if (url.pathname === "/api/v1/schedules" && request.method === "POST") return await handleApiCreateSchedule(request, env, cors, cfg);
+  const scheduleMatch = url.pathname.match(/^\/api\/v1\/schedules\/([^/]+)$/);
+  if (scheduleMatch && request.method === "PATCH") return await handleApiUpdateSchedule(request, env, cors, cfg, scheduleMatch[1]);
+  if (scheduleMatch && request.method === "DELETE") return await handleApiDeleteSchedule(env, cors, cfg, scheduleMatch[1]);
 
   return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
 }

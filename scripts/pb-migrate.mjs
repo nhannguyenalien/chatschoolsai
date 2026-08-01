@@ -260,6 +260,29 @@ async function migrateAgentChatMessages(token) {
   });
 }
 
+async function migratePublishSchedules(token) {
+  console.log("\n[publish_schedules] — collection MỚI, luật lên lịch tự động theo ngày/giờ cho từng loại nội dung");
+  const existing = await getCollectionByName(token, "publish_schedules");
+  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  console.log("  + tạo collection mới");
+  await createCollection(token, {
+    name: "publish_schedules",
+    type: "base",
+    schema: [
+      { name: "tenant", type: "text", required: true, options: {} },
+      { name: "content_type", type: "select", required: true, options: { maxSelect: 1, values: ["blog", "social"] } },
+      { name: "days", type: "text", required: false, options: {} },
+      { name: "times", type: "text", required: false, options: {} },
+      { name: "is_active", type: "bool", required: false, options: {} },
+    ],
+    listRule: '@request.auth.id != ""',
+    viewRule: '@request.auth.id != ""',
+    createRule: '@request.auth.id != ""',
+    updateRule: '@request.auth.id != ""',
+    deleteRule: '@request.auth.id != ""',
+  });
+}
+
 (async () => {
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
@@ -273,6 +296,7 @@ async function migrateAgentChatMessages(token) {
   await migrateAgentLogs(token);
   await migrateAgentTools(token);
   await migrateAgentChatMessages(token);
+  await migratePublishSchedules(token);
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
 })().catch((err) => {

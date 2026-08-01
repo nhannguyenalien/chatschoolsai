@@ -85,6 +85,7 @@
                         <li class="nav-item"><a href="#tab-posts" class="nav-link active" data-bs-toggle="tab">Bài viết</a></li>
                         <li class="nav-item"><a href="#tab-media" class="nav-link" data-bs-toggle="tab">Thư viện Media</a></li>
                         <li class="nav-item"><a href="#tab-rss" class="nav-link" data-bs-toggle="tab">RSS &amp; Prompt AI</a></li>
+                        <li class="nav-item"><a href="#tab-schedule" class="nav-link" data-bs-toggle="tab">Lịch đăng bài</a></li>
                     </ul>
 
                     <div class="tab-content">
@@ -166,6 +167,65 @@
                                         <div class="card-body">
                                             <div class="text-secondary fs-5 mb-3">n8n đọc các nguồn đang "Hoạt động" để crawl, gắn với prompt tương ứng.</div>
                                             <div id="rss-list" class="d-flex flex-column gap-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===== TAB LỊCH ĐĂNG BÀI ===== -->
+                        <div class="tab-pane" id="tab-schedule">
+                            <div class="row row-cards">
+                                <div class="col-lg-5">
+                                    <div class="card mb-4">
+                                        <div class="card-header border-bottom-0 pb-0">
+                                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                                <i class="ti ti-calendar-time text-primary fs-2"></i> Thêm luật lên lịch
+                                            </h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="text-secondary fs-5 mb-3">Bài đã duyệt và chọn trạng thái "Đã lên lịch" nhưng để trống giờ cụ thể sẽ tự động được xếp vào khung giờ gần nhất khớp luật bên dưới.</div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Loại nội dung</label>
+                                                <select id="sched-content-type" class="form-select">
+                                                    <option value="blog">Blog (WordPress/Sanity)</option>
+                                                    <option value="social">Social (Facebook/Instagram/LinkedIn)</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Ngày áp dụng</label>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="mon"><span class="form-check-label">T2</span></label>
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="tue"><span class="form-check-label">T3</span></label>
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="wed"><span class="form-check-label">T4</span></label>
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="thu"><span class="form-check-label">T5</span></label>
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="fri"><span class="form-check-label">T6</span></label>
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="sat"><span class="form-check-label">T7</span></label>
+                                                    <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="sun"><span class="form-check-label">CN</span></label>
+                                                </div>
+                                                <small class="form-hint mt-1">Không chọn ngày nào = áp dụng hàng ngày.</small>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Giờ đăng (mỗi giờ = 1 bài/ngày)</label>
+                                                <div class="input-group mb-2">
+                                                    <input type="time" id="sched-time-input" class="form-control" value="09:00">
+                                                    <button type="button" class="btn btn-outline-primary" onclick="addScheduleTimeChip()"><i class="ti ti-plus"></i></button>
+                                                </div>
+                                                <div id="sched-time-chips" class="d-flex flex-wrap gap-2"></div>
+                                            </div>
+                                            <button class="btn btn-primary btn-sm" onclick="saveScheduleRule()"><i class="ti ti-plus me-1"></i> Thêm luật</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-7">
+                                    <div class="card mb-4">
+                                        <div class="card-header border-bottom-0 pb-0">
+                                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                                <i class="ti ti-list-check text-primary fs-2"></i> Luật đang áp dụng
+                                            </h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="schedule-list" class="d-flex flex-column gap-2">Đang tải...</div>
                                         </div>
                                     </div>
                                 </div>
@@ -427,7 +487,119 @@
         await loadRss();
         await loadMediaLibrary();
         await loadPosts();
+        await loadSchedules();
     })();
+
+    // ═══════════════════════════════════════
+    // LỊCH ĐĂNG BÀI TỰ ĐỘNG
+    // ═══════════════════════════════════════
+    const DAY_LABEL = { mon:'T2', tue:'T3', wed:'T4', thu:'T5', fri:'T6', sat:'T7', sun:'CN' };
+    const CONTENT_TYPE_LABEL = { blog: 'Blog', social: 'Social' };
+    let scheduleTimeChips = [];
+    let schedulesCache = [];
+
+    function addScheduleTimeChip() {
+        const val = document.getElementById('sched-time-input').value;
+        if (!val) return;
+        if (!scheduleTimeChips.includes(val)) {
+            scheduleTimeChips.push(val);
+            scheduleTimeChips.sort();
+        }
+        renderScheduleTimeChips();
+    }
+
+    function removeScheduleTimeChip(t) {
+        scheduleTimeChips = scheduleTimeChips.filter(x => x !== t);
+        renderScheduleTimeChips();
+    }
+
+    function renderScheduleTimeChips() {
+        const el = document.getElementById('sched-time-chips');
+        el.innerHTML = scheduleTimeChips.map(t => `
+            <span class="badge bg-primary-lt d-flex align-items-center gap-1">${t}
+              <i class="ti ti-x" style="cursor:pointer" onclick="removeScheduleTimeChip('${t}')"></i>
+            </span>`).join('');
+    }
+
+    async function saveScheduleRule() {
+        if (scheduleTimeChips.length === 0) {
+            showToast('Thêm ít nhất 1 giờ đăng', 'error');
+            return;
+        }
+        const contentType = document.getElementById('sched-content-type').value;
+        const days = [...document.querySelectorAll('.sched-day:checked')].map(el => el.value);
+        try {
+            await PB.collection('publish_schedules').create({
+                tenant: window.TENANT,
+                content_type: contentType,
+                days: JSON.stringify(days),
+                times: JSON.stringify(scheduleTimeChips),
+                is_active: true
+            });
+            showToast('Đã thêm luật lên lịch', 'success');
+            scheduleTimeChips = [];
+            renderScheduleTimeChips();
+            document.querySelectorAll('.sched-day').forEach(el => el.checked = false);
+            await loadSchedules();
+        } catch (err) {
+            showToast('Lỗi thêm luật: ' + err.message, 'error');
+        }
+    }
+
+    async function toggleScheduleRule(id, current) {
+        try {
+            await PB.collection('publish_schedules').update(id, { is_active: !current });
+            await loadSchedules();
+        } catch (err) {
+            showToast('Lỗi cập nhật: ' + err.message, 'error');
+        }
+    }
+
+    async function deleteScheduleRule(id) {
+        if (!confirm('Xóa luật lên lịch này?')) return;
+        try {
+            await PB.collection('publish_schedules').delete(id);
+            await loadSchedules();
+        } catch (err) {
+            showToast('Lỗi xóa: ' + err.message, 'error');
+        }
+    }
+
+    async function loadSchedules() {
+        const el = document.getElementById('schedule-list');
+        try {
+            schedulesCache = await PB.collection('publish_schedules').getFullList({
+                sort: '-created',
+                filter: `tenant = "${window.TENANT}"`
+            });
+            if (schedulesCache.length === 0) {
+                el.innerHTML = '<div class="text-secondary fs-5">Chưa có luật nào — thêm ở form bên trái.</div>';
+                return;
+            }
+            el.innerHTML = schedulesCache.map(s => {
+                let days = [], times = [];
+                try { days = JSON.parse(s.days || '[]'); } catch {}
+                try { times = JSON.parse(s.times || '[]'); } catch {}
+                const daysText = days.length ? days.map(d => DAY_LABEL[d] || d).join(', ') : 'Hàng ngày';
+                return `
+                <div class="border rounded p-2 d-flex align-items-start gap-2">
+                    <i class="ti ${s.is_active ? 'ti-calendar-time text-success' : 'ti-calendar-off text-secondary'} fs-3 mt-1"></i>
+                    <div class="flex-fill">
+                        <div class="fw-medium">${CONTENT_TYPE_LABEL[s.content_type] || s.content_type} <span class="badge bg-secondary-lt ms-1">${escHtml(daysText)}</span></div>
+                        <div class="text-secondary fs-6">Giờ đăng: ${times.map(t => escHtml(t)).join(', ')}</div>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleScheduleRule('${s.id}', ${s.is_active ? 'true' : 'false'})" title="${s.is_active ? 'Tắt' : 'Bật'}">
+                            <i class="ti ${s.is_active ? 'ti-pause' : 'ti-play'}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteScheduleRule('${s.id}')" title="Xóa"><i class="ti ti-trash"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (err) {
+            el.innerHTML = `<div class="text-danger fs-5">Lỗi tải danh sách: ${escHtml(err.message)}</div>`;
+        }
+    }
 
     async function loadPagesConfigForTargets() {
         try {
@@ -556,6 +728,7 @@
             <div class="col-md-4">
               <label class="form-label">Lên lịch lúc</label>
               <input type="datetime-local" class="form-control target-scheduled" value="${t.scheduled_at ? toLocalDatetime(t.scheduled_at) : ''}">
+              <small class="form-hint mt-1">Để trống + trạng thái "Đã lên lịch" = tự động xếp vào khung giờ gần nhất theo luật ở tab "Lịch đăng bài".</small>
             </div>
             <div class="col-md-12">
               <label class="form-label">Lỗi (error_log)</label>

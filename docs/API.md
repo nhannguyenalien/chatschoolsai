@@ -201,6 +201,30 @@ Cũng gọi được ngay trong **Chat với Agent** (`agent-chat.html`) bằng 
 
 ---
 
+## `GET/POST /api/v1/schedules`, `PATCH/DELETE /api/v1/schedules/:id` — Lịch đăng bài tự động
+
+Luật ngày/giờ để tự động xếp bài đã duyệt vào 1 cadence đều đặn, theo từng loại nội dung — thay vì đăng ngay khi duyệt.
+
+**Cách hoạt động:** duyệt 1 bài trong `composer.html`, chọn trạng thái "Đã lên lịch" (`scheduled`) nhưng **để trống** ô giờ cụ thể → bài này ở trạng thái "chờ xếp lịch". Cứ mỗi 15 phút (cùng nhịp với publish dispatch), hệ thống khớp các luật đang bật với hôm nay, rồi gán giờ cụ thể cho bài chờ CŨ NHẤT (FIFO) của đúng loại nội dung vào từng khung giờ trống.
+
+`content_type`: `"blog"` (áp dụng cho target platform `wordpress`/`sanity`) hoặc `"social"` (`facebook`/`instagram`/`linkedin`).
+
+Request tạo luật:
+```json
+{ "content_type": "blog", "days": ["mon", "wed", "fri"], "times": ["09:00"], "is_active": true }
+```
+- `days`: mảng trong `["mon","tue","wed","thu","fri","sat","sun"]`. Để trống `[]` = áp dụng hàng ngày.
+- `times`: mảng giờ `"HH:MM"` — **mỗi giờ = 1 bài/ngày áp dụng**. Vd `["08:00","12:00","18:00"]` = 3 bài social/ngày.
+
+Response GET:
+```json
+{ "success": true, "schedules": [{ "id": "...", "content_type": "blog", "days": ["mon","wed","fri"], "times": ["09:00"], "is_active": true }] }
+```
+
+Quản lý trực quan hơn ở tab "Lịch đăng bài" trong `composer.html`.
+
+---
+
 ## `POST /api/v1/chat` — Gọi chatbot
 
 Gửi 1 câu hỏi, nhận câu trả lời AI ngay trong response (giống hệt widget chat, nhưng xác thực bằng API key thay vì để tenant tự khai trong body). Dùng khi hệ thống ngoài muốn tự hỏi bot thay vì nhúng widget.
@@ -369,6 +393,7 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 | Bài đăng social | `POST/GET /api/v1/posts`, `POST /api/v1/posts/:id/approve`, `GET /api/v1/status`, `POST /api/v1/trigger/rss-crawl`, `POST /api/v1/trigger/publish` | API key riêng tenant |
 | Agent tự quyết định | `POST /api/v1/trigger/agent` | API key riêng tenant |
 | Cụm bài blog dài chuẩn SEO (WordPress/Sanity) | `POST /api/v1/content-cluster` | API key riêng tenant |
+| Lịch đăng bài tự động | `GET/POST /api/v1/schedules`, `PATCH/DELETE /api/v1/schedules/:id` | API key riêng tenant |
 | Chat với Trợ lý cấu hình | `POST /api/v1/agent-chat`, `GET /api/v1/agent-chat/tools` | API key riêng tenant |
 | Chatbot | `POST /api/v1/chat` | API key riêng tenant |
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |

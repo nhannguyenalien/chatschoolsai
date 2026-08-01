@@ -231,5 +231,25 @@
     "updateRule": "@request.auth.id != \"\"",
     "deleteRule": "@request.auth.id != \"\"",
     "options": {}
+  },
+  {
+    "id": "publishsched01",
+    "name": "publish_schedules",
+    "type": "base",
+    "system": false,
+    "schema": [
+      { "system": false, "id": "ps_tenant", "name": "tenant", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "ps_contenttype", "name": "content_type", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["blog", "social"] } },
+      { "system": false, "id": "ps_days", "name": "days", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "ps_times", "name": "times", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "ps_active", "name": "is_active", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "@request.auth.id != \"\"",
+    "deleteRule": "@request.auth.id != \"\"",
+    "options": {}
   }
 ]
