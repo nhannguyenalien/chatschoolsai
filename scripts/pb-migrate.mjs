@@ -95,11 +95,11 @@ function ensureSelectValues(schema, fieldName, newValues) {
 }
 
 async function migratePagesConfig(token) {
-  console.log("\n[pages_config] — thêm WhatsApp/Zalo/Khác + extra_config (dùng cho sm-config.html)");
+  console.log("\n[pages_config] — thêm WhatsApp/Zalo/WordPress/Sanity/Khác + extra_config (dùng cho sm-config.html)");
   const col = await getCollectionByName(token, "pages_config");
   if (!col) { console.log("  ! collection không tồn tại — kiểm tra lại tên, bỏ qua"); return; }
   let schema = col.schema;
-  schema = ensureSelectValues(schema, "platform", ["facebook", "instagram", "whatsapp", "zalo", "other"]);
+  schema = ensureSelectValues(schema, "platform", ["facebook", "instagram", "whatsapp", "zalo", "wordpress", "sanity", "other"]);
   schema = ensureField(schema, { name: "extra_config", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   await patchCollection(token, col.id, { schema });
 }
@@ -140,20 +140,26 @@ async function migrateSessionSummaries(token) {
 }
 
 async function migratePosts(token) {
-  console.log("\n[posts] — thêm field source_url (dùng để chống crawl trùng bài từ RSS)");
+  console.log("\n[posts] — thêm source_url + cluster_id/slug/meta_title/meta_description/focus_keyword (dùng cho cụm bài blog dài chuẩn SEO)");
   const col = await getCollectionByName(token, "posts");
   if (!col) { console.log("  ! collection không tồn tại, bỏ qua"); return; }
   let schema = col.schema;
   schema = ensureField(schema, { name: "source_url", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "cluster_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "slug", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "meta_title", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "meta_description", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "focus_keyword", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   await patchCollection(token, col.id, { schema });
 }
 
 async function migratePostTargets(token) {
-  console.log("\n[post_targets] — thêm status 'publishing' (chống đăng trùng khi 2 lần cron chồng nhau)");
+  console.log("\n[post_targets] — thêm status 'publishing' + platform wordpress/sanity");
   const col = await getCollectionByName(token, "post_targets");
   if (!col) { console.log("  ! collection không tồn tại, bỏ qua"); return; }
   let schema = col.schema;
   schema = ensureSelectValues(schema, "status", ["pending", "approved", "scheduled", "publishing", "published", "error"]);
+  schema = ensureSelectValues(schema, "platform", ["facebook", "instagram", "linkedin", "wordpress", "sanity"]);
   await patchCollection(token, col.id, { schema });
 }
 

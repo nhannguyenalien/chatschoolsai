@@ -6,7 +6,7 @@
     "system": false,
     "schema": [
       { "system": false, "id": "pages_tenant_01", "name": "tenant", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
-      { "system": false, "id": "pages_platform_01", "name": "platform", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["facebook", "instagram", "whatsapp", "zalo", "other"] } },
+      { "system": false, "id": "pages_platform_01", "name": "platform", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["facebook", "instagram", "whatsapp", "zalo", "wordpress", "sanity", "other"] } },
       { "system": false, "id": "pages_label_01", "name": "label", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "pages_pageid_01", "name": "page_id", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "pages_token_01", "name": "access_token", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
@@ -109,7 +109,12 @@
       { "system": false, "id": "post_imgprompt_01", "name": "image_prompt", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "post_vidprompt_01", "name": "video_prompt", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "post_altimg_01", "name": "alt_img", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
-      { "system": false, "id": "post_sourceurl_01", "name": "source_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
+      { "system": false, "id": "post_sourceurl_01", "name": "source_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_clusterid_01", "name": "cluster_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_slug_01", "name": "slug", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_metatitle_01", "name": "meta_title", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_metadesc_01", "name": "meta_description", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_focuskw_01", "name": "focus_keyword", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
     "listRule": "@request.auth.id != \"\"",
@@ -126,7 +131,7 @@
     "system": false,
     "schema": [
       { "system": false, "id": "target_post_id", "name": "post_id", "type": "relation", "required": true, "presentable": false, "unique": false, "options": { "collectionId": "posts_col_001", "cascadeDelete": true, "minSelect": null, "maxSelect": 1, "displayFields": null } },
-      { "system": false, "id": "target_platform", "name": "platform", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["facebook", "instagram", "linkedin"] } },
+      { "system": false, "id": "target_platform", "name": "platform", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["facebook", "instagram", "linkedin", "wordpress", "sanity"] } },
       { "system": false, "id": "target_status", "name": "status", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["pending", "approved", "scheduled", "publishing", "published", "error"] } },
       { "system": false, "id": "target_time", "name": "scheduled_at", "type": "date", "required": false, "presentable": false, "unique": false, "options": { "min": "", "max": "" } },
       { "system": false, "id": "target_page_id", "name": "page_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },

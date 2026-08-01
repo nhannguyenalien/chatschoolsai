@@ -75,6 +75,8 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="instagram" onclick="switchPlatformTab('instagram', this)"><i class="ti ti-brand-instagram me-1"></i>Instagram</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="whatsapp" onclick="switchPlatformTab('whatsapp', this)"><i class="ti ti-brand-whatsapp me-1"></i>WhatsApp</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="zalo" onclick="switchPlatformTab('zalo', this)"><i class="ti ti-message-circle me-1"></i>Zalo</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="wordpress" onclick="switchPlatformTab('wordpress', this)"><i class="ti ti-brand-wordpress me-1"></i>WordPress</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="sanity" onclick="switchPlatformTab('sanity', this)"><i class="ti ti-hexagon me-1"></i>Sanity</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="other" onclick="switchPlatformTab('other', this)"><i class="ti ti-api me-1"></i>Khác</a></li>
                     </ul>
 
@@ -117,6 +119,8 @@
                 <option value="instagram">Instagram</option>
                 <option value="whatsapp">WhatsApp</option>
                 <option value="zalo">Zalo</option>
+                <option value="wordpress">WordPress</option>
+                <option value="sanity">Sanity</option>
                 <option value="other">Khác (API chat ngoài)</option>
               </select>
             </div>
@@ -176,11 +180,21 @@
         instagram: 'Instagram Business Account ID',
         whatsapp: 'Phone Number ID',
         zalo: 'Official Account (OA) ID',
+        wordpress: 'Site URL (vd: https://example.com)',
+        sanity: 'projectId:dataset (vd: abc123:production)',
         other: 'ID kênh / Account ID',
+    };
+    const TOKEN_HINTS = {
+        wordpress: 'username:application_password (tạo ở WP Admin → Users → Profile → Application Passwords)',
+        sanity: 'API token (tạo ở sanity.io/manage → project → API → Tokens, quyền Editor trở lên)',
+    };
+    const EXTRA_HINTS = {
+        sanity: 'Tuỳ chọn — chỉnh tên document type/field cho khớp schema riêng của bạn: {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}. Bỏ trống = dùng mặc định trên.',
     };
     const PLATFORM_ICON = {
         facebook: 'ti-brand-facebook', instagram: 'ti-brand-instagram',
-        whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle', other: 'ti-api',
+        whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle',
+        wordpress: 'ti-brand-wordpress', sanity: 'ti-hexagon', other: 'ti-api',
     };
 
     let pagesConfigCache = [];
@@ -249,6 +263,9 @@
     function updatePageFieldLabels() {
         const platform = document.getElementById('page-platform').value;
         document.getElementById('page-pageid-label').textContent = PAGEID_LABELS[platform] || 'ID';
+        document.getElementById('page-token').placeholder = TOKEN_HINTS[platform] || '';
+        document.getElementById('page-extra-hint').textContent = EXTRA_HINTS[platform]
+            || 'Dùng cho các field đặc thù của từng platform (app secret, verify token, webhook...).';
     }
 
     function openPageModal(pc) {

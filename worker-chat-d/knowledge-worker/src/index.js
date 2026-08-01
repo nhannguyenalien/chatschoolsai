@@ -3,7 +3,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 
 // src/index.js
 var index_default = {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const cors = {
       "Access-Control-Allow-Origin": "*",
@@ -43,7 +43,7 @@ var index_default = {
         return await handleTelegramWebhook(request, env2);
       }
       if (url.pathname.startsWith("/api/v1/")) {
-        return await handleApiV1(request, url, env2, cors);
+        return await handleApiV1(request, url, env2, cors, ctx);
       }
       return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
     } catch (err) {
@@ -1126,6 +1126,175 @@ async function uploadImageToMediaLibrary(env, pbToken, tenant, base64Image, labe
 }
 __name(uploadImageToMediaLibrary, "uploadImageToMediaLibrary");
 
+// ================= [CỤM BÀI BLOG DÀI CHUẨN SEO: 1 chủ đề -> N bài liên kết nội bộ] =================
+// Tái dùng đúng workspace "content-writer" + cơ chế extractJsonObject/sanitizeJsonNewlines đã có,
+// chỉ đổi system prompt cho từng bước (lên plan / viết bài) — không tạo workspace mới.
+var CLUSTER_PLAN_SYSTEM_PROMPT = "Bạn l\xE0 chuy\xEAn gia content strategist SEO, giỏi l\xEAn kế hoạch cụm b\xE0i (topic cluster/content silo) cho blog.";
+var CLUSTER_PLAN_OUTPUT_INSTRUCTION = `
+
+QUAN TRỌNG: Chỉ trả lời đ\xFAng 1 JSON object, kh\xF4ng th\xEAm chữ n\xE0o kh\xE1c, kh\xF4ng d\xF9ng markdown code fence:
+{"posts":[{"role":"pillar","title":"...","slug":"...","outline":["H2 ...","H2 ..."],"focus_keyword":"..."}, ...]}
+- Đ\xFAng 1 b\xE0i role="pillar" (b\xE0i trụ, tổng quan, d\xE0i nhất), c\xE1c b\xE0i c\xF2n lại role="cluster" (b\xE0i vệ tinh, đi s\xE2u 1 kh\xEDa cạnh, sẽ link về b\xE0i trụ).
+- slug: chữ thường, kh\xF4ng dấu, c\xE1ch nhau bằng dấu gạch ngang, kh\xF4ng chứa k\xFD tự đặc biệt, duy nhất trong cụm.
+- outline: mảng c\xE1c heading H2 ch\xEDnh của b\xE0i (4-6 heading), tiếng Việt.
+- focus_keyword: từ kh\xF3a SEO ch\xEDnh của ri\xEAng b\xE0i đ\xF3.`;
+
+async function generateContentClusterPlan(env, tenant, topic, count) {
+  const systemPrompt = CLUSTER_PLAN_SYSTEM_PROMPT + CLUSTER_PLAN_OUTPUT_INSTRUCTION;
+  await ensureContentWorkspace(env, systemPrompt, 0.6);
+  const userMessage = `Chủ đề cụm b\xE0i: "${topic}"
+L\xEAn kế hoạch đ\xFAng ${count} b\xE0i (1 pillar + ${count - 1} cluster).`;
+  const res = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${CONTENT_WORKSPACE}/chat`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.ANYTHINGLLM_API_KEY}`, "Content-Type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ message: userMessage, mode: "chat", sessionId: `cluster_plan_${Date.now()}_${Math.random().toString(36).slice(2)}` }),
+    timeout: 6e4
+  });
+  if (!res.ok) throw new Error(`Lỗi l\xEAn plan cụm b\xE0i: HTTP ${res.status}`);
+  const data = await res.json();
+  const parsed = extractJsonObject(data.textResponse);
+  const posts = Array.isArray(parsed.posts) ? parsed.posts : [];
+  if (posts.length === 0) throw new Error("AI kh\xF4ng trả về plan hợp lệ");
+  const seenSlugs = /* @__PURE__ */ new Set();
+  for (const p of posts) {
+    const base = String(p.slug || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "bai-viet";
+    let finalSlug = base;
+    let i = 2;
+    while (seenSlugs.has(finalSlug)) finalSlug = `${base}-${i++}`;
+    seenSlugs.add(finalSlug);
+    p.slug = finalSlug;
+  }
+  return posts;
+}
+__name(generateContentClusterPlan, "generateContentClusterPlan");
+
+var CLUSTER_ARTICLE_SYSTEM_PROMPT = "Bạn l\xE0 chuy\xEAn gia viết blog SEO chuy\xEAn nghiệp, viết b\xE0i d\xE0i, chuẩn cấu tr\xFAc, tự nhi\xEAn, kh\xF4ng nhồi nh\xE9t từ kh\xF3a.";
+var CLUSTER_ARTICLE_OUTPUT_INSTRUCTION = `
+
+QUAN TRỌNG: Chỉ trả lời đ\xFAng 1 JSON object, kh\xF4ng th\xEAm chữ n\xE0o kh\xE1c, kh\xF4ng d\xF9ng markdown code fence:
+{"content":"...","meta_title":"...","meta_description":"...","image_prompt":"..."}
+- content: b\xE0i viết HTML đầy đủ (d\xF9ng <h2>, <h3>, <p>, <ul>/<li> hợp l\xFD theo outline), đủ d\xE0i (800-1200 từ), TỰ NHI\xCAN chèn 2-3 link nội bộ dạng <a href="/{slug}">anchor text</a> tới c\xE1c b\xE0i li\xEAn quan được liệt k\xEA b\xEAn dưới, ở chỗ hợp l\xFD về ngữ cảnh — kh\xF4ng chèn gượng \xE9p, kh\xF4ng liệt k\xEA link ở cuối b\xE0i.
+  Nếu content c\xF3 xuống d\xF2ng b\xEAn trong chuỗi JSON, BẮT BUỘC d\xF9ng \\n (escape đ\xFAng chuẩn JSON) thay v\xEC xuống d\xF2ng thật.
+- meta_title: tối đa 60 k\xFD tự, chứa từ kh\xF3a ch\xEDnh.
+- meta_description: tối đa 155 k\xFD tự, hấp dẫn, chứa từ kh\xF3a ch\xEDnh.
+- image_prompt: m\xF4 tả ảnh minh hoạ (tiếng Anh), để trống nếu kh\xF4ng cần.`;
+
+async function generateClusterArticleContent(env, item, siblings) {
+  const systemPrompt = CLUSTER_ARTICLE_SYSTEM_PROMPT + CLUSTER_ARTICLE_OUTPUT_INSTRUCTION;
+  await ensureContentWorkspace(env, systemPrompt, 0.7);
+  const siblingList = siblings.map((s) => `- "${s.title}" -> /${s.slug}`).join("\n") || "(kh\xF4ng c\xF3)";
+  const userMessage = `Ti\xEAu đề b\xE0i: ${item.title}
+Từ kh\xF3a ch\xEDnh: ${item.focus_keyword || ""}
+D\xE0n \xFD (H2) cần b\xE1m theo:
+${(item.outline || []).map((h) => `- ${h}`).join("\n")}
+
+C\xE1c b\xE0i LI\xCAN QUAN trong c\xF9ng cụm chủ đề (chèn link nội bộ tới 2-3 b\xE0i ph\xF9 hợp nhất trong số n\xE0y, kh\xF4ng phải tất cả):
+${siblingList}`;
+  const res = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${CONTENT_WORKSPACE}/chat`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.ANYTHINGLLM_API_KEY}`, "Content-Type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ message: userMessage, mode: "chat", sessionId: `cluster_article_${Date.now()}_${Math.random().toString(36).slice(2)}` }),
+    timeout: 9e4
+  });
+  if (!res.ok) throw new Error(`Lỗi viết b\xE0i "${item.title}": HTTP ${res.status}`);
+  const data = await res.json();
+  const parsed = extractJsonObject(data.textResponse);
+  return {
+    content: String(parsed.content || ""),
+    meta_title: String(parsed.meta_title || item.title).slice(0, 70),
+    meta_description: String(parsed.meta_description || "").slice(0, 160),
+    image_prompt: String(parsed.image_prompt || "")
+  };
+}
+__name(generateClusterArticleContent, "generateClusterArticleContent");
+
+// Viết toàn bộ N bài của 1 cụm — chạy NỀN qua ctx.waitUntil (xem startContentCluster), vì viết
+// 5-8 bài dài + sinh ảnh có thể mất vài phút, không thể để client chờ trong 1 request.
+async function writeClusterArticles(env, tenant, clusterId, plan) {
+  const pbToken = await getPbToken(env);
+  const pagesRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/pages_config/records?perPage=100&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true && (platform='wordpress' || platform='sanity')`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const pagesData = await pagesRes.json();
+  const activePages = pagesData.items || [];
+
+  for (const item of plan) {
+    try {
+      const siblings = plan.filter((p) => p.slug !== item.slug).map((p) => ({ title: p.title, slug: p.slug }));
+      const article = await generateClusterArticleContent(env, item, siblings);
+      if (!article.content) continue;
+
+      const postRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/posts/records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify({
+          tenant,
+          title: item.title,
+          content: article.content,
+          cluster_id: clusterId,
+          slug: item.slug,
+          meta_title: article.meta_title,
+          meta_description: article.meta_description,
+          focus_keyword: item.focus_keyword || "",
+          image_prompt: article.image_prompt
+        })
+      });
+      const post = await postRes.json();
+      if (!post.id) continue;
+
+      if (article.image_prompt) {
+        try {
+          const b64Image = await generateImageWithDallE(env, article.image_prompt);
+          if (b64Image) {
+            const imageUrl = await uploadImageToMediaLibrary(env, pbToken, tenant, b64Image, item.title, article.image_prompt);
+            if (imageUrl) {
+              await fetchWithTimeout(`${env.PB_URL}/api/collections/media/records`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: pbToken },
+                body: JSON.stringify({ tenant, post_id: post.id, url: imageUrl, type: "image", order: 0 })
+              });
+            }
+          }
+        } catch (err) {
+          console.error(`[ContentCluster] Lỗi tạo ảnh cho "${item.title}":`, err);
+        }
+      }
+
+      for (const page of activePages) {
+        await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: pbToken },
+          body: JSON.stringify({ tenant, post_id: post.id, platform: page.platform, page_id: page.page_id, status: "pending" })
+        });
+      }
+      console.log(`[ContentCluster] Đ\xE3 viết xong "${item.title}" (${item.slug})`);
+    } catch (err) {
+      console.error(`[ContentCluster] Lỗi b\xE0i "${item.title}":`, err);
+    }
+  }
+}
+__name(writeClusterArticles, "writeClusterArticles");
+
+// Trả lời NGAY sau khi lên xong plan (nhanh, 1 lệnh gọi AI) — việc viết N bài dài chạy nền qua
+// ctx.waitUntil, không chặn response. Bài sẽ xuất hiện dần trong composer.html để duyệt.
+async function startContentCluster(env, tenant, topic, count, ctx) {
+  const n = Math.max(2, Math.min(8, parseInt(count) || 5));
+  const plan = await generateContentClusterPlan(env, tenant, topic, n);
+  const clusterId = `cl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const writeJob = writeClusterArticles(env, tenant, clusterId, plan).catch((err) => {
+    console.error(`[ContentCluster] Lỗi cụm "${topic}":`, err);
+  });
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(writeJob);
+  else await writeJob;
+  return {
+    cluster_id: clusterId,
+    planned: plan.map((p) => ({ title: p.title, slug: p.slug, role: p.role })),
+    message: `Đang viết ${plan.length} b\xE0i trong nền, sẽ xuất hiện trong composer.html sau v\xE0i ph\xFAt để bạn duyệt trước khi đăng.`
+  };
+}
+__name(startContentCluster, "startContentCluster");
+
 async function processOneRssSource(env, pbToken, source) {
   const aiPrompt = source.expand?.prompt_id;
   if (!aiPrompt) {
@@ -1373,6 +1542,187 @@ async function publishToInstagram(page, post, media) {
 }
 __name(publishToInstagram, "publishToInstagram");
 
+// ================= [ĐĂNG WORDPRESS] =================
+// page.page_id = site URL (vd https://example.com), page.access_token = "username:application_password"
+// (Application Password tạo trong WP Admin -> Users -> Profile -> Application Passwords).
+async function publishToWordPress(page, post, media) {
+  const site = String(page.page_id || "").replace(/\/+$/, "");
+  if (!site) throw new Error('Thiếu WordPress site URL (điền v\xE0o "Page/Account ID" ở sm-config.html)');
+  const [wpUser, wpAppPassword] = String(page.access_token || "").split(":");
+  if (!wpUser || !wpAppPassword) throw new Error('access_token WordPress phải theo dạng "username:application_password"');
+  const authHeader = `Basic ${btoa(`${wpUser}:${wpAppPassword}`)}`;
+
+  let featuredMediaId = null;
+  if (media && media.url) {
+    try {
+      const imgRes = await fetchWithTimeout(media.url, { timeout: 3e4 });
+      const imgBuf = await imgRes.arrayBuffer();
+      const uploadRes = await fetchWithTimeout(`${site}/wp-json/wp/v2/media`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": imgRes.headers.get("content-type") || "image/png",
+          "Content-Disposition": `attachment; filename="${post.slug || "image"}.png"`
+        },
+        body: imgBuf,
+        timeout: 3e4
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadRes.ok && uploadData.id) featuredMediaId = uploadData.id;
+      else console.error("[WordPress] Upload ảnh thất bại:", uploadData);
+    } catch (err) {
+      console.error("[WordPress] Lỗi upload ảnh:", err);
+    }
+  }
+
+  const body = { title: post.title, content: post.content, status: "publish", excerpt: post.meta_description || "" };
+  if (post.slug) body.slug = post.slug;
+  if (featuredMediaId) body.featured_media = featuredMediaId;
+
+  const res = await fetchWithTimeout(`${site}/wp-json/wp/v2/posts`, {
+    method: "POST",
+    headers: { Authorization: authHeader, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    timeout: 3e4
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || `WordPress API lỗi ${res.status}`);
+  return data.link || String(data.id);
+}
+__name(publishToWordPress, "publishToWordPress");
+
+// ================= [ĐĂNG SANITY] =================
+// page.page_id = "projectId:dataset", page.access_token = Sanity API token (quyền Editor trở lên).
+// page.extra_config (JSON, tuỳ chọn) override tên document type/field cho đúng schema riêng của bạn:
+// {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}
+var SANITY_API_VERSION = "v2021-06-07";
+
+// Như stripHtml nhưng KHÔNG trim — dùng nội bộ khi ghép nhiều đoạn text lại với nhau (xem bên dưới),
+// vì trim() từng đoạn sẽ ăn mất khoảng trắng ở ranh giới giữa text thường và link, làm chữ dính liền nhau.
+function collapseWs(s) {
+  return String(s || "").replace(/<[^>]+>/g, " ").replace(/[ \t\n\r]+/g, " ");
+}
+__name(collapseWs, "collapseWs");
+
+// Chuyển 1 đoạn HTML (chỉ chứa text + <a href>) thành children/markDefs của 1 block Portable Text —
+// giữ lại link nội bộ thật (mark "link"), không chỉ hiện chữ suông.
+function textToPortableTextSpans(html) {
+  const children = [];
+  const markDefs = [];
+  const re = /<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let lastIndex = 0;
+  let m;
+  while ((m = re.exec(html))) {
+    if (m.index > lastIndex) {
+      const plain = collapseWs(html.slice(lastIndex, m.index));
+      if (plain.trim()) children.push({ _type: "span", _key: Math.random().toString(36).slice(2, 10), text: plain, marks: [] });
+    }
+    const markKey = Math.random().toString(36).slice(2, 10);
+    markDefs.push({ _type: "link", _key: markKey, href: m[1] });
+    const linkText = collapseWs(m[2]).trim();
+    if (linkText) children.push({ _type: "span", _key: Math.random().toString(36).slice(2, 10), text: linkText, marks: [markKey] });
+    lastIndex = re.lastIndex;
+  }
+  const rest = collapseWs(html.slice(lastIndex));
+  if (rest.trim()) children.push({ _type: "span", _key: Math.random().toString(36).slice(2, 10), text: rest, marks: [] });
+  // Giữ khoảng trắng NGĂN CÁCH giữa các span (quan trọng để chữ không dính liền), chỉ trim
+  // khoảng trắng thừa ở đầu span đầu tiên và cuối span cuối cùng của cả block.
+  if (children.length) {
+    children[0].text = children[0].text.replace(/^\s+/, "");
+    children[children.length - 1].text = children[children.length - 1].text.replace(/\s+$/, "");
+  }
+  return { children: children.length ? children : [{ _type: "span", _key: "s0", text: "", marks: [] }], markDefs };
+}
+__name(textToPortableTextSpans, "textToPortableTextSpans");
+
+// Tách HTML (do AI viết, chỉ dùng h2/h3/p/li) thành mảng block Portable Text — không hỗ trợ
+// bold/italic ở bản đầu này, chỉ giữ đúng cấu trúc heading/đoạn văn/link nội bộ.
+function htmlToPortableTextBlocks(html) {
+  const chunks = String(html || "").split(/(<h2[^>]*>[\s\S]*?<\/h2>|<h3[^>]*>[\s\S]*?<\/h3>|<p[^>]*>[\s\S]*?<\/p>|<li[^>]*>[\s\S]*?<\/li>)/gi).filter((c) => c && c.trim());
+  const blocks = [];
+  for (const chunk of chunks) {
+    let style = null, inner = null;
+    const h2 = chunk.match(/^<h2[^>]*>([\s\S]*?)<\/h2>$/i);
+    const h3 = chunk.match(/^<h3[^>]*>([\s\S]*?)<\/h3>$/i);
+    const p = chunk.match(/^<p[^>]*>([\s\S]*?)<\/p>$/i);
+    const li = chunk.match(/^<li[^>]*>([\s\S]*?)<\/li>$/i);
+    if (h2) { style = "h2"; inner = h2[1]; }
+    else if (h3) { style = "h3"; inner = h3[1]; }
+    else if (p) { style = "normal"; inner = p[1]; }
+    else if (li) { style = "normal"; inner = li[1]; }
+    else continue;
+    const { children, markDefs } = textToPortableTextSpans(inner);
+    if (!children.some((c) => c.text)) continue;
+    blocks.push({ _type: "block", style, _key: Math.random().toString(36).slice(2, 10), children, markDefs });
+  }
+  if (blocks.length === 0) {
+    const { children, markDefs } = textToPortableTextSpans(String(html || ""));
+    blocks.push({ _type: "block", style: "normal", _key: "k0", children, markDefs });
+  }
+  return blocks;
+}
+__name(htmlToPortableTextBlocks, "htmlToPortableTextBlocks");
+
+async function publishToSanity(page, post, media) {
+  const [projectId, dataset] = String(page.page_id || "").split(":");
+  if (!projectId || !dataset) throw new Error('page_id Sanity phải theo dạng "projectId:dataset"');
+  const token = page.access_token;
+  if (!token) throw new Error("Thiếu Sanity API token");
+
+  let extraCfg = {};
+  try { extraCfg = page.extra_config ? JSON.parse(page.extra_config) : {}; } catch {}
+  const docType = extraCfg.docType || "post";
+  const titleField = extraCfg.titleField || "title";
+  const slugField = extraCfg.slugField || "slug";
+  const bodyField = extraCfg.bodyField || "body";
+  const excerptField = extraCfg.excerptField || "excerpt";
+
+  const baseUrl = `https://${projectId}.api.sanity.io/${SANITY_API_VERSION}`;
+
+  let mainImage = null;
+  if (media && media.url) {
+    try {
+      const imgRes = await fetchWithTimeout(media.url, { timeout: 3e4 });
+      const imgBuf = await imgRes.arrayBuffer();
+      const assetRes = await fetchWithTimeout(`${baseUrl}/assets/images/${dataset}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": imgRes.headers.get("content-type") || "image/png" },
+        body: imgBuf,
+        timeout: 3e4
+      });
+      const assetData = await assetRes.json();
+      if (assetRes.ok && assetData.document?._id) {
+        mainImage = { _type: "image", asset: { _type: "reference", _ref: assetData.document._id } };
+      } else {
+        console.error("[Sanity] Upload ảnh thất bại:", assetData);
+      }
+    } catch (err) {
+      console.error("[Sanity] Lỗi upload ảnh:", err);
+    }
+  }
+
+  const doc = {
+    _type: docType,
+    [titleField]: post.title,
+    [bodyField]: htmlToPortableTextBlocks(post.content),
+    [excerptField]: post.meta_description || ""
+  };
+  if (post.slug) doc[slugField] = { _type: "slug", current: post.slug };
+  if (mainImage) doc.mainImage = mainImage;
+
+  const res = await fetchWithTimeout(`${baseUrl}/data/mutate/${dataset}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ mutations: [{ create: doc }] }),
+    timeout: 3e4
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.description || data.message || `Sanity API lỗi ${res.status}`);
+  const createdId = data.results?.[0]?.id || data.transactionId;
+  return String(createdId || "ok");
+}
+__name(publishToSanity, "publishToSanity");
+
 // "Claim" target trước khi gọi API thật, để nếu 2 lần cron lỡ chồng nhau (vd 1 lần chạy quá
 // 15 phút) thì lần sau sẽ không thấy target này ở status cũ nữa -> tránh đăng trùng lên Facebook.
 async function claimTargetForPublishing(env, pbToken, targetId) {
@@ -1434,6 +1784,10 @@ async function publishOneTarget(env, pbToken, target) {
       publishedId = await publishToFacebook(page, post, media);
     } else if (target.platform === "instagram") {
       publishedId = await publishToInstagram(page, post, media);
+    } else if (target.platform === "wordpress") {
+      publishedId = await publishToWordPress(page, post, media);
+    } else if (target.platform === "sanity") {
+      publishedId = await publishToSanity(page, post, media);
     } else {
       throw new Error(`Chưa hỗ trợ đăng tự động cho platform "${target.platform}"`);
     }
@@ -1728,11 +2082,11 @@ var CONFIG_CHAT_TOOLS = [
     type: "function",
     function: {
       name: "add_page_config",
-      description: "Kết nối 1 trang mạng x\xE3 hội (Facebook/Instagram/WhatsApp/Zalo) để đăng b\xE0i/chat qua đ\xF3.",
+      description: "Kết nối 1 k\xEAnh đăng b\xE0i (Facebook/Instagram/WhatsApp/Zalo/WordPress/Sanity) để đăng b\xE0i/chat qua đ\xF3. Với WordPress: page_id l\xE0 site URL, access_token l\xE0 \"username:application_password\". Với Sanity: page_id l\xE0 \"projectId:dataset\", access_token l\xE0 API token.",
       parameters: {
         type: "object",
         properties: {
-          platform: { type: "string", enum: ["facebook", "instagram", "whatsapp", "zalo", "other"] },
+          platform: { type: "string", enum: ["facebook", "instagram", "whatsapp", "zalo", "wordpress", "sanity", "other"] },
           label: { type: "string", description: "T\xEAn gợi nhớ cho trang n\xE0y" },
           page_id: { type: "string" },
           access_token: { type: "string" }
@@ -1768,6 +2122,21 @@ var CONFIG_CHAT_TOOLS = [
       description: "Xem lại cấu h\xECnh hiện tại (bot config, c\xE1c trang đ\xE3 kết nối, c\xE1c tool tùy chỉnh) khi khách hỏi.",
       parameters: { type: "object", properties: {}, required: [] }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "plan_content_cluster",
+      description: "L\xEAn kế hoạch v\xE0 viết 1 cụm nhiều b\xE0i blog d\xE0i, chuẩn SEO, c\xF3 link nội bộ giữa c\xE1c b\xE0i, khi kh\xE1ch muốn viết nhiều b\xE0i xoay quanh 1 chủ đề lớn (vd \"viết 5 b\xE0i về X\"). Chạy nền, kh\xF4ng trả kết quả ngay lập tức — b\xE0i sẽ xuất hiện dần trong composer.html để duyệt trước khi đăng WordPress/Sanity.",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: { type: "string", description: "Chủ đề ch\xEDnh của cụm b\xE0i" },
+          count: { type: "number", description: "Số b\xE0i muốn viết (mặc định 5, tối đa 8)" }
+        },
+        required: ["topic"]
+      }
+    }
   }
 ];
 
@@ -1789,7 +2158,7 @@ async function getConfigSnapshot(env, pbToken, cfg) {
 }
 __name(getConfigSnapshot, "getConfigSnapshot");
 
-async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools = []) {
+async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools = [], ctx) {
   switch (name) {
     case "update_bot_config": {
       const patch = {};
@@ -1839,6 +2208,15 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools 
       const snapshot = await getConfigSnapshot(env, pbToken, cfg);
       return JSON.stringify(snapshot);
     }
+    case "plan_content_cluster": {
+      if (!args.topic) return "Thiếu chủ đề cụm b\xE0i.";
+      try {
+        const result = await startContentCluster(env, cfg.tenant, args.topic, args.count, ctx);
+        return `${result.message} C\xE1c b\xE0i sẽ viết: ${result.planned.map((p) => p.title).join("; ")}.`;
+      } catch (err) {
+        return `L\xEAn plan cụm b\xE0i thất bại: ${err.message}`;
+      }
+    }
     default: {
       const custom = customTools.find((t) => t.name === name);
       if (custom) return await executeCustomAgentTool(custom, args);
@@ -1848,7 +2226,7 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools 
 }
 __name(executeConfigChatTool, "executeConfigChatTool");
 
-async function handleApiAgentChat(request, env, cors, cfg) {
+async function handleApiAgentChat(request, env, cors, cfg, ctx) {
   const body = await request.json().catch(() => ({}));
   const history = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
   if (history.length === 0) {
@@ -1884,7 +2262,7 @@ Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\x
       const name = call.function?.name;
       let args = {};
       try { args = JSON.parse(call.function?.arguments || "{}"); } catch {}
-      const result = await executeConfigChatTool(env, pbToken, cfg, name, args, customTools);
+      const result = await executeConfigChatTool(env, pbToken, cfg, name, args, customTools, ctx);
       messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 2000) });
     }
     const res2 = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
@@ -1974,7 +2352,7 @@ async function handleApiListMessages(request, env, cors, cfg) {
 }
 __name(handleApiListMessages, "handleApiListMessages");
 
-async function handleApiV1(request, url, env, cors) {
+async function handleApiV1(request, url, env, cors, ctx) {
   const apiKey = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim() || url.searchParams.get("api_key") || "";
   const pbToken = await getPbToken(env);
   const cfg = await resolveTenantByApiKey(env, pbToken, apiKey);
@@ -2003,12 +2381,23 @@ async function handleApiV1(request, url, env, cors) {
     return new Response(JSON.stringify({ success: true }), { headers: cors });
   }
 
+  if (url.pathname === "/api/v1/content-cluster" && request.method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.topic) return new Response(JSON.stringify({ error: "Thiếu topic" }), { status: 400, headers: cors });
+    try {
+      const result = await startContentCluster(env, cfg.tenant, body.topic, body.count, ctx);
+      return new Response(JSON.stringify({ success: true, ...result }), { headers: cors });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
+    }
+  }
+
   if (url.pathname === "/api/v1/chat" && request.method === "POST") return await handleApiChat(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/config" && request.method === "GET") return await handleApiGetConfig(env, cors, cfg);
   if (url.pathname === "/api/v1/config" && request.method === "PATCH") return await handleApiUpdateConfig(request, env, cors, cfg);
 
-  if (url.pathname === "/api/v1/agent-chat" && request.method === "POST") return await handleApiAgentChat(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/agent-chat" && request.method === "POST") return await handleApiAgentChat(request, env, cors, cfg, ctx);
   if (url.pathname === "/api/v1/agent-chat/tools" && request.method === "GET") return await handleApiAgentChatTools(env, cors, cfg);
 
   if (url.pathname === "/api/v1/knowledge" && request.method === "GET") return await handleApiListKnowledge(env, cors, cfg);

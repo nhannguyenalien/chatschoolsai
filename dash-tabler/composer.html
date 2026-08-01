@@ -383,7 +383,7 @@
        SCHEMA CẦN CÓ TRONG POCKETBASE (tự tạo 1 lần trong admin)
        - posts: tenant(text), title(text), content(text), image_prompt(text), video_prompt(text), alt_img(text)
        - media: tenant(text), post_id relation -> posts, url(text), type(select image/video), order(number)
-       - post_targets: tenant(text), post_id relation -> posts, platform(select facebook/instagram/linkedin),
+       - post_targets: tenant(text), post_id relation -> posts, platform(select facebook/instagram/linkedin/wordpress/sanity),
          status(select pending/approved/scheduled/published/error), scheduled_at(date), page_id(text), error_log(text)
        - ai_prompts: tenant(text), label(text), category(text), model(text), system_prompt(text), is_active(bool)
        - rss_sources: tenant(text), label(text), category(text), rss_url(url),
@@ -538,6 +538,8 @@
                 <option value="facebook" ${t.platform==='facebook'?'selected':''}>Facebook</option>
                 <option value="instagram" ${t.platform==='instagram'?'selected':''}>Instagram</option>
                 <option value="linkedin" ${t.platform==='linkedin'?'selected':''}>LinkedIn</option>
+                <option value="wordpress" ${t.platform==='wordpress'?'selected':''}>WordPress</option>
+                <option value="sanity" ${t.platform==='sanity'?'selected':''}>Sanity</option>
               </select>
             </div>
             <div class="col-md-3">

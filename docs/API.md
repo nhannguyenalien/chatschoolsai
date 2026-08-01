@@ -167,6 +167,40 @@ Agent nạp toàn bộ tool đang `is_active=true` của tenant mỗi lần ch�
 
 ---
 
+## `POST /api/v1/content-cluster` — Lên plan + viết 1 cụm bài blog dài chuẩn SEO
+
+Đưa vào 1 chủ đề lớn, AI tự lên kế hoạch N bài (1 bài "trụ"/pillar + N-1 bài "vệ tinh"/cluster), viết từng bài dài (800-1200 từ), tự chèn link nội bộ giữa các bài trong cùng cụm, kèm SEO meta (title/description/focus keyword) và ảnh minh hoạ (DALL-E).
+
+Request:
+```json
+{ "topic": "Quản lý tồn kho vàng bạc cho tiệm vàng nhỏ", "count": 5 }
+```
+`count` mặc định 5, tối đa 8, tối thiểu 2 (1 pillar + ít nhất 1 cluster).
+
+Response (trả về **ngay lập tức**, không đợi viết xong):
+```json
+{
+  "success": true,
+  "cluster_id": "cl_...",
+  "planned": [
+    { "title": "...", "slug": "...", "role": "pillar" },
+    { "title": "...", "slug": "...", "role": "cluster" }
+  ],
+  "message": "Đang viết N bài trong nền, sẽ xuất hiện trong composer.html sau vài phút để bạn duyệt trước khi đăng."
+}
+```
+
+**Vì sao trả lời ngay mà chưa viết xong:** viết 5-8 bài dài + sinh ảnh có thể mất vài phút — quá lâu để giữ 1 request HTTP chờ. Bước lên plan (nhanh, 1 lần gọi AI) chạy ngay và trả về, còn việc viết từng bài chạy nền (`ctx.waitUntil`). Bài viết sẽ lần lượt xuất hiện trong `composer.html` với trạng thái chờ duyệt — same nguyên tắc "AI không tự đăng khi chưa duyệt" như luồng RSS.
+
+Cũng gọi được ngay trong **Chat với Agent** (`agent-chat.html`) bằng câu tự nhiên kiểu "viết 5 bài về X" — tool `plan_content_cluster`.
+
+**Đăng lên WordPress/Sanity:** nếu tenant đã kết nối kênh `wordpress`/`sanity` (is_active=true) trong `sm-config.html`, mỗi bài trong cụm tự động có sẵn `post_targets` (status=`pending`) cho các kênh đó — duyệt trong `composer.html` là đăng được, giống Facebook/Instagram.
+
+- WordPress: `page_id` = site URL, `access_token` = `username:application_password` (tạo ở WP Admin → Users → Profile → Application Passwords).
+- Sanity: `page_id` = `projectId:dataset`, `access_token` = API token (sanity.io/manage, quyền Editor+). `extra_config` (JSON, tuỳ chọn) đổi tên document type/field cho khớp schema riêng: `{"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}`. Nội dung ghi dạng Portable Text (chuyển tự động từ HTML), link nội bộ giữ nguyên dạng mark "link" thật — không phải chữ suông.
+
+---
+
 ## `POST /api/v1/chat` — Gọi chatbot
 
 Gửi 1 câu hỏi, nhận câu trả lời AI ngay trong response (giống hệt widget chat, nhưng xác thực bằng API key thay vì để tenant tự khai trong body). Dùng khi hệ thống ngoài muốn tự hỏi bot thay vì nhúng widget.
@@ -334,6 +368,7 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 |---|---|---|
 | Bài đăng social | `POST/GET /api/v1/posts`, `POST /api/v1/posts/:id/approve`, `GET /api/v1/status`, `POST /api/v1/trigger/rss-crawl`, `POST /api/v1/trigger/publish` | API key riêng tenant |
 | Agent tự quyết định | `POST /api/v1/trigger/agent` | API key riêng tenant |
+| Cụm bài blog dài chuẩn SEO (WordPress/Sanity) | `POST /api/v1/content-cluster` | API key riêng tenant |
 | Chat với Trợ lý cấu hình | `POST /api/v1/agent-chat`, `GET /api/v1/agent-chat/tools` | API key riêng tenant |
 | Chatbot | `POST /api/v1/chat` | API key riêng tenant |
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |
