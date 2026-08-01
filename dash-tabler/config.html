@@ -228,11 +228,15 @@
 
                                         <div class="border rounded p-3">
                                             <div class="fw-medium mb-2">+ Thêm tool mới</div>
-                                            <div class="mb-3">
-                                                <div class="text-secondary fs-6 mb-1">Dùng mẫu có sẵn (chỉ cần thay domain/API key rồi bấm Thêm):</div>
+                                            <div class="mb-2">
+                                                <div class="text-secondary fs-6 mb-1">Chọn 1 mẫu — chỉ cần điền domain/API key của bạn, không cần biết JSON:</div>
                                                 <div class="d-flex flex-wrap gap-2" id="tool-template-picker"></div>
                                             </div>
-                                            <div class="row g-2">
+                                            <div id="tool-quick-setup" class="d-none border rounded p-3 mb-3 bg-secondary-lt"></div>
+
+                                            <details class="mt-2">
+                                                <summary class="text-secondary fs-6" style="cursor:pointer;">Hoặc tự tạo tool khác (nâng cao — cần biết JSON)</summary>
+                                            <div class="row g-2 mt-1">
                                                 <div class="col-md-6">
                                                     <label class="form-label fs-6 mb-1">Tên tool (chỉ chữ/số/gạch dưới)</label>
                                                     <input type="text" class="form-control" id="ct-name" placeholder="vd: check_shipping_status">
@@ -269,6 +273,7 @@
                                                 </div>
                                             </div>
                                             <button class="btn btn-primary btn-sm mt-3" onclick="addCustomTool()"><i class="ti ti-plus me-1"></i> Thêm tool</button>
+                                            </details>
                                         </div>
                                     </div>
                                 </div>
@@ -666,46 +671,62 @@
     // MẪU TÍCH HỢP CÓ SẴN (điền base URL/API key rồi bấm Thêm — khỏi tự viết JSON Schema)
     // Endpoint Coolify lấy từ chính OpenAPI spec công khai của họ, không phải đoán.
     // ═══════════════════════════════════════
+    // {{TOKEN}} = giá trị khách tự điền 1 lần lúc thêm tool (domain, api key...).
+    // {arg} (1 dấu ngoặc) = tham số Agent tự điền MỖI LẦN gọi tool — không đụng vào, giữ nguyên.
     const TOOL_TEMPLATES = {
         coolify_restart: {
             label: "Coolify — Restart app",
             name: "coolify_restart_app",
             description: "Restart 1 application trên Coolify theo UUID khi khách yêu cầu.",
             method: "POST",
-            url: "https://YOUR-COOLIFY-DOMAIN/api/v1/applications/{app_uuid}/restart",
+            url: "https://{{DOMAIN}}/api/v1/applications/{app_uuid}/restart",
             params: '{"type":"object","properties":{"app_uuid":{"type":"string","description":"UUID của application trên Coolify"}},"required":["app_uuid"]}',
-            headers: '{"Authorization":"Bearer YOUR_COOLIFY_API_KEY"}',
-            resultPath: "message"
+            headers: '{"Authorization":"Bearer {{API_KEY}}"}',
+            resultPath: "message",
+            setupFields: [
+                { key: "DOMAIN", label: "Domain Coolify của bạn", placeholder: "app.example.com" },
+                { key: "API_KEY", label: "API Key Coolify", placeholder: "dán API key vào đây" }
+            ]
         },
         coolify_deploy: {
             label: "Coolify — Deploy",
             name: "coolify_deploy",
             description: "Trigger deploy 1 application/resource trên Coolify theo UUID.",
             method: "POST",
-            url: "https://YOUR-COOLIFY-DOMAIN/api/v1/deploy?uuid={app_uuid}",
+            url: "https://{{DOMAIN}}/api/v1/deploy?uuid={app_uuid}",
             params: '{"type":"object","properties":{"app_uuid":{"type":"string","description":"UUID của resource cần deploy"}},"required":["app_uuid"]}',
-            headers: '{"Authorization":"Bearer YOUR_COOLIFY_API_KEY"}',
-            resultPath: ""
+            headers: '{"Authorization":"Bearer {{API_KEY}}"}',
+            resultPath: "",
+            setupFields: [
+                { key: "DOMAIN", label: "Domain Coolify của bạn", placeholder: "app.example.com" },
+                { key: "API_KEY", label: "API Key Coolify", placeholder: "dán API key vào đây" }
+            ]
         },
         telegram_send: {
             label: "Telegram — Gửi tin nhắn",
             name: "telegram_send_message",
             description: "Gửi tin nhắn Telegram tới 1 chat cụ thể khi cần báo hoặc trả lời khách.",
             method: "POST",
-            url: "https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/sendMessage",
+            url: "https://api.telegram.org/bot{{BOT_TOKEN}}/sendMessage",
             params: '{"type":"object","properties":{"chat_id":{"type":"string","description":"Chat ID Telegram nhận tin"},"text":{"type":"string","description":"Nội dung tin nhắn"}},"required":["chat_id","text"]}',
             headers: "",
-            resultPath: ""
+            resultPath: "",
+            setupFields: [
+                { key: "BOT_TOKEN", label: "Token bot Telegram", placeholder: "dán bot token vào đây" }
+            ]
         },
         generic_webhook: {
             label: "Webhook chung (POST)",
             name: "generic_webhook",
             description: "Gửi request POST tới 1 webhook (Zapier/Make/n8n/hệ thống nội bộ...). Sửa lại properties bên dưới cho khớp field webhook của bạn cần.",
             method: "POST",
-            url: "https://YOUR-WEBHOOK-URL",
+            url: "https://{{WEBHOOK_URL}}",
             params: '{"type":"object","properties":{"message":{"type":"string","description":"Nội dung muốn gửi"}},"required":["message"]}',
             headers: "",
-            resultPath: ""
+            resultPath: "",
+            setupFields: [
+                { key: "WEBHOOK_URL", label: "URL webhook (không cần https://)", placeholder: "hooks.example.com/xyz" }
+            ]
         }
     };
 
@@ -719,15 +740,43 @@
     function applyToolTemplate(key) {
         const tpl = TOOL_TEMPLATES[key];
         if (!tpl) return;
+        const panel = document.getElementById("tool-quick-setup");
+        panel.classList.remove("d-none");
+        panel.innerHTML = `
+            <div class="fw-medium mb-1">${escHtml(tpl.label)}</div>
+            <div class="text-secondary fs-6 mb-2">${escHtml(tpl.description)}</div>
+            ${tpl.setupFields.map(f => `
+                <div class="mb-2">
+                    <label class="form-label fs-6 mb-1">${escHtml(f.label)}</label>
+                    <input type="text" class="form-control" id="tpl-field-${f.key}" placeholder="${escHtml(f.placeholder)}">
+                </div>`).join("")}
+            <button class="btn btn-primary btn-sm mt-1" onclick="submitToolTemplate('${key}')"><i class="ti ti-plus me-1"></i> Thêm ${escHtml(tpl.label)}</button>`;
+        panel.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    async function submitToolTemplate(key) {
+        const tpl = TOOL_TEMPLATES[key];
+        if (!tpl) return;
+        let url = tpl.url, headers = tpl.headers;
+        for (const f of tpl.setupFields) {
+            const val = document.getElementById(`tpl-field-${f.key}`).value.trim();
+            if (!val) {
+                showToast(`Thiếu "${f.label}"`, "error");
+                return;
+            }
+            url = url.split(`{{${f.key}}}`).join(val);
+            headers = headers.split(`{{${f.key}}}`).join(val);
+        }
+        // Điền các field ẩn (nâng cao) bằng giá trị đã thay xong, rồi tái dùng đúng logic lưu có sẵn.
         document.getElementById("ct-name").value = tpl.name;
         document.getElementById("ct-description").value = tpl.description;
         document.getElementById("ct-method").value = tpl.method;
-        document.getElementById("ct-url").value = tpl.url;
+        document.getElementById("ct-url").value = url;
         document.getElementById("ct-params").value = tpl.params;
-        document.getElementById("ct-headers").value = tpl.headers;
+        document.getElementById("ct-headers").value = headers;
         document.getElementById("ct-resultpath").value = tpl.resultPath;
-        showToast(`Đã điền mẫu "${tpl.label}" — nhớ thay các chỗ VIẾT_HOA (domain, API key...) bằng giá trị thật của bạn trước khi bấm Thêm tool`, "success");
-        document.getElementById("ct-url").scrollIntoView({ behavior: "smooth", block: "center" });
+        await addCustomTool();
+        document.getElementById("tool-quick-setup").classList.add("d-none");
     }
 
     async function loadCustomTools() {
