@@ -228,6 +228,10 @@
 
                                         <div class="border rounded p-3">
                                             <div class="fw-medium mb-2">+ Thêm tool mới</div>
+                                            <div class="mb-3">
+                                                <div class="text-secondary fs-6 mb-1">Dùng mẫu có sẵn (chỉ cần thay domain/API key rồi bấm Thêm):</div>
+                                                <div class="d-flex flex-wrap gap-2" id="tool-template-picker"></div>
+                                            </div>
                                             <div class="row g-2">
                                                 <div class="col-md-6">
                                                     <label class="form-label fs-6 mb-1">Tên tool (chỉ chữ/số/gạch dưới)</label>
@@ -491,6 +495,7 @@
 
         await loadConfig();
         await loadAgentLogs();
+        renderToolTemplatePicker();
         await loadCustomTools();
     })();
 
@@ -658,8 +663,73 @@
     }
 
     // ═══════════════════════════════════════
-    // TOOL TÙY CHỈNH CHO AGENT (khách tự khai báo JSON, không cần code)
+    // MẪU TÍCH HỢP CÓ SẴN (điền base URL/API key rồi bấm Thêm — khỏi tự viết JSON Schema)
+    // Endpoint Coolify lấy từ chính OpenAPI spec công khai của họ, không phải đoán.
     // ═══════════════════════════════════════
+    const TOOL_TEMPLATES = {
+        coolify_restart: {
+            label: "Coolify — Restart app",
+            name: "coolify_restart_app",
+            description: "Restart 1 application trên Coolify theo UUID khi khách yêu cầu.",
+            method: "POST",
+            url: "https://YOUR-COOLIFY-DOMAIN/api/v1/applications/{app_uuid}/restart",
+            params: '{"type":"object","properties":{"app_uuid":{"type":"string","description":"UUID của application trên Coolify"}},"required":["app_uuid"]}',
+            headers: '{"Authorization":"Bearer YOUR_COOLIFY_API_KEY"}',
+            resultPath: "message"
+        },
+        coolify_deploy: {
+            label: "Coolify — Deploy",
+            name: "coolify_deploy",
+            description: "Trigger deploy 1 application/resource trên Coolify theo UUID.",
+            method: "POST",
+            url: "https://YOUR-COOLIFY-DOMAIN/api/v1/deploy?uuid={app_uuid}",
+            params: '{"type":"object","properties":{"app_uuid":{"type":"string","description":"UUID của resource cần deploy"}},"required":["app_uuid"]}',
+            headers: '{"Authorization":"Bearer YOUR_COOLIFY_API_KEY"}',
+            resultPath: ""
+        },
+        telegram_send: {
+            label: "Telegram — Gửi tin nhắn",
+            name: "telegram_send_message",
+            description: "Gửi tin nhắn Telegram tới 1 chat cụ thể khi cần báo hoặc trả lời khách.",
+            method: "POST",
+            url: "https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/sendMessage",
+            params: '{"type":"object","properties":{"chat_id":{"type":"string","description":"Chat ID Telegram nhận tin"},"text":{"type":"string","description":"Nội dung tin nhắn"}},"required":["chat_id","text"]}',
+            headers: "",
+            resultPath: ""
+        },
+        generic_webhook: {
+            label: "Webhook chung (POST)",
+            name: "generic_webhook",
+            description: "Gửi request POST tới 1 webhook (Zapier/Make/n8n/hệ thống nội bộ...). Sửa lại properties bên dưới cho khớp field webhook của bạn cần.",
+            method: "POST",
+            url: "https://YOUR-WEBHOOK-URL",
+            params: '{"type":"object","properties":{"message":{"type":"string","description":"Nội dung muốn gửi"}},"required":["message"]}',
+            headers: "",
+            resultPath: ""
+        }
+    };
+
+    function renderToolTemplatePicker() {
+        const el = document.getElementById("tool-template-picker");
+        el.innerHTML = Object.entries(TOOL_TEMPLATES).map(([key, tpl]) =>
+            `<button type="button" class="btn btn-outline-primary btn-sm" onclick="applyToolTemplate('${key}')">${escHtml(tpl.label)}</button>`
+        ).join("");
+    }
+
+    function applyToolTemplate(key) {
+        const tpl = TOOL_TEMPLATES[key];
+        if (!tpl) return;
+        document.getElementById("ct-name").value = tpl.name;
+        document.getElementById("ct-description").value = tpl.description;
+        document.getElementById("ct-method").value = tpl.method;
+        document.getElementById("ct-url").value = tpl.url;
+        document.getElementById("ct-params").value = tpl.params;
+        document.getElementById("ct-headers").value = tpl.headers;
+        document.getElementById("ct-resultpath").value = tpl.resultPath;
+        showToast(`Đã điền mẫu "${tpl.label}" — nhớ thay các chỗ VIẾT_HOA (domain, API key...) bằng giá trị thật của bạn trước khi bấm Thêm tool`, "success");
+        document.getElementById("ct-url").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
     async function loadCustomTools() {
         const el = document.getElementById("custom-tool-list");
         try {
