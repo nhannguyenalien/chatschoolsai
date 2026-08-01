@@ -67,6 +67,8 @@ Tạo bài + tự tạo `post_targets` cho các platform chỉ định (dùng pa
 
 `status` (tuỳ chọn): lọc bài có ít nhất 1 target đang ở trạng thái này — `pending` / `approved` / `scheduled` / `publishing` / `published` / `error`. Bỏ trống = lấy 50 bài mới nhất.
 
+`cluster_id`/`slug`/`meta_title`/`meta_description`/`focus_keyword` chỉ có giá trị với bài tạo từ `/api/v1/content-cluster` — bài từ RSS hoặc tạo tay trong `composer.html` thì các field này rỗng.
+
 **Response:**
 ```json
 {
@@ -77,6 +79,11 @@ Tạo bài + tự tạo `post_targets` cho các platform chỉ định (dùng pa
       "title": "...",
       "content": "...",
       "created": "2026-07-26 08:00:00.000Z",
+      "cluster_id": "cl_...",
+      "slug": "...",
+      "meta_title": "...",
+      "meta_description": "...",
+      "focus_keyword": "...",
       "targets": [
         { "id": "t1", "platform": "facebook", "status": "published", "scheduled_at": "", "error_log": "", "published_post_id": "123456" }
       ],

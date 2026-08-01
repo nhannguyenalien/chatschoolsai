@@ -1957,6 +1957,11 @@ async function handleApiListPosts(request, env, cors, cfg) {
     title: p.title,
     content: p.content,
     created: p.created,
+    cluster_id: p.cluster_id || "",
+    slug: p.slug || "",
+    meta_title: p.meta_title || "",
+    meta_description: p.meta_description || "",
+    focus_keyword: p.focus_keyword || "",
     targets: (p.expand?.post_targets_via_post_id || []).map((t) => ({
       id: t.id, platform: t.platform, status: t.status, scheduled_at: t.scheduled_at,
       error_log: t.error_log, published_post_id: t.published_post_id
