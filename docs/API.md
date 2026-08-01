@@ -241,6 +241,8 @@ Lưu ý bảo mật: nội dung gửi lên (kể cả token/API key nếu khách
 
 Để tránh model tự đoán/bịa giá trị khi khách hỏi "hiện tại đang cấu hình gì", server tự nhét sẵn snapshot cấu hình thật (bot config + trang đã kết nối + tool tùy chỉnh) vào system prompt mỗi lần gọi — không chỉ trông chờ model chủ động gọi tool `get_current_config`.
 
+**Tool tùy chỉnh (agent_tools) gọi được ngay trong chat:** bất kỳ tool nào bạn đã khai báo qua card "Tool tùy chỉnh cho Agent" (config.html) hoặc qua chính chat này (`add_agent_tool`) đều được nạp và trao cho model mỗi lần gọi — không chỉ AI Agent tự động (chạy mỗi giờ) mới dùng được. Ví dụ: khai báo 1 tool gọi API Coolify (deploy/restart service, kiểm tra trạng thái...) rồi ra lệnh thẳng trong chat, model sẽ tự gọi nếu khớp với mô tả tool.
+
 ---
 
 ## `GET /api/v1/agent-chat/tools` — Danh sách tool THẬT của Trợ lý cấu hình

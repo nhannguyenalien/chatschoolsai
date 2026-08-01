@@ -1789,7 +1789,7 @@ async function getConfigSnapshot(env, pbToken, cfg) {
 }
 __name(getConfigSnapshot, "getConfigSnapshot");
 
-async function executeConfigChatTool(env, pbToken, cfg, name, args) {
+async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools = []) {
   switch (name) {
     case "update_bot_config": {
       const patch = {};
@@ -1839,8 +1839,11 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args) {
       const snapshot = await getConfigSnapshot(env, pbToken, cfg);
       return JSON.stringify(snapshot);
     }
-    default:
+    default: {
+      const custom = customTools.find((t) => t.name === name);
+      if (custom) return await executeCustomAgentTool(custom, args);
       return `Tool kh\xF4ng x\xE1c định: ${name}`;
+    }
   }
 }
 __name(executeConfigChatTool, "executeConfigChatTool");
@@ -1856,16 +1859,18 @@ async function handleApiAgentChat(request, env, cors, cfg) {
   // model nhỏ đôi khi bỏ qua việc gọi tool để đọc, dẫn đến bịa ra giá trị. Có sẵn context thì dù model
   // có gọi tool hay không, câu trả lời vẫn đúng với dữ liệu thật.
   const snapshot = await getConfigSnapshot(env, pbToken, cfg);
-  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, avatar, lời ch\xE0o, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo, hoặc th\xEAm API ngo\xE0i cho Agent) — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4.
+  const customTools = await loadCustomAgentTools(env, pbToken, cfg.tenant);
+  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, avatar, lời ch\xE0o, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo), th\xEAm tool API ngo\xE0i mới cho Agent (add_agent_tool), hoặc gọi thẳng 1 tool ngo\xE0i m\xE0 khách đ\xE3 khai b\xE1o trước đ\xF3 nếu khách y\xEAu cầu h\xE0nh động khớp với m\xF4 tả của tool đ\xF3 — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4.
 Cấu h\xECnh HIỆN TẠI của tenant n\xE0y (dữ liệu thật lấy từ DB, KH\xD4NG được đo\xE1n kh\xE1c đi khi trả lời khách):
 ${JSON.stringify(snapshot)}
 Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\xE3 kết nối trang n\xE0o...), dựa v\xE0o dữ liệu tr\xEAn để trả lời — vẫn c\xF3 thể gọi lại get_current_config nếu cần dữ liệu mới nhất sau khi vừa ghi thay đổi. Nếu thiếu th\xF4ng tin bắt buộc khi ghi (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. Trả lời ngắn gọn, tiếng Việt.`;
   const messages = [{ role: "system", content: systemPrompt }, ...history];
+  const tools = [...CONFIG_CHAT_TOOLS, ...customTools.map(customToolToOpenAiSchema)];
   try {
     const res1 = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages, tools: CONFIG_CHAT_TOOLS, tool_choice: "auto" }),
+      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages, tools, tool_choice: "auto" }),
       timeout: 3e4
     });
     const data1 = await res1.json();
@@ -1879,7 +1884,7 @@ Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\x
       const name = call.function?.name;
       let args = {};
       try { args = JSON.parse(call.function?.arguments || "{}"); } catch {}
-      const result = await executeConfigChatTool(env, pbToken, cfg, name, args);
+      const result = await executeConfigChatTool(env, pbToken, cfg, name, args, customTools);
       messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 2000) });
     }
     const res2 = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
@@ -1897,12 +1902,16 @@ Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\x
 }
 __name(handleApiAgentChat, "handleApiAgentChat");
 
-// Danh sách tool THẬT của agent-chat — lấy trực tiếp từ CONFIG_CHAT_TOOLS (nguồn duy nhất),
-// để UI luôn khớp với những gì backend thực sự làm được, không phải tự tay ghi tài liệu riêng rồi lệch dần.
-// Lưu ý: đây là tool của TRỢ LÝ CHAT (config-chat), khác với tool của AI Agent vận hành tự động
-// (AGENT_TOOLS + agent_tools tùy chỉnh) chạy mỗi giờ — 2 agent tách biệt, không dùng chung tool.
-async function handleApiAgentChatTools(cors) {
-  const tools = CONFIG_CHAT_TOOLS.map((t) => ({ name: t.function.name, description: t.function.description }));
+// Danh sách tool THẬT của agent-chat — lấy trực tiếp từ CONFIG_CHAT_TOOLS + agent_tools tùy chỉnh
+// của tenant (nguồn duy nhất, giống hệt những gì handleApiAgentChat thực sự trao cho model),
+// để UI luôn khớp với thực tế, không phải tự tay ghi tài liệu riêng rồi lệch dần.
+async function handleApiAgentChatTools(env, cors, cfg) {
+  const pbToken = await getPbToken(env);
+  const customTools = await loadCustomAgentTools(env, pbToken, cfg.tenant);
+  const tools = [
+    ...CONFIG_CHAT_TOOLS.map((t) => ({ name: t.function.name, description: t.function.description, kind: "built-in" })),
+    ...customTools.map((t) => ({ name: t.name, description: t.description || "", kind: "custom" }))
+  ];
   return new Response(JSON.stringify({ success: true, tools }), { headers: cors });
 }
 __name(handleApiAgentChatTools, "handleApiAgentChatTools");
@@ -2000,7 +2009,7 @@ async function handleApiV1(request, url, env, cors) {
   if (url.pathname === "/api/v1/config" && request.method === "PATCH") return await handleApiUpdateConfig(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/agent-chat" && request.method === "POST") return await handleApiAgentChat(request, env, cors, cfg);
-  if (url.pathname === "/api/v1/agent-chat/tools" && request.method === "GET") return await handleApiAgentChatTools(cors);
+  if (url.pathname === "/api/v1/agent-chat/tools" && request.method === "GET") return await handleApiAgentChatTools(env, cors, cfg);
 
   if (url.pathname === "/api/v1/knowledge" && request.method === "GET") return await handleApiListKnowledge(env, cors, cfg);
   if (url.pathname === "/api/v1/knowledge" && request.method === "POST") return await handleApiAddKnowledge(request, env, cors, cfg);

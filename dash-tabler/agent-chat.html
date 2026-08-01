@@ -324,9 +324,9 @@
             if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
             el.innerHTML = data.tools.map(tool => `
                 <div class="d-flex align-items-start gap-2 mb-3">
-                    <i class="ti ${CAP_ICON[tool.name] || 'ti-point'} text-primary fs-3 mt-1"></i>
+                    <i class="ti ${CAP_ICON[tool.name] || (tool.kind === 'custom' ? 'ti-plug-connected' : 'ti-point')} text-primary fs-3 mt-1"></i>
                     <div>
-                        <div class="fw-medium">${escHtml(tool.name.replace(/_/g, " "))}</div>
+                        <div class="fw-medium">${escHtml(tool.name.replace(/_/g, " "))} ${tool.kind === 'custom' ? '<span class="badge bg-blue-lt ms-1">tự thêm</span>' : ''}</div>
                         <div class="text-secondary fs-6">${escHtml(tool.description)}</div>
                     </div>
                 </div>`).join("");
