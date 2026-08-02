@@ -2221,6 +2221,34 @@ var CONFIG_CHAT_TOOLS = [
         required: ["topic"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_publish_schedule",
+      description: "Th\xEAm 1 luật lên lịch đăng b\xE0i tự động theo ng\xE0y/giờ, cho blog (WordPress/Sanity) hoặc social (Facebook/Instagram/LinkedIn). Vd \"mỗi ng\xE0y đăng 3 b\xE0i social l\xFAc 8h, 12h, 18h\" hoặc \"thứ 2/4/6 đăng 1 b\xE0i blog l\xFAc 9h\". B\xE0i đ\xE3 duyệt (trạng th\xE1i \"Đ\xE3 l\xEAn lịch\", chưa c\xF3 giờ cụ thể) sẽ tự được xếp v\xE0o đ\xFAng khung giờ n\xE0y.",
+      parameters: {
+        type: "object",
+        properties: {
+          content_type: { type: "string", enum: ["blog", "social"] },
+          days: { type: "array", items: { type: "string", enum: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }, description: "Để trống/mảng rỗng = \xE1p dụng h\xE0ng ng\xE0y" },
+          times: { type: "array", items: { type: "string" }, description: "Mảng giờ dạng HH:MM, mỗi giờ = 1 b\xE0i/ng\xE0y \xE1p dụng. Vd [\"08:00\",\"12:00\",\"18:00\"] = 3 b\xE0i/ng\xE0y" }
+        },
+        required: ["content_type", "times"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_publish_schedule",
+      description: "Xo\xE1 1 luật lên lịch đăng b\xE0i tự động theo id (lấy id từ get_current_config).",
+      parameters: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"]
+      }
+    }
   }
 ];
 
@@ -2228,16 +2256,24 @@ var CONFIG_CHAT_TOOLS = [
 // model nhỏ (gpt-4o-mini) không phải lúc nào cũng chủ động gọi tool để đọc dữ liệu trước khi trả lời,
 // nên đưa sẵn dữ liệu thật vào context để loại bỏ khả năng model tự đoán/bịa ra giá trị.
 async function getConfigSnapshot(env, pbToken, cfg) {
-  const [pagesRes, toolsRes] = await Promise.all([
+  const [pagesRes, toolsRes, schedulesRes] = await Promise.all([
     fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } }),
-    fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } })
+    fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } }),
+    fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, { headers: { Authorization: pbToken } })
   ]);
   const pagesData = await pagesRes.json();
   const toolsData = await toolsRes.json();
+  const schedulesData = await schedulesRes.json();
   const out = {};
   for (const f of CONFIG_READABLE_FIELDS) out[f] = cfg[f] ?? null;
   out.pages = (pagesData.items || []).map((p) => ({ platform: p.platform, label: p.label, page_id: p.page_id, is_active: p.is_active }));
   out.custom_tools = (toolsData.items || []).map((t) => ({ name: t.name, description: t.description, is_active: t.is_active }));
+  out.publish_schedules = (schedulesData.items || []).map((s) => {
+    let days = [], times = [];
+    try { days = JSON.parse(s.days || "[]"); } catch {}
+    try { times = JSON.parse(s.times || "[]"); } catch {}
+    return { id: s.id, content_type: s.content_type, days, times, is_active: s.is_active };
+  });
   return out;
 }
 __name(getConfigSnapshot, "getConfigSnapshot");
@@ -2301,6 +2337,33 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools 
         return `L\xEAn plan cụm b\xE0i thất bại: ${err.message}`;
       }
     }
+    case "add_publish_schedule": {
+      if (!["blog", "social"].includes(args.content_type)) return 'content_type phải l\xE0 "blog" hoặc "social".';
+      if (!Array.isArray(args.times) || args.times.length === 0) return "Thiếu times (mảng giờ dạng HH:MM).";
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify({
+          tenant: cfg.tenant,
+          content_type: args.content_type,
+          days: JSON.stringify(Array.isArray(args.days) ? args.days : []),
+          times: JSON.stringify(args.times),
+          is_active: true
+        })
+      });
+      if (!res.ok) return "Th\xEAm luật lên lịch thất bại.";
+      const daysText = Array.isArray(args.days) && args.days.length ? args.days.join(", ") : "h\xE0ng ng\xE0y";
+      return `Đ\xE3 thêm luật: ${args.content_type} — ${daysText} l\xFAc ${args.times.join(", ")} (${args.times.length} b\xE0i/ng\xE0y \xE1p dụng).`;
+    }
+    case "delete_publish_schedule": {
+      if (!args.id) return "Thiếu id luật cần xo\xE1.";
+      const checkRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${args.id}`, { headers: { Authorization: pbToken } });
+      if (!checkRes.ok) return "Kh\xF4ng t\xECm thấy luật n\xE0y.";
+      const record = await checkRes.json();
+      if (record.tenant !== cfg.tenant) return "Kh\xF4ng c\xF3 quyền xo\xE1 luật n\xE0y.";
+      await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${args.id}`, { method: "DELETE", headers: { Authorization: pbToken } });
+      return "Đ\xE3 xo\xE1 luật lên lịch.";
+    }
     default: {
       const custom = customTools.find((t) => t.name === name);
       if (custom) return await executeCustomAgentTool(custom, args);
@@ -2322,7 +2385,7 @@ async function handleApiAgentChat(request, env, cors, cfg, ctx) {
   // có gọi tool hay không, câu trả lời vẫn đúng với dữ liệu thật.
   const snapshot = await getConfigSnapshot(env, pbToken, cfg);
   const customTools = await loadCustomAgentTools(env, pbToken, cfg.tenant);
-  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, avatar, lời ch\xE0o, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo), th\xEAm tool API ngo\xE0i mới cho Agent (add_agent_tool), hoặc gọi thẳng 1 tool ngo\xE0i m\xE0 khách đ\xE3 khai b\xE1o trước đ\xF3 nếu khách y\xEAu cầu h\xE0nh động khớp với m\xF4 tả của tool đ\xF3 — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4.
+  const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, avatar, lời ch\xE0o, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo/WordPress/Sanity), th\xEAm tool API ngo\xE0i mới cho Agent (add_agent_tool), gọi thẳng 1 tool ngo\xE0i m\xE0 khách đ\xE3 khai b\xE1o trước đ\xF3 nếu khách y\xEAu cầu h\xE0nh động khớp với m\xF4 tả của tool đ\xF3, l\xEAn kế hoạch cụm b\xE0i blog d\xE0i chuẩn SEO (plan_content_cluster), hoặc th\xEAm/xo\xE1 luật lên lịch đăng b\xE0i tự động theo ng\xE0y/giờ (add_publish_schedule/delete_publish_schedule) — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4.
 Cấu h\xECnh HIỆN TẠI của tenant n\xE0y (dữ liệu thật lấy từ DB, KH\xD4NG được đo\xE1n kh\xE1c đi khi trả lời khách):
 ${JSON.stringify(snapshot)}
 Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\xE3 kết nối trang n\xE0o...), dựa v\xE0o dữ liệu tr\xEAn để trả lời — vẫn c\xF3 thể gọi lại get_current_config nếu cần dữ liệu mới nhất sau khi vừa ghi thay đổi. Nếu thiếu th\xF4ng tin bắt buộc khi ghi (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. Trả lời ngắn gọn, tiếng Việt.`;

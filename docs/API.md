@@ -228,7 +228,7 @@ Response GET:
 { "success": true, "schedules": [{ "id": "...", "content_type": "blog", "days": ["mon","wed","fri"], "times": ["09:00"], "is_active": true }] }
 ```
 
-Quản lý trực quan hơn ở tab "Lịch đăng bài" trong `composer.html`.
+Quản lý trực quan hơn ở tab "Lịch đăng bài" trong `composer.html`, hoặc gọi thẳng trong **Chat với Agent** bằng câu tự nhiên kiểu "mỗi ngày đăng 3 bài social lúc 8h, 12h, 18h" — tool `add_publish_schedule`/`delete_publish_schedule`.
 
 ---
 
