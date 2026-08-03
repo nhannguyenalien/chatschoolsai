@@ -232,6 +232,29 @@ Quản lý trực quan hơn ở tab "Lịch đăng bài" trong `composer.html`, 
 
 ---
 
+## `POST /api/v1/chat-link` — Tạo link chat riêng cho 1 khách hàng
+
+Dùng khi hệ thống ngoài (vd phần mềm POS đã có sẵn 1 tài khoản/tenant ở đây — **không tạo tenant mới**) muốn tự tạo 1 link chat gắn sẵn tên khách rồi gửi cho khách (SMS/Zalo/email...). Khách mở link là vào thẳng cuộc chat, đã tự động được chào đúng tên — không cần khách tự nhập gì.
+
+Request:
+```json
+{ "customer_name": "Chị Hoa" }
+```
+Response:
+```json
+{
+  "success": true,
+  "session": "22c29691-3838-4ca6-8b67-0cc7e7b457b3",
+  "chat_url": "https://chat.schoolsai.work/chat.html?bot=<tenant>&session=22c29691-...&u=Ch%E1%BB%8B%20Hoa"
+}
+```
+
+Không tạo bản ghi nào trong DB trước — widget `chat.html` đã tự đọc `session`/tên khách (`u`) từ URL và tự lưu vào localStorage khi khách mở link, nên chỉ cần đúng URL là đủ. Muốn xem lại hội thoại của khách này sau: `GET /api/v1/messages?session=<session>`.
+
+Cũng gọi được ngay trong **Chat với Agent** bằng câu kiểu "tạo link chat cho khách tên Anh Tuấn" — tool `create_chat_link`.
+
+---
+
 ## `POST /api/v1/chat` — Gọi chatbot
 
 Gửi 1 câu hỏi, nhận câu trả lời AI ngay trong response (giống hệt widget chat, nhưng xác thực bằng API key thay vì để tenant tự khai trong body). Dùng khi hệ thống ngoài muốn tự hỏi bot thay vì nhúng widget.
@@ -401,6 +424,7 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 | Agent tự quyết định | `POST /api/v1/trigger/agent` | API key riêng tenant |
 | Cụm bài blog dài chuẩn SEO (WordPress/Sanity) | `POST /api/v1/content-cluster` | API key riêng tenant |
 | Lịch đăng bài tự động | `GET/POST /api/v1/schedules`, `PATCH/DELETE /api/v1/schedules/:id` | API key riêng tenant |
+| Tạo link chat riêng cho khách (tích hợp POS...) | `POST /api/v1/chat-link` | API key riêng tenant |
 | Chat với Trợ lý cấu hình | `POST /api/v1/agent-chat`, `GET /api/v1/agent-chat/tools` | API key riêng tenant |
 | Chatbot | `POST /api/v1/chat` | API key riêng tenant |
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |

@@ -2249,6 +2249,18 @@ var CONFIG_CHAT_TOOLS = [
         required: ["id"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_chat_link",
+      description: "Tạo 1 link chat ri\xEAng, gắn sẵn t\xEAn 1 khách h\xE0ng cụ thể, để gửi cho khách qua SMS/Zalo/email — khi khách mở link sẽ v\xE0o thẳng cuộc chat với AI, đ\xE3 tự động ch\xE0o đ\xFAng t\xEAn.",
+      parameters: {
+        type: "object",
+        properties: { customer_name: { type: "string", description: "T\xEAn khách h\xE0ng để hiển thị trong chat" } },
+        required: ["customer_name"]
+      }
+    }
   }
 ];
 
@@ -2363,6 +2375,13 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools 
       if (record.tenant !== cfg.tenant) return "Kh\xF4ng c\xF3 quyền xo\xE1 luật n\xE0y.";
       await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${args.id}`, { method: "DELETE", headers: { Authorization: pbToken } });
       return "Đ\xE3 xo\xE1 luật lên lịch.";
+    }
+    case "create_chat_link": {
+      if (!args.customer_name) return "Thiếu t\xEAn kh\xE1ch h\xE0ng.";
+      const session = crypto.randomUUID();
+      const baseUrl = (env.DASHBOARD_URL || "https://chat.schoolsai.work").replace(/\/+$/, "");
+      const chatUrl = `${baseUrl}/chat.html?bot=${encodeURIComponent(cfg.tenant)}&session=${session}&u=${encodeURIComponent(args.customer_name)}`;
+      return `Link chat cho ${args.customer_name}: ${chatUrl}`;
     }
     default: {
       const custom = customTools.find((t) => t.name === name);
@@ -2480,6 +2499,24 @@ async function handleApiSyncKnowledge(env, cors, cfg) {
 __name(handleApiSyncKnowledge, "handleApiSyncKnowledge");
 
 // ================= [API: CHAT LOGS] =================
+// ================= [API: TẠO LINK CHAT SẴN CHO 1 KHÁCH] =================
+// Dùng khi hệ thống ngoài (vd phần mềm POS) muốn tự tạo 1 link chat riêng gắn sẵn tên khách rồi
+// gửi cho khách (SMS/Zalo/email...) — không tạo tenant mới, không cần đăng ký session trước:
+// widget chat.html đã tự đọc session/tên khách từ URL (?bot=&session=&u=) và tự lưu vào localStorage,
+// nên chỉ cần sinh đúng URL là xong, không cần ghi gì vào DB trước.
+async function handleApiCreateChatLink(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const customerName = String(body.customer_name || "").trim();
+  if (!customerName) {
+    return new Response(JSON.stringify({ error: "Thiếu customer_name" }), { status: 400, headers: cors });
+  }
+  const session = crypto.randomUUID();
+  const baseUrl = (env.DASHBOARD_URL || "https://chat.schoolsai.work").replace(/\/+$/, "");
+  const chatUrl = `${baseUrl}/chat.html?bot=${encodeURIComponent(cfg.tenant)}&session=${session}&u=${encodeURIComponent(customerName)}`;
+  return new Response(JSON.stringify({ success: true, session, chat_url: chatUrl }), { headers: cors });
+}
+__name(handleApiCreateChatLink, "handleApiCreateChatLink");
+
 async function handleApiListMessages(request, env, cors, cfg) {
   const url = new URL(request.url);
   const session = url.searchParams.get("session");
@@ -2632,6 +2669,8 @@ async function handleApiV1(request, url, env, cors, ctx) {
   if (knowledgeDeleteMatch && request.method === "DELETE") return await handleApiDeleteKnowledge(env, cors, cfg, knowledgeDeleteMatch[1]);
 
   if (url.pathname === "/api/v1/messages" && request.method === "GET") return await handleApiListMessages(request, env, cors, cfg);
+
+  if (url.pathname === "/api/v1/chat-link" && request.method === "POST") return await handleApiCreateChatLink(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/schedules" && request.method === "GET") return await handleApiListSchedules(env, cors, cfg);
   if (url.pathname === "/api/v1/schedules" && request.method === "POST") return await handleApiCreateSchedule(request, env, cors, cfg);
