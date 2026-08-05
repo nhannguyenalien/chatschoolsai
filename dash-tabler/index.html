@@ -228,12 +228,27 @@
                         );
 
                         let user = authData.record;
-                        if (!user.tenant) {
-                            const newTenantId = `bot_${user.id}`;
+
+                        // Google may return the same mailbox with different casing.
+                        // Keep the original shop tenant instead of silently creating a new bot_* tenant.
+                        const oauthTenantAliases = {
+                            "toidayhoc@datdia.com": "huutin"
+                        };
+                        const normalizedEmail = String(user.email || authData.meta?.email || "")
+                            .trim()
+                            .toLowerCase();
+                        const expectedTenant = oauthTenantAliases[normalizedEmail];
+
+                        if (expectedTenant && user.tenant !== expectedTenant) {
                             user = await PB.collection('tenants').update(user.id, {
-                                tenant: newTenantId,
-                                name: authData.meta.name 
+                                tenant: expectedTenant,
+                                name: user.name || authData.meta?.name || ""
                             });
+                        }
+
+                        if (!user.tenant) {
+                            PB.authStore.clear();
+                            throw new Error("Tài khoản Google chưa được gắn với cửa hàng. Liên hệ admin để cấp tenant.");
                         }
 
                         localStorage.removeItem('provider');
