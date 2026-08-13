@@ -224,6 +224,54 @@ const I18N_DICT = {
 
 const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
 
+// Bảng này chứa toàn bộ nội dung cũ viết trực tiếp trong HTML/JavaScript.
+// Tải riêng để file từ điển chính vẫn dễ bảo trì; khi tải xong trang sẽ được dịch lại.
+if (!window.I18N_CONTENT) {
+  const contentScript = document.createElement("script");
+  contentScript.src = "_shared/i18n-content.js?v=20260813-2";
+  contentScript.onload = () => applyI18n();
+  document.head.appendChild(contentScript);
+}
+
+const ORIGINAL_TEXT = new WeakMap();
+const ORIGINAL_ATTRS = new WeakMap();
+
+function translateLegacyContent(root = document) {
+  const lang = getLang();
+  const translations = window.I18N_CONTENT && window.I18N_CONTENT[lang];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  nodes.forEach((node) => {
+    const parent = node.parentElement;
+    if (!parent || parent.closest("script, style, [data-i18n], [data-i18n-html]")) return;
+    if (!ORIGINAL_TEXT.has(node)) ORIGINAL_TEXT.set(node, node.nodeValue);
+    const original = ORIGINAL_TEXT.get(node);
+    const trimmed = original.trim();
+    if (!trimmed) return;
+    const translated = lang === "vi" ? trimmed : translations && translations[trimmed];
+    if (!translated) return;
+    node.nodeValue = original.replace(trimmed, translated);
+  });
+
+  const elements = root.querySelectorAll ? root.querySelectorAll("[placeholder], [title], [aria-label]") : [];
+  elements.forEach((el) => {
+    let originals = ORIGINAL_ATTRS.get(el);
+    if (!originals) {
+      originals = {};
+      ORIGINAL_ATTRS.set(el, originals);
+    }
+    ["placeholder", "title", "aria-label"].forEach((attr) => {
+      if (!el.hasAttribute(attr) || el.hasAttribute(`data-i18n-${attr}`)) return;
+      if (!(attr in originals)) originals[attr] = el.getAttribute(attr);
+      const original = originals[attr];
+      const translated = lang === "vi" ? original : translations && translations[original];
+      if (translated) el.setAttribute(attr, translated);
+    });
+  });
+}
+
 function getLang() {
   const saved = localStorage.getItem("lang") || "vi";
   return SUPPORTED_LANGS.includes(saved) ? saved : "vi";
@@ -249,6 +297,7 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-title]").forEach((el) => {
     el.title = t(el.getAttribute("data-i18n-title"));
   });
+  translateLegacyContent(document);
 }
 
 function setLang(lang) {
@@ -261,3 +310,14 @@ function setLang(lang) {
   }
   window.dispatchEvent(new CustomEvent("languagechange", { detail: { lang } }));
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  applyI18n();
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) translateLegacyContent(node);
+      else if (node.nodeType === Node.TEXT_NODE && node.parentElement) translateLegacyContent(node.parentElement);
+    }));
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+});
