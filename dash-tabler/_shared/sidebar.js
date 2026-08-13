@@ -18,7 +18,7 @@ const SIDEBAR_NAV = [
     ]
   },
   {
-    section: 'Social Media',
+    sectionKey: 'nav_social_media',
     items: [
       { href: 'post.html',      icon: 'ti-article',        labelKey: 'nav_posts' },
       { href: 'composer.html',  icon: 'ti-edit',           labelKey: 'nav_composer' },
@@ -43,8 +43,8 @@ function renderSidebar(user) {
     : '';
 
   const navHtml = SIDEBAR_NAV.map(group => {
-    const sectionHtml = group.section
-      ? `<p class="nav-category">${group.section}</p>`
+    const sectionHtml = group.sectionKey
+      ? `<p class="nav-category" data-i18n="${group.sectionKey}">${typeof t === 'function' ? t(group.sectionKey) : 'Social Media'}</p>`
       : '';
 
     const itemsHtml = group.items.map(item => {
@@ -100,9 +100,16 @@ function renderSidebar(user) {
 
           <!-- User footer -->
           <div class="mt-auto pt-3 border-top border-white-10">
-            <div class="d-flex align-items-center gap-1 px-2 pb-2">
-              <button type="button" class="btn btn-sm ${currentLang === 'vi' ? 'btn-primary' : 'btn-outline-secondary'} py-0 px-2" onclick="setLang('vi')">VI</button>
-              <button type="button" class="btn btn-sm ${currentLang === 'en' ? 'btn-primary' : 'btn-outline-secondary'} py-0 px-2" onclick="setLang('en')">EN</button>
+            <div class="px-2 pb-2">
+              <label for="sidebar-language" class="form-label text-white-50 fs-6 mb-1" data-i18n="language">Ngôn ngữ</label>
+              <select id="sidebar-language" class="form-select form-select-sm" onchange="setLang(this.value)" aria-label="Language">
+                <option value="vi" ${currentLang === 'vi' ? 'selected' : ''}>🇻🇳 Tiếng Việt</option>
+                <option value="en" ${currentLang === 'en' ? 'selected' : ''}>🇬🇧 English</option>
+                <option value="ja" ${currentLang === 'ja' ? 'selected' : ''}>🇯🇵 日本語</option>
+                <option value="es" ${currentLang === 'es' ? 'selected' : ''}>🇪🇸 Español</option>
+                <option value="fr" ${currentLang === 'fr' ? 'selected' : ''}>🇫🇷 Français</option>
+                <option value="ko" ${currentLang === 'ko' ? 'selected' : ''}>🇰🇷 한국어</option>
+              </select>
             </div>
             <div class="d-flex align-items-center gap-2 px-2 py-2">
               <span class="avatar avatar-sm rounded-circle"

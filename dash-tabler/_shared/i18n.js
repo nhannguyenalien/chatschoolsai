@@ -19,6 +19,7 @@ const I18N_DICT = {
     nav_composer: "Soạn Bài",
     nav_analytics: "Analytics",
     nav_sm_config: "Cấu Hình Kênh",
+    nav_social_media: "Mạng xã hội",
     logout: "Đăng xuất",
 
     // Chung (nút, hành động lặp lại nhiều trang)
@@ -29,6 +30,7 @@ const I18N_DICT = {
     btn_search: "Tìm kiếm",
     btn_send: "Gửi",
     loading: "Đang tải...",
+    language: "Ngôn ngữ",
 
     // index.html
     idx_title: "Customer AI Hub",
@@ -103,6 +105,7 @@ const I18N_DICT = {
     nav_composer: "Composer",
     nav_analytics: "Analytics",
     nav_sm_config: "Channel Settings",
+    nav_social_media: "Social Media",
     logout: "Log out",
 
     btn_save: "Save",
@@ -112,6 +115,7 @@ const I18N_DICT = {
     btn_search: "Search",
     btn_send: "Send",
     loading: "Loading...",
+    language: "Language",
 
     idx_title: "Customer AI Hub",
 
@@ -163,11 +167,66 @@ const I18N_DICT = {
 
     sm_title: "Channel Settings",
     sm_subtitle: "Manage Pages/Accounts and tokens for Facebook, Instagram, WhatsApp, Zalo and other chat APIs."
+  },
+  ja: {
+    nav_overview: "概要", nav_bot_settings: "ボット設定", nav_agent_chat: "エージェントとチャット", nav_knowledge: "ナレッジベース", nav_messages: "チャット履歴", nav_leads: "見込み客", nav_billing: "請求", nav_posts: "SNS投稿", nav_composer: "投稿作成", nav_analytics: "分析", nav_sm_config: "チャンネル設定", nav_loyalty: "顧客・ロイヤルティ", nav_social_media: "ソーシャルメディア", logout: "ログアウト",
+    language: "言語", btn_save: "保存", btn_cancel: "キャンセル", btn_delete: "削除", btn_add: "追加", btn_search: "検索", btn_send: "送信", loading: "読み込み中...",
+    idx_title: "カスタマーAIハブ",
+    cfg_breadcrumb: "ボット設定", cfg_title: "アシスタントを設定", cfg_subtitle: "チャットボットの性格、動作、技術パラメータを設定します。", cfg_agentchat_banner_title: "AIエージェントとチャット", cfg_agentchat_banner_sub: "会話するだけでシステムを設定できます。下のフォームを探す必要はありません。専用ページを開いてください。", cfg_card_api_title: "外部システム向けAPI", cfg_card_agent_title: "AI運用エージェント", cfg_card_tools_title: "エージェント用カスタムツール（外部API）", cfg_card_persona_title: "システムペルソナ",
+    ac_breadcrumb: "AIエージェントとチャット", ac_title: "AIエージェントとチャット", ac_subtitle: "普通に話すだけで、エージェントが内容を理解し、API経由でシステムを設定します。", ac_warning_html: '入力内容（トークンやAPIキーを含む）はAIモデルへ送信されます。このシステムに設定されたAIプロキシを信頼できる場合のみトークンを貼り付けてください（<a href="config.html">ボット設定</a>を参照）。', ac_input_placeholder: "設定内容を入力...（Enterで送信）", ac_empty: "メッセージはまだありません。下の候補を選ぶか、リクエストを入力してください。", ac_capabilities_title: "このエージェントでできること", ac_capabilities_hint: "この一覧はバックエンドから直接取得されるため、エージェントが実行できる内容を常に正確に反映します。",
+    kb_title_top: "ナレッジベース", kb_title: "ナレッジベース", kb_subtitle: "ボットが学習するコンテンツを追加・管理します。テキストを貼り付けると自動で分割・埋め込みされます。", kb_search_placeholder: "ドキュメントを検索...",
+    msg_title_top: "チャット履歴", msg_recent_sessions: "最近のセッション", msg_filter_all: "すべて", msg_filter_needs_human: "対応が必要", msg_select_session: "チャットセッションを選択", msg_select_session_hint: "左側の顧客をクリックするとメッセージが表示されます",
+    bill_title_top: "ダッシュボード", bill_title: "請求と利用状況", bill_subtitle: "プラン、上限、取引履歴を管理します。",
+    post_title: "不動産投稿", post_subtitle: "SNSへ自動公開する投稿を管理、承認、追跡します", post_btn_refresh: "更新",
+    comp_title: "投稿作成", comp_subtitle: "投稿の下書き、RSSからのAIリライト、各プラットフォームへの手動公開を行います。", comp_manage_channels: "公開チャンネルを管理",
+    an_title: "分析", an_subtitle: "すべてのプラットフォームの投稿状況を追跡します。", sm_title: "チャンネル設定", sm_subtitle: "Facebook、Instagram、WhatsApp、Zalo、その他のチャットAPIのページ／アカウントとトークンを管理します。"
+  },
+  es: {
+    nav_overview: "Resumen", nav_bot_settings: "Configuración del bot", nav_agent_chat: "Chat con el agente", nav_knowledge: "Base de conocimiento", nav_messages: "Historial de chats", nav_leads: "Clientes potenciales", nav_billing: "Facturación", nav_posts: "Publicaciones sociales", nav_composer: "Redactor", nav_analytics: "Analítica", nav_sm_config: "Configuración de canales", nav_loyalty: "Clientes y fidelización", nav_social_media: "Redes sociales", logout: "Cerrar sesión",
+    language: "Idioma", btn_save: "Guardar", btn_cancel: "Cancelar", btn_delete: "Eliminar", btn_add: "Añadir", btn_search: "Buscar", btn_send: "Enviar", loading: "Cargando...",
+    idx_title: "Centro de IA para clientes",
+    cfg_breadcrumb: "Configuración del bot", cfg_title: "Configurar asistente", cfg_subtitle: "Configura la personalidad, el comportamiento y los parámetros técnicos de tu chatbot.", cfg_agentchat_banner_title: "Chat con el agente de IA", cfg_agentchat_banner_sub: "Habla para configurar el sistema sin buscar entre los formularios. Abre la página dedicada.", cfg_card_api_title: "API para sistemas externos", cfg_card_agent_title: "Agente de operaciones de IA", cfg_card_tools_title: "Herramientas personalizadas del agente (API externas)", cfg_card_persona_title: "Personalidad del sistema",
+    ac_breadcrumb: "Chat con el agente de IA", ac_title: "Chat con el agente de IA", ac_subtitle: "Habla con normalidad: el agente entiende y configura el sistema mediante la API, sin formularios.", ac_warning_html: 'Lo que escribas (incluidos tokens o claves API) se enviará al modelo de IA. Pega tokens solo si confías en el proxy de IA configurado para este sistema (consulta <a href="config.html">Configuración del bot</a>).', ac_input_placeholder: "Escribe una solicitud de configuración... (Enter para enviar)", ac_empty: "Aún no hay mensajes. Prueba una sugerencia o escribe tu solicitud.", ac_capabilities_title: "¿Qué puede hacer este agente?", ac_capabilities_hint: "Esta lista procede directamente del backend y refleja siempre lo que el agente puede hacer.",
+    kb_title_top: "Base de conocimiento", kb_title: "Base de conocimiento", kb_subtitle: "Añade y gestiona el contenido que aprende tu bot. Pega texto y se dividirá y vectorizará automáticamente.", kb_search_placeholder: "Buscar documentos...",
+    msg_title_top: "Historial de chats", msg_recent_sessions: "Sesiones recientes", msg_filter_all: "Todas", msg_filter_needs_human: "Requiere atención", msg_select_session: "Selecciona una sesión", msg_select_session_hint: "Haz clic en un cliente de la izquierda para ver los mensajes",
+    bill_title_top: "Panel", bill_title: "Facturación y uso", bill_subtitle: "Gestiona tu plan, límites e historial de transacciones.",
+    post_title: "Publicaciones inmobiliarias", post_subtitle: "Gestiona, aprueba y controla publicaciones automáticas en redes sociales", post_btn_refresh: "Actualizar",
+    comp_title: "Redactor", comp_subtitle: "Redacta publicaciones, usa IA para reescribir desde RSS y publica manualmente en tus plataformas.", comp_manage_channels: "Gestionar canales de publicación",
+    an_title: "Analítica", an_subtitle: "Controla el estado de las publicaciones en todas las plataformas.", sm_title: "Configuración de canales", sm_subtitle: "Gestiona páginas, cuentas y tokens de Facebook, Instagram, WhatsApp, Zalo y otras API de chat."
+  },
+  fr: {
+    nav_overview: "Vue d’ensemble", nav_bot_settings: "Paramètres du bot", nav_agent_chat: "Discuter avec l’agent", nav_knowledge: "Base de connaissances", nav_messages: "Historique des chats", nav_leads: "Prospects", nav_billing: "Facturation", nav_posts: "Publications sociales", nav_composer: "Rédacteur", nav_analytics: "Analytique", nav_sm_config: "Paramètres des canaux", nav_loyalty: "Clients et fidélité", nav_social_media: "Réseaux sociaux", logout: "Se déconnecter",
+    language: "Langue", btn_save: "Enregistrer", btn_cancel: "Annuler", btn_delete: "Supprimer", btn_add: "Ajouter", btn_search: "Rechercher", btn_send: "Envoyer", loading: "Chargement...",
+    idx_title: "Hub IA client",
+    cfg_breadcrumb: "Configuration du bot", cfg_title: "Configurer l’assistant", cfg_subtitle: "Configurez la personnalité, le comportement et les paramètres techniques de votre chatbot.", cfg_agentchat_banner_title: "Discuter avec l’agent IA", cfg_agentchat_banner_sub: "Discutez simplement pour configurer le système sans parcourir les formulaires. Ouvrez la page dédiée.", cfg_card_api_title: "API pour les systèmes externes", cfg_card_agent_title: "Agent d’exploitation IA", cfg_card_tools_title: "Outils personnalisés de l’agent (API externes)", cfg_card_persona_title: "Personnalité du système",
+    ac_breadcrumb: "Discuter avec l’agent IA", ac_title: "Discuter avec l’agent IA", ac_subtitle: "Parlez normalement : l’agent comprend et configure le système via l’API, sans formulaire.", ac_warning_html: 'Votre saisie (y compris les jetons ou clés API) est envoyée au modèle IA. Ne collez des jetons que si vous faites confiance au proxy IA configuré pour ce système (voir <a href="config.html">Paramètres du bot</a>).', ac_input_placeholder: "Saisissez une demande de configuration... (Entrée pour envoyer)", ac_empty: "Aucun message pour le moment. Essayez une suggestion ou saisissez votre demande.", ac_capabilities_title: "Que peut faire cet agent ?", ac_capabilities_hint: "Cette liste provient directement du backend et reflète toujours les capacités réelles de l’agent.",
+    kb_title_top: "Base de connaissances", kb_title: "Base de connaissances", kb_subtitle: "Ajoutez et gérez le contenu appris par votre bot. Collez du texte : il sera automatiquement segmenté et vectorisé.", kb_search_placeholder: "Rechercher des documents...",
+    msg_title_top: "Historique des chats", msg_recent_sessions: "Sessions récentes", msg_filter_all: "Toutes", msg_filter_needs_human: "Attention requise", msg_select_session: "Sélectionnez une session", msg_select_session_hint: "Cliquez sur un client à gauche pour afficher les messages",
+    bill_title_top: "Tableau de bord", bill_title: "Facturation et utilisation", bill_subtitle: "Gérez votre forfait, vos limites et l’historique des transactions.",
+    post_title: "Publications immobilières", post_subtitle: "Gérez, approuvez et suivez les publications automatiques sur les réseaux sociaux", post_btn_refresh: "Actualiser",
+    comp_title: "Rédacteur", comp_subtitle: "Rédigez des publications, utilisez l’IA pour réécrire depuis RSS et publiez manuellement sur vos plateformes.", comp_manage_channels: "Gérer les canaux de publication",
+    an_title: "Analytique", an_subtitle: "Suivez l’état des publications sur toutes les plateformes.", sm_title: "Paramètres des canaux", sm_subtitle: "Gérez les pages, comptes et jetons Facebook, Instagram, WhatsApp, Zalo et autres API de chat."
+  },
+  ko: {
+    nav_overview: "개요", nav_bot_settings: "봇 설정", nav_agent_chat: "에이전트와 채팅", nav_knowledge: "지식 베이스", nav_messages: "채팅 기록", nav_leads: "잠재 고객", nav_billing: "결제", nav_posts: "소셜 게시물", nav_composer: "게시물 작성", nav_analytics: "분석", nav_sm_config: "채널 설정", nav_loyalty: "고객 및 로열티", nav_social_media: "소셜 미디어", logout: "로그아웃",
+    language: "언어", btn_save: "저장", btn_cancel: "취소", btn_delete: "삭제", btn_add: "추가", btn_search: "검색", btn_send: "보내기", loading: "불러오는 중...",
+    idx_title: "고객 AI 허브",
+    cfg_breadcrumb: "봇 설정", cfg_title: "어시스턴트 설정", cfg_subtitle: "챗봇의 성격, 동작 및 기술 매개변수를 설정합니다.", cfg_agentchat_banner_title: "AI 에이전트와 채팅", cfg_agentchat_banner_sub: "대화만으로 시스템을 설정할 수 있습니다. 아래 폼을 찾을 필요 없이 전용 페이지를 여세요.", cfg_card_api_title: "외부 시스템용 API", cfg_card_agent_title: "AI 운영 에이전트", cfg_card_tools_title: "에이전트 사용자 지정 도구(외부 API)", cfg_card_persona_title: "시스템 페르소나",
+    ac_breadcrumb: "AI 에이전트와 채팅", ac_title: "AI 에이전트와 채팅", ac_subtitle: "자연스럽게 말하면 에이전트가 이해하고 API를 통해 시스템을 설정합니다.", ac_warning_html: '입력한 내용(토큰 또는 API 키 포함)은 AI 모델로 전송됩니다. 이 시스템에 설정된 AI 프록시를 신뢰하는 경우에만 토큰을 붙여 넣으세요(<a href="config.html">봇 설정</a> 참조).', ac_input_placeholder: "설정 요청 입력... (Enter로 전송)", ac_empty: "아직 메시지가 없습니다. 아래 제안을 선택하거나 요청을 입력하세요.", ac_capabilities_title: "이 에이전트가 할 수 있는 일", ac_capabilities_hint: "이 목록은 백엔드에서 직접 가져오므로 에이전트의 실제 기능을 항상 정확하게 반영합니다.",
+    kb_title_top: "지식 베이스", kb_title: "지식 베이스", kb_subtitle: "봇이 학습할 콘텐츠를 추가하고 관리합니다. 텍스트를 붙여 넣으면 자동으로 분할하고 임베딩합니다.", kb_search_placeholder: "문서 검색...",
+    msg_title_top: "채팅 기록", msg_recent_sessions: "최근 세션", msg_filter_all: "전체", msg_filter_needs_human: "확인 필요", msg_select_session: "채팅 세션 선택", msg_select_session_hint: "왼쪽의 고객을 클릭하여 메시지를 확인하세요",
+    bill_title_top: "대시보드", bill_title: "결제 및 사용량", bill_subtitle: "요금제, 한도 및 거래 내역을 관리합니다.",
+    post_title: "부동산 게시물", post_subtitle: "소셜 미디어에 자동 게시되는 글을 관리, 승인 및 추적합니다", post_btn_refresh: "새로고침",
+    comp_title: "게시물 작성", comp_subtitle: "게시물을 작성하고 AI로 RSS 콘텐츠를 다시 쓰며 플랫폼에 직접 게시합니다.", comp_manage_channels: "게시 채널 관리",
+    an_title: "분석", an_subtitle: "모든 플랫폼의 게시 상태를 추적합니다.", sm_title: "채널 설정", sm_subtitle: "Facebook, Instagram, WhatsApp, Zalo 및 기타 채팅 API의 페이지/계정과 토큰을 관리합니다."
   }
 };
 
+const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
+
 function getLang() {
-  return localStorage.getItem("lang") || "vi";
+  const saved = localStorage.getItem("lang") || "vi";
+  return SUPPORTED_LANGS.includes(saved) ? saved : "vi";
 }
 
 function t(key) {
@@ -193,10 +252,12 @@ function applyI18n() {
 }
 
 function setLang(lang) {
+  if (!SUPPORTED_LANGS.includes(lang)) return;
   localStorage.setItem("lang", lang);
   applyI18n();
   if (typeof renderSidebar === "function" && window.AUTH_USER) {
     renderSidebar(window.AUTH_USER);
     applyI18n();
   }
+  window.dispatchEvent(new CustomEvent("languagechange", { detail: { lang } }));
 }
