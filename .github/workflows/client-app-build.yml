@@ -45,10 +45,16 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+      - name: Install Android SDK 37
+        run: sdkmanager "platforms;android-37"
       - run: flutter pub get
       - run: flutter build apk --release
       - run: flutter build appbundle --release
