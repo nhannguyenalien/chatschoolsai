@@ -6,6 +6,9 @@ on:
     tags:
       - 'client-v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -52,3 +55,12 @@ jobs:
           path: apps/client_app/dist/Schools-AI-*-Windows-x64.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish Windows package to GitHub Releases
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Schools AI ${{ github.ref_name }}
+          generate_release_notes: true
+          files: apps/client_app/dist/Schools-AI-*-Windows-x64.zip
+          fail_on_unmatched_files: true
