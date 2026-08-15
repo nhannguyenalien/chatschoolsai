@@ -1,0 +1,149 @@
+name: Shorebird release or OTA patch (4 platforms)
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Create an installable base release or publish an OTA patch
+        required: true
+        type: choice
+        options:
+          - patch
+          - release
+      platform:
+        description: Target platform
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+          - windows
+          - macos
+      release_version:
+        description: Version to patch; use latest unless targeting an older release
+        required: false
+        default: latest
+        type: string
+  push:
+    tags:
+      - 'client-patch-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shorebird-${{ github.ref }}-${{ inputs.operation || 'patch' }}
+  cancel-in-progress: false
+
+env:
+  APP_DIR: apps/client_app
+  SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+  OPERATION: ${{ inputs.operation || 'patch' }}
+  TARGET_PLATFORM: ${{ inputs.platform || 'all' }}
+  RELEASE_VERSION: ${{ inputs.release_version || 'latest' }}
+
+jobs:
+  preflight:
+    name: Validate Shorebird configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check app registration and CI token
+        shell: bash
+        run: |
+          test -f "$APP_DIR/shorebird.yaml" || { echo 'Run shorebird init in apps/client_app and commit shorebird.yaml.'; exit 1; }
+          test -n "$SHOREBIRD_TOKEN" || { echo 'Add SHOREBIRD_TOKEN in GitHub repository secrets.'; exit 1; }
+
+  android:
+    name: Shorebird Android
+    needs: preflight
+    if: inputs.platform == 'android' || inputs.platform == 'all' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shorebirdtech/setup-shorebird@v1
+      - name: Create Android base release
+        if: env.OPERATION == 'release'
+        uses: shorebirdtech/shorebird-release@v1
+        with:
+          flutter-version: latest
+          platform: android
+          working-directory: ${{ env.APP_DIR }}
+      - name: Publish Android OTA patch
+        if: env.OPERATION == 'patch'
+        uses: shorebirdtech/shorebird-patch@v1
+        with:
+          platform: android
+          release-version: ${{ env.RELEASE_VERSION }}
+          working-directory: ${{ env.APP_DIR }}
+
+  windows:
+    name: Shorebird Windows
+    needs: preflight
+    if: inputs.platform == 'windows' || inputs.platform == 'all' || github.event_name == 'push'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shorebirdtech/setup-shorebird@v1
+      - name: Create Windows base release
+        if: env.OPERATION == 'release'
+        uses: shorebirdtech/shorebird-release@v1
+        with:
+          flutter-version: latest
+          platform: windows
+          working-directory: ${{ env.APP_DIR }}
+      - name: Publish Windows OTA patch
+        if: env.OPERATION == 'patch'
+        uses: shorebirdtech/shorebird-patch@v1
+        with:
+          platform: windows
+          release-version: ${{ env.RELEASE_VERSION }}
+          working-directory: ${{ env.APP_DIR }}
+
+  ios:
+    name: Shorebird iOS
+    needs: preflight
+    if: inputs.platform == 'ios' || inputs.platform == 'all' || github.event_name == 'push'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shorebirdtech/setup-shorebird@v1
+      - name: Create iOS base release
+        if: env.OPERATION == 'release'
+        uses: shorebirdtech/shorebird-release@v1
+        with:
+          flutter-version: latest
+          platform: ios
+          working-directory: ${{ env.APP_DIR }}
+      - name: Publish iOS OTA patch
+        if: env.OPERATION == 'patch'
+        uses: shorebirdtech/shorebird-patch@v1
+        with:
+          platform: ios
+          release-version: ${{ env.RELEASE_VERSION }}
+          working-directory: ${{ env.APP_DIR }}
+
+  macos:
+    name: Shorebird macOS
+    needs: preflight
+    if: inputs.platform == 'macos' || inputs.platform == 'all' || github.event_name == 'push'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shorebirdtech/setup-shorebird@v1
+      - name: Create macOS base release
+        if: env.OPERATION == 'release'
+        uses: shorebirdtech/shorebird-release@v1
+        with:
+          flutter-version: latest
+          platform: macos
+          working-directory: ${{ env.APP_DIR }}
+      - name: Publish macOS OTA patch
+        if: env.OPERATION == 'patch'
+        uses: shorebirdtech/shorebird-patch@v1
+        with:
+          platform: macos
+          release-version: ${{ env.RELEASE_VERSION }}
+          working-directory: ${{ env.APP_DIR }}
