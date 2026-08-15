@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tích điểm khách hàng - Customer AI Hub</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <script src="_shared/auth.js"></script>
+  <script src="_shared/i18n.js?v=20260814-1"></script>
+  <script src="_shared/sidebar.js"></script>
+  <style>
+    .spin-wheel-wrap{position:relative;width:min(78vw,360px);aspect-ratio:1;margin:auto}.spin-pointer{position:absolute;z-index:3;left:50%;top:-12px;transform:translateX(-50%);width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:38px solid #d63939;filter:drop-shadow(0 2px 2px #0004)}
+    .spin-wheel{position:absolute;inset:0;border:8px solid #fff;border-radius:50%;box-shadow:0 0 0 5px #f59f00,0 8px 30px #0003;transition:transform 4.8s cubic-bezier(.12,.72,.08,1);overflow:hidden}
+    .spin-wheel::after{content:'QUAY';position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#f59f00;font-weight:800;box-shadow:0 2px 8px #0004}
+    .wheel-label{position:absolute;left:50%;top:50%;width:92px;margin-left:-46px;margin-top:-10px;text-align:center;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;line-height:1.15;pointer-events:none}
+  </style>
+</head>
+<body class="layout-fluid">
+<div class="page">
+  <div id="sidebar-placeholder"></div>
+  <div class="page-wrapper">
+    <header class="navbar navbar-expand-md navbar-light d-lg-none border-bottom">
+      <div class="container-xl"><button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button></div>
+    </header>
+    <main class="page-body mt-4">
+      <div class="container-xl">
+        <div class="mb-4">
+          <div class="text-secondary mb-2"><a href="index.html" class="text-reset">Overview</a> / Loyalty</div>
+          <h1 class="page-title">Khách hàng & tích điểm</h1>
+          <div class="text-secondary mt-1">Dùng được cả khi cửa hàng không có POS: nhập số điện thoại, mã hóa đơn và số tiền.</div>
+        </div>
+        <div id="alert"></div>
+
+        <section class="card mb-4">
+          <div class="card-header d-flex align-items-center">
+            <div><h3 class="card-title"><i class="ti ti-world-star me-2"></i>Reward World</h3><div class="text-secondary small">Chương trình chung do hệ thống vận hành — cửa hàng chỉ cần tham gia.</div></div>
+            <button class="btn btn-outline-primary btn-sm ms-auto" id="refresh-campaigns" type="button"><i class="ti ti-refresh me-1"></i>Làm mới</button>
+          </div>
+          <div class="card-body"><div class="row row-cards" id="campaign-list"><div class="text-secondary">Đang tải chương trình...</div></div></div>
+        </section>
+
+        <div class="row row-cards">
+          <div class="col-lg-5">
+            <section class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-settings me-2"></i>Luật tích điểm</h3></div>
+              <form class="card-body" id="program-form">
+                <div class="mb-3"><label class="form-label">Chi tiêu bao nhiêu VND</label><input id="spend-per-point" class="form-control" type="number" min="1" step="1" value="10000" required></div>
+                <div class="mb-3"><label class="form-label">Nhận số điểm</label><input id="points-per-step" class="form-control" type="number" min="1" step="1" value="1" required></div>
+                <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Lưu và kích hoạt</button>
+                <div class="form-hint mt-2" id="program-status">Đang tải luật hiện tại...</div>
+              </form>
+            </section>
+
+            <section class="card">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-receipt me-2"></i>Nhập hóa đơn thủ công</h3></div>
+              <form class="card-body" id="sale-form">
+                <div class="mb-3"><label class="form-label">Số điện thoại / mã khách</label><input id="customer-ref" class="form-control" maxlength="200" required autocomplete="off"></div>
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-6"><label class="form-label">Tên khách (tùy chọn)</label><input id="customer-name" class="form-control" maxlength="200"></div>
+                  <div class="col-sm-6"><label class="form-label">Mã hóa đơn</label><input id="receipt-ref" class="form-control" maxlength="200" required autocomplete="off"></div>
+                </div>
+                <div class="mb-3"><label class="form-label">Số tiền (VND)</label><input id="sale-amount" class="form-control" type="number" min="1" step="1" required></div>
+                <button class="btn btn-success" type="submit"><i class="ti ti-plus me-1"></i>Cộng điểm</button>
+                <div class="form-hint mt-2">Một mã hóa đơn chỉ được cộng một lần. Bấm lại do mạng chậm cũng không cộng trùng.</div>
+              </form>
+            </section>
+            <section class="card mt-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-gift-card me-2"></i>Dùng điểm</h3></div>
+              <form class="card-body" id="redeem-form">
+                <div class="mb-3"><label class="form-label">Số điện thoại / mã khách</label><input id="redeem-customer-ref" class="form-control" maxlength="200" required></div>
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-6"><label class="form-label">Số điểm cần trừ</label><input id="redeem-points" class="form-control" type="number" min="1" step="1" required></div>
+                  <div class="col-sm-6"><label class="form-label">Mã đổi thưởng</label><input id="redeem-ref" class="form-control" maxlength="200" required></div>
+                </div>
+                <div class="mb-3"><label class="form-label">Ghi chú (tùy chọn)</label><input id="redeem-note" class="form-control" maxlength="500"></div>
+                <button class="btn btn-warning" type="submit"><i class="ti ti-minus me-1"></i>Trừ điểm</button>
+                <div class="form-hint mt-2">Hệ thống kiểm tra đủ điểm và không cho dùng trùng một mã đổi thưởng.</div>
+              </form>
+            </section>
+          </div>
+
+          <div class="col-lg-7">
+            <section class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-gift me-2"></i>Tra cứu & giao thưởng</h3></div>
+              <form class="card-body border-bottom" id="reward-lookup-form"><div class="input-group"><input id="reward-customer-ref" class="form-control" placeholder="Số điện thoại / mã khách" required><button class="btn btn-outline-warning" type="submit">Tra giải</button></div></form>
+              <div class="card-body" id="reward-result"><div class="text-secondary">Nhập mã khách để xem các giải đã quay.</div></div>
+            </section>
+            <section class="card">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-user-search me-2"></i>Tra cứu khách hàng</h3></div>
+              <form class="card-body border-bottom" id="lookup-form">
+                <div class="input-group"><input id="lookup-ref" class="form-control" placeholder="Số điện thoại / mã khách" required><button class="btn btn-outline-primary" type="submit">Tra cứu</button></div>
+              </form>
+              <div class="card-body" id="account-result"><div class="empty"><p class="empty-title">Chưa chọn khách hàng</p><p class="empty-subtitle text-secondary">Nhập số điện thoại hoặc mã khách để xem điểm và lịch sử.</p></div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="modal modal-blur fade" id="spin-modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h3 class="modal-title" id="spin-title">Vòng quay may mắn</h3><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-center py-4"><div class="spin-wheel-wrap"><div class="spin-pointer"></div><div id="spin-wheel" class="spin-wheel"></div></div><h2 id="spin-result" class="mt-4 mb-1">Đang xác nhận lượt quay...</h2><div id="spin-result-note" class="text-secondary">Kết quả được máy chủ quyết định và ghi nhận trước khi vòng quay dừng.</div></div></div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+  let loyaltyApiKey = '';
+  let campaignCache = new Map();
+  const money = new Intl.NumberFormat('vi-VN');
+  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+
+  function showAlert(message, type = 'success') {
+    document.getElementById('alert').innerHTML = `<div class="alert alert-${type}" role="alert">${esc(message)}</div>`;
+  }
+
+  async function getApiKey() {
+    if (loyaltyApiKey) return loyaltyApiKey;
+    const result = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
+    if (result.items.length !== 1 || !result.items[0].api_key) throw new Error('Hãy tạo API key trong trang Cấu hình bot trước.');
+    loyaltyApiKey = result.items[0].api_key;
+    return loyaltyApiKey;
+  }
+
+  async function loyaltyFetch(path, options = {}) {
+    const response = await fetch(`${WORKER_URL}${path}`, {
+      ...options,
+      headers: {'Content-Type':'application/json', Authorization:`Bearer ${await getApiKey()}`, ...(options.headers || {})}
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `API trả về HTTP ${response.status}`);
+    return body;
+  }
+
+  function campaignCard(campaign) {
+    const prizes = (campaign.prizes || []).map(prize => `<span class="badge bg-purple-lt me-1 mb-1">${esc(prize.name)}</span>`).join('');
+    return `<div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-body"><h3>${esc(campaign.name)}</h3><p class="text-secondary">${esc(campaign.description || 'Chương trình quay thưởng toàn hệ thống')}</p><div class="mb-3">${prizes || '<span class="text-secondary">Giải thưởng sẽ được công bố</span>'}</div><div class="small text-secondary mb-3">Mỗi ${money.format(Number(campaign.spend_per_spin_minor || 0))} ₫ nhận 1 lượt</div>${campaign.joined ? `<div class="badge bg-green-lt mb-3">Đã tham gia</div><div class="input-group"><input class="form-control spin-customer" data-campaign="${esc(campaign.id)}" placeholder="SĐT / mã khách"><button class="btn btn-warning spin-btn" data-campaign="${esc(campaign.id)}" type="button"><i class="ti ti-refresh-dot me-1"></i>Quay</button></div>` : `<button class="btn btn-primary join-campaign" data-campaign="${esc(campaign.id)}" type="button">Tham gia chương trình</button>`}</div></div></div>`;
+  }
+
+  async function loadCampaigns() {
+    const container = document.getElementById('campaign-list');
+    try {
+      const world = await loyaltyFetch('/api/v1/loyalty/reward-world/campaigns');
+      campaignCache = new Map(world.campaigns.map(campaign => [campaign.id, campaign]));
+      container.innerHTML = world.campaigns.map(campaignCard).join('') || '<div class="empty"><p class="empty-title">Chưa có chương trình đang mở</p></div>';
+    } catch (error) { container.innerHTML = `<div class="text-danger">${esc(error.message)}</div>`; }
+  }
+
+  document.getElementById('campaign-list').addEventListener('click', async event => {
+    const join = event.target.closest('.join-campaign');
+    const spin = event.target.closest('.spin-btn');
+    if (!join && !spin) return;
+    const button = join || spin; button.disabled = true;
+    try {
+      if (join) {
+        await loyaltyFetch(`/api/v1/loyalty/reward-world/campaigns/${encodeURIComponent(join.dataset.campaign)}/join`, {method:'POST'});
+        showAlert('Cửa hàng đã tham gia chương trình. Hóa đơn mới đủ điều kiện sẽ tự nhận lượt quay.');
+        await loadCampaigns();
+      } else {
+        const input = document.querySelector(`.spin-customer[data-campaign="${CSS.escape(spin.dataset.campaign)}"]`);
+        const customerRef = input.value.trim();
+        if (!customerRef) throw new Error('Nhập số điện thoại hoặc mã khách trước khi quay.');
+        const campaign = campaignCache.get(spin.dataset.campaign);
+        if (!campaign) throw new Error('Chương trình không còn khả dụng.');
+        openSpinWheel(campaign);
+        const result = await loyaltyFetch('/api/v1/loyalty/reward-world/spins', {method:'POST', body:JSON.stringify({
+          campaign_id:spin.dataset.campaign, customer_ref:customerRef,
+          idempotency_key:`dashboard:${spin.dataset.campaign}:${customerRef}:${crypto.randomUUID()}`
+        })});
+        await animateSpinResult(campaign, result.result);
+      }
+    } catch (error) {
+      document.getElementById('spin-result').textContent = 'Chưa thể quay';
+      document.getElementById('spin-result-note').textContent = error.message;
+      showAlert(error.message, 'danger');
+    }
+    finally { button.disabled = false; }
+  });
+  document.getElementById('refresh-campaigns').addEventListener('click', loadCampaigns);
+
+  function renderSpinWheel(campaign) {
+    const wheel = document.getElementById('spin-wheel');
+    const prizes = campaign.prizes || [];
+    const colors = ['#206bc4','#f76707','#2fb344','#ae3ec9','#d63939','#0ca678','#f59f00','#4263eb'];
+    const size = 360 / Math.max(prizes.length, 1);
+    wheel.style.background = `conic-gradient(from -90deg, ${prizes.map((_,i)=>`${colors[i%colors.length]} ${i*size}deg ${(i+1)*size}deg`).join(',') || '#adb5bd 0 360deg'})`;
+    wheel.innerHTML = prizes.map((prize,i)=>{const angle=(i+.5)*size;return `<span class="wheel-label" style="transform:rotate(${angle}deg) translateY(-132px) rotate(${-angle}deg)">${esc(prize.name)}</span>`}).join('');
+    wheel.style.transition='none'; wheel.style.transform='rotate(0deg)'; wheel.offsetHeight;
+  }
+  function openSpinWheel(campaign) {
+    document.getElementById('spin-title').textContent=campaign.name;
+    document.getElementById('spin-result').textContent='Đang xác nhận lượt quay...';
+    document.getElementById('spin-result-note').textContent='Kết quả được máy chủ quyết định và ghi nhận trước khi vòng quay dừng.';
+    renderSpinWheel(campaign);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('spin-modal'),{backdrop:'static',keyboard:false}).show();
+  }
+  function animateSpinResult(campaign,result) {
+    return new Promise(resolve=>{
+      const prizes=campaign.prizes||[];let index=prizes.findIndex(p=>p.id===result.prize_id);if(index<0)index=Math.max(0,prizes.findIndex(p=>p.name===result.prize_name));
+      const sector=360/Math.max(prizes.length,1);const rotation=360*7-(index+.5)*sector;
+      const wheel=document.getElementById('spin-wheel');wheel.style.transition='transform 4.8s cubic-bezier(.12,.72,.08,1)';wheel.style.transform=`rotate(${rotation}deg)`;
+      setTimeout(()=>{const won=result.status==='won';document.getElementById('spin-result').textContent=won?`Chúc mừng: ${result.prize_name}!`:'Chúc khách may mắn lần sau!';document.getElementById('spin-result-note').textContent=won?'Phần thưởng đã được ghi nhận; vào mục Tra cứu & giao thưởng để bàn giao.':'Lượt quay đã được ghi nhận trên hệ thống.';showAlert(won?`Khách nhận được: ${result.prize_name}`:'Chúc khách may mắn lần sau!',won?'success':'info');resolve()},5000);
+    });
+  }
+
+  async function loadRewards(customerRef) {
+    const data = await loyaltyFetch(`/api/v1/loyalty/reward-world/rewards?customer_ref=${encodeURIComponent(customerRef)}`);
+    document.getElementById('reward-result').innerHTML = data.rewards.map(reward => `<div class="d-flex align-items-center border-bottom py-2"><div><div class="fw-bold">${esc(reward.prize_name)}</div><div class="small text-secondary">${esc(new Date(reward.spun_at || reward.created).toLocaleString('vi-VN'))}</div></div>${reward.claim ? '<span class="badge bg-green-lt ms-auto">Đã giao</span>' : `<button class="btn btn-sm btn-warning ms-auto claim-reward" data-result="${esc(reward.id)}" data-customer="${esc(customerRef)}">Xác nhận đã giao</button>`}</div>`).join('') || '<div class="text-secondary">Khách chưa trúng giải nào.</div>';
+  }
+  document.getElementById('reward-lookup-form').addEventListener('submit', async event => { event.preventDefault(); try { await loadRewards(document.getElementById('reward-customer-ref').value.trim()); } catch (error) { showAlert(error.message, 'danger'); } });
+  document.getElementById('reward-result').addEventListener('click', async event => {
+    const button = event.target.closest('.claim-reward'); if (!button) return;
+    if (!confirm('Xác nhận cửa hàng đã giao đúng phần thưởng cho khách?')) return;
+    button.disabled = true;
+    try { await loyaltyFetch(`/api/v1/loyalty/reward-world/results/${encodeURIComponent(button.dataset.result)}/claim`, {method:'POST', body:JSON.stringify({claim_note:'Xác nhận tại dashboard cửa hàng'})}); showAlert('Đã ghi nhận giao thưởng.'); await loadRewards(button.dataset.customer); }
+    catch (error) { showAlert(error.message, 'danger'); button.disabled = false; }
+  });
+
+  document.getElementById('program-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.submitter; button.disabled = true;
+    try {
+      const program = await loyaltyFetch('/api/v1/loyalty/program', {method:'PUT', body:JSON.stringify({
+        currency:'VND', spend_per_point_minor:Number(document.getElementById('spend-per-point').value),
+        points_per_step:Number(document.getElementById('points-per-step').value)
+      })});
+      showAlert(`Đã kích hoạt luật phiên bản ${program.version}.`);
+      renderProgram(program);
+    } catch (error) { showAlert(error.message, 'danger'); }
+    finally { button.disabled = false; }
+  });
+
+  function renderProgram(program) {
+    const status = document.getElementById('program-status');
+    if (!program) {
+      status.textContent = 'Chưa có luật đang hoạt động. Lưu form để tạo luật đầu tiên.';
+      return;
+    }
+    document.getElementById('spend-per-point').value = program.spend_per_point_minor;
+    document.getElementById('points-per-step').value = program.points_per_step;
+    status.textContent = `Đang dùng phiên bản ${program.version}: mỗi ${money.format(Number(program.spend_per_point_minor))} ₫ nhận ${program.points_per_step} điểm. Mỗi lần lưu tạo một phiên bản mới; giao dịch cũ không bị tính lại.`;
+  }
+
+  async function loadProgram() {
+    const data = await loyaltyFetch('/api/v1/loyalty/program');
+    renderProgram(data.program);
+  }
+
+  document.getElementById('sale-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.submitter; button.disabled = true;
+    const customerRef = document.getElementById('customer-ref').value.trim();
+    try {
+      const receipt = document.getElementById('receipt-ref').value.trim();
+      const result = await loyaltyFetch('/api/v1/loyalty/sales', {method:'POST', body:JSON.stringify({
+        idempotency_key:`manual:${receipt}`, customer_ref:customerRef, source_type:'manual', source_ref:receipt,
+        amount_minor:Number(document.getElementById('sale-amount').value),
+        customer:{name:document.getElementById('customer-name').value.trim(), phone:customerRef}, metadata:{channel:'dashboard'}
+      })});
+      const spins = result.entitlements?.length || 0;
+      showAlert(result.replayed ? 'Hóa đơn này đã được ghi trước đó, hệ thống không cộng trùng.' : `Đã cộng ${result.entry.points_delta} điểm${spins ? ` và cấp ${spins} lượt quay` : ''}.`);
+      document.getElementById('lookup-ref').value = customerRef;
+      await loadAccount(customerRef);
+      if (!result.replayed) { document.getElementById('receipt-ref').value=''; document.getElementById('sale-amount').value=''; }
+    } catch (error) { showAlert(error.message, 'danger'); }
+    finally { button.disabled = false; }
+  });
+
+  document.getElementById('redeem-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.submitter; button.disabled = true;
+    const customerRef = document.getElementById('redeem-customer-ref').value.trim();
+    try {
+      const redemptionRef = document.getElementById('redeem-ref').value.trim();
+      const result = await loyaltyFetch('/api/v1/loyalty/redemptions', {method:'POST', body:JSON.stringify({
+        idempotency_key:`redemption:${redemptionRef}`, customer_ref:customerRef,
+        source_ref:redemptionRef, points:Number(document.getElementById('redeem-points').value),
+        note:document.getElementById('redeem-note').value.trim(), metadata:{channel:'dashboard'}
+      })});
+      showAlert(result.replayed ? 'Giao dịch đổi điểm này đã được ghi trước đó, hệ thống không trừ trùng.' : `Đã trừ ${Math.abs(Number(result.entry.points_delta))} điểm. Số dư còn ${result.balance} điểm.`);
+      document.getElementById('lookup-ref').value = customerRef;
+      await loadAccount(customerRef);
+      if (!result.replayed) { document.getElementById('redeem-points').value=''; document.getElementById('redeem-ref').value=''; document.getElementById('redeem-note').value=''; }
+    } catch (error) { showAlert(error.message, 'danger'); }
+    finally { button.disabled = false; }
+  });
+
+  function renderAccount(account) {
+    const rows = account.entries.slice().reverse().map(entry => `<tr><td>${esc(new Date(entry.occurred_at || entry.created).toLocaleString('vi-VN'))}</td><td>${esc(entry.source_ref)}</td><td>${money.format(Number(entry.amount_minor || 0))} ₫</td><td class="fw-bold ${Number(entry.points_delta)>=0?'text-success':'text-danger'}">${Number(entry.points_delta)>=0?'+':''}${esc(entry.points_delta)}</td></tr>`).join('');
+    document.getElementById('account-result').innerHTML = `<div class="d-flex align-items-center mb-4"><div><div class="text-secondary">${esc(account.customer.name || account.customer.customer_ref)}</div><div class="fs-1 fw-bold">${money.format(account.balance)} điểm</div></div></div><div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>Thời gian</th><th>Hóa đơn</th><th>Giá trị</th><th>Điểm</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="text-secondary">Chưa có giao dịch</td></tr>'}</tbody></table></div>`;
+  }
+
+  async function loadAccount(customerRef) {
+    const account = await loyaltyFetch(`/api/v1/loyalty/account?customer_ref=${encodeURIComponent(customerRef)}&per_page=100`);
+    renderAccount(account);
+  }
+  document.getElementById('lookup-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    try { await loadAccount(document.getElementById('lookup-ref').value.trim()); }
+    catch (error) { showAlert(error.message, 'danger'); }
+  });
+
+  (async () => {
+    try {
+      await requireAuth();
+      renderSidebar(window.AUTH_USER);
+      await Promise.all([loadProgram(), loadCampaigns()]);
+    } catch (error) {
+      showAlert(error.message, 'danger');
+      document.getElementById('program-status').textContent = 'Không tải được luật hiện tại.';
+    }
+  })();
+</script>
+</body>
+</html>

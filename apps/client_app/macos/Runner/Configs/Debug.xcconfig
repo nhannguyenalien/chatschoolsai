@@ -1,0 +1,6 @@
+#include "../../Flutter/Flutter-Debug.xcconfig"
+#include "Warnings.xcconfig"
+
+// Ad-hoc local builds have no Apple team identifier. Xcode's injected
+// get-task-allow entitlement makes macOS Keychain reject them with -34018.
+CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO

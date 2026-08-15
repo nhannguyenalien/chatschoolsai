@@ -12,6 +12,7 @@
       { "system": false, "id": "pages_token_01", "name": "access_token", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "pages_active_01", "name": "is_active", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} },
       { "system": false, "id": "pages_extra_01", "name": "extra_config", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
+      ,{ "system": false, "id": "pages_lang_01", "name": "default_language", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
     "listRule": "@request.auth.id != \"\"",
@@ -33,6 +34,7 @@
       { "system": false, "id": "gjux5bhp", "name": "color", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "qwr1hloc", "name": "webhook", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "nromzino", "name": "system_prompt", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "resplanguage01", "name": "response_language", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "owntgchat01", "name": "owner_telegram_chat_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldcloudname01", "name": "cloudinary_cloud_name", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldapikey01", "name": "cloudinary_api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
@@ -114,7 +116,11 @@
       { "system": false, "id": "post_slug_01", "name": "slug", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "post_metatitle_01", "name": "meta_title", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "post_metadesc_01", "name": "meta_description", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
-      { "system": false, "id": "post_focuskw_01", "name": "focus_keyword", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
+      { "system": false, "id": "post_focuskw_01", "name": "focus_keyword", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_planitem_01", "name": "content_plan_item_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_author_01", "name": "author", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_language_01", "name": "language", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "post_tag_01", "name": "tag", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
     "listRule": "@request.auth.id != \"\"",
@@ -250,6 +256,36 @@
     "createRule": "@request.auth.id != \"\"",
     "updateRule": "@request.auth.id != \"\"",
     "deleteRule": "@request.auth.id != \"\"",
+    "options": {}
+  },
+  {
+    "id": "contentperf001",
+    "name": "content_performance_snapshots",
+    "type": "base",
+    "system": false,
+    "schema": [
+      { "system": false, "id": "cps_tenant", "name": "tenant", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_site", "name": "site_id", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_post", "name": "post_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_source", "name": "source", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["gsc", "ga4"] } },
+      { "system": false, "id": "cps_external", "name": "external_key", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_url", "name": "url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_key", "name": "snapshot_key", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_start", "name": "window_start", "type": "date", "required": false, "presentable": false, "unique": false, "options": { "min": "", "max": "" } },
+      { "system": false, "id": "cps_end", "name": "window_end", "type": "date", "required": false, "presentable": false, "unique": false, "options": { "min": "", "max": "" } },
+      { "system": false, "id": "cps_metrics", "name": "metrics_json", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_dims", "name": "dimensions_json", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "cps_imported", "name": "imported_at", "type": "date", "required": false, "presentable": false, "unique": false, "options": { "min": "", "max": "" } }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_performance_snapshot_identity` ON `content_performance_snapshots` (`tenant`, `site_id`, `snapshot_key`)",
+      "CREATE INDEX `idx_performance_snapshot_window` ON `content_performance_snapshots` (`tenant`, `site_id`, `source`, `window_end`)"
+    ],
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
     "options": {}
   }
 ]

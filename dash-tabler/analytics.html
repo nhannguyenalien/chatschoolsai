@@ -13,7 +13,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
-    <script src="_shared/i18n.js?v=20260813-2"></script>
+    <script src="_shared/i18n.js?v=20260814-1"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -69,6 +69,27 @@
                                 <div class="text-secondary mt-1 fs-3" data-i18n="an_subtitle">Theo dõi tình trạng đăng bài trên tất cả nền tảng.</div>
                             </div>
                             <button onclick="refreshAll()" class="btn btn-outline-secondary ms-auto"><i class="ti ti-refresh" id="refresh-icon"></i> <span data-i18n="post_btn_refresh">Làm mới</span></button>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header d-flex align-items-center flex-wrap gap-2">
+                            <h3 class="card-title mb-0"><i class="ti ti-chart-dots-3 text-primary me-2"></i>Content performance (GSC / GA4)</h3>
+                            <select id="cp-analytics-site" class="form-select form-select-sm ms-auto" style="width:auto"></select>
+                            <select id="cp-analytics-source" class="form-select form-select-sm" style="width:auto"><option value="">Tất cả nguồn</option><option value="gsc">Google Search Console</option><option value="ga4">Google Analytics 4</option></select>
+                            <button id="cp-analytics-refresh" class="btn btn-sm btn-primary">Tải insights</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="cp-analytics-alert"></div>
+                            <div class="row row-cards mb-3">
+                                <div class="col-6 col-lg-2"><div class="card card-sm bg-azure-lt"><div class="card-body"><div class="subheader">Clicks</div><div class="h2" id="cp-clicks">—</div></div></div></div>
+                                <div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">Impressions</div><div class="h2" id="cp-impressions">—</div></div></div></div>
+                                <div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">CTR</div><div class="h2" id="cp-ctr">—</div></div></div></div>
+                                <div class="col-6 col-lg-2"><div class="card card-sm bg-green-lt"><div class="card-body"><div class="subheader">Sessions</div><div class="h2" id="cp-sessions">—</div></div></div></div>
+                                <div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">Engagement</div><div class="h2" id="cp-engagement">—</div></div></div></div>
+                                <div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">Conversions</div><div class="h2" id="cp-conversions">—</div></div></div></div>
+                            </div>
+                            <details><summary class="text-primary cursor-pointer">Import snapshot JSON đã chuẩn hóa</summary><div class="mt-3"><textarea id="cp-analytics-json" class="form-control mb-2" rows="5" placeholder='[{"source":"gsc", "externalKey":"...", "windowStart":"...", "windowEnd":"...", "metrics":{...}}]'></textarea><button id="cp-analytics-import" class="btn btn-outline-primary">Import snapshots</button><span class="text-secondary fs-6 ms-2">Dữ liệu chỉ dùng tư vấn; không tự đổi kế hoạch.</span></div></details>
                         </div>
                     </div>
 
@@ -196,6 +217,7 @@
     let allTargets = [];   // flattened: 1 row per post_target, với thông tin post gắn kèm
     let filteredTargets = [];
     let timeChart, statusChart, platformChart;
+    let contentPlanningApiKey = '';
 
     // ═══════════════════════════════════════
     // BOOT
@@ -203,8 +225,56 @@
     (async () => {
         await requireAuth();
         renderSidebar(window.AUTH_USER);
+        await loadContentPerformanceSites();
         await loadData();
+        await loadContentPerformance();
     })();
+
+    async function contentPlanningFetch(path, options = {}) {
+        if (!contentPlanningApiKey) {
+            const configs = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
+            if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+            contentPlanningApiKey = configs.items[0].api_key;
+        }
+        const response = await fetch(`${WORKER_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${contentPlanningApiKey}`, ...(options.headers || {}) } });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `Analytics trả về HTTP ${response.status}`);
+        return body;
+    }
+
+    async function loadContentPerformanceSites() {
+        const sites = await PB.collection('pages_config').getFullList({ filter: `tenant = "${window.TENANT}"`, sort: 'label' });
+        document.getElementById('cp-analytics-site').innerHTML = sites.map(site => `<option value="${escHtml(site.id)}">${escHtml(site.label || site.page_id || site.id)}</option>`).join('') || '<option value="">Chưa cấu hình website</option>';
+    }
+
+    async function loadContentPerformance() {
+        const alert = document.getElementById('cp-analytics-alert');
+        try {
+            const siteId = document.getElementById('cp-analytics-site').value;
+            if (!siteId) throw new Error('Chưa có website để tải analytics.');
+            const source = document.getElementById('cp-analytics-source').value;
+            const result = await contentPlanningFetch(`/api/v1/content-planning/analytics/insights?siteId=${encodeURIComponent(siteId)}&source=${encodeURIComponent(source)}`);
+            setEl('cp-clicks', Number(result.totals.clicks || 0).toLocaleString('vi-VN'));
+            setEl('cp-impressions', Number(result.totals.impressions || 0).toLocaleString('vi-VN'));
+            setEl('cp-ctr', `${(Number(result.derived.ctr || 0) * 100).toFixed(1)}%`);
+            setEl('cp-sessions', Number(result.totals.sessions || 0).toLocaleString('vi-VN'));
+            setEl('cp-engagement', `${(Number(result.derived.engagementRate || 0) * 100).toFixed(1)}%`);
+            setEl('cp-conversions', Number(result.totals.conversions || 0).toLocaleString('vi-VN'));
+            alert.innerHTML = `<div class="text-secondary fs-6 mb-3">${result.snapshotCount} snapshots · advisory-only, không tự động sửa plan.</div>`;
+        } catch (err) { alert.innerHTML = `<div class="alert alert-danger">${escHtml(err.message)}</div>`; }
+    }
+
+    async function importContentPerformance() {
+        try {
+            const snapshots = JSON.parse(document.getElementById('cp-analytics-json').value);
+            await contentPlanningFetch('/api/v1/content-planning/analytics/import', { method: 'POST', body: JSON.stringify({ siteId: document.getElementById('cp-analytics-site').value, snapshots }) });
+            showToast('Đã import performance snapshots.'); await loadContentPerformance();
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    document.getElementById('cp-analytics-refresh').addEventListener('click', loadContentPerformance);
+    document.getElementById('cp-analytics-source').addEventListener('change', loadContentPerformance);
+    document.getElementById('cp-analytics-import').addEventListener('click', importContentPerformance);
 
     async function loadData() {
         try {
@@ -239,7 +309,7 @@
 
     async function refreshAll() {
         document.getElementById('refresh-icon').style.animation = 'spin .6s linear';
-        await loadData();
+        await Promise.all([loadData(), loadContentPerformance()]);
         showToast('Đã làm mới', 'success');
         setTimeout(() => document.getElementById('refresh-icon').style.animation = '', 700);
     }

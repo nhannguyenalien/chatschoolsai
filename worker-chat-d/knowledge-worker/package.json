@@ -2,10 +2,16 @@
   "name": "knowledge-worker",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "start": "wrangler dev"
+    "start": "wrangler dev",
+    "test": "node --test",
+    "test:content-planning:api-smoke": "node ../../scripts/pb-content-planning-api-smoke.mjs",
+    "test:content-planning:integration": "node ../../scripts/pb-content-planning-integration.mjs",
+    "test:content-planning:shadow": "node ../../scripts/content-planning-shadow.mjs",
+    "test:content-planning:shadow:live": "node ../../scripts/content-planning-live-shadow.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.104.0"

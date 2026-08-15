@@ -1,0 +1,1240 @@
+[
+  {
+    "id": "loyprograms0001",
+    "name": "loyalty_programs",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_loyalty_program_version` ON `loyalty_programs` (`tenant`, `version`)",
+      "CREATE INDEX `idx_loyalty_program_active` ON `loyalty_programs` (`tenant`, `status`, `version`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "lptenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lpversn1",
+        "name": "version",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "lpcurrn1",
+        "name": "currency",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lpspend1",
+        "name": "spend_per_point_minor",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "lppoint1",
+        "name": "points_per_step",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "lpstatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "loycustomers001",
+    "name": "loyalty_customers",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_loyalty_customer_ref` ON `loyalty_customers` (`tenant`, `customer_ref`)",
+      "CREATE INDEX `idx_loyalty_customer_phone` ON `loyalty_customers` (`tenant`, `phone`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "lctenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lccref01",
+        "name": "customer_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lcname01",
+        "name": "name",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lcphone1",
+        "name": "phone",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lcstatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "active",
+            "blocked",
+            "merged"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "lcmeta01",
+        "name": "metadata_json",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "loyledger000001",
+    "name": "loyalty_ledger",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_loyalty_ledger_idempotency` ON `loyalty_ledger` (`tenant`, `idempotency_key`)",
+      "CREATE INDEX `idx_loyalty_ledger_customer` ON `loyalty_ledger` (`tenant`, `customer_id`, `created`)",
+      "CREATE UNIQUE INDEX `idx_loyalty_ledger_source_unique` ON `loyalty_ledger` (`tenant`, `source_type`, `source_ref`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "lltenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llcustid",
+        "name": "customer_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llcref01",
+        "name": "customer_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lltrtype",
+        "name": "transaction_type",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "earn",
+            "redeem",
+            "expire",
+            "adjustment",
+            "reversal"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "llpoints",
+        "name": "points_delta",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "llamount",
+        "name": "amount_minor",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "llcurrn1",
+        "name": "currency",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llsrctyp",
+        "name": "source_type",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llsrcref",
+        "name": "source_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llrulev1",
+        "name": "rule_version",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "llidem01",
+        "name": "idempotency_key",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "lloccur1",
+        "name": "occurred_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llrevers",
+        "name": "reverses_entry_id",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "llmeta01",
+        "name": "metadata_json",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "rewardcampaign1",
+    "name": "reward_campaigns",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE INDEX `idx_reward_campaign_status` ON `reward_campaigns` (`status`, `starts_at`, `ends_at`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "rcname001",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcdesc001",
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcstatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "draft",
+            "active",
+            "paused",
+            "ended"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "rcstart01",
+        "name": "starts_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcends001",
+        "name": "ends_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcspend01",
+        "name": "spend_per_spin_minor",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "rcmaxspin",
+        "name": "max_spins_per_sale",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "rctheme01",
+        "name": "theme_json",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "rewardprizes001",
+    "name": "reward_campaign_prizes",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE INDEX `idx_reward_prize_campaign` ON `reward_campaign_prizes` (`campaign_id`, `status`, `sort_order`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "rpcamp001",
+        "name": "campaign_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rpname001",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rptype001",
+        "name": "prize_type",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "none",
+            "points",
+            "voucher",
+            "product",
+            "partner_code"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "rpweight1",
+        "name": "weight",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": false
+        }
+      },
+      {
+        "system": false,
+        "id": "rpmaxwins",
+        "name": "max_wins",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "rpsort001",
+        "name": "sort_order",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "rpstatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "active",
+            "paused",
+            "exhausted"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "rpvalue01",
+        "name": "value_json",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "rewardjoins0001",
+    "name": "reward_store_joins",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_reward_store_join` ON `reward_store_joins` (`tenant`, `campaign_id`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "rjtenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rjcamp001",
+        "name": "campaign_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rjstatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "active",
+            "left",
+            "suspended"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "rjjoined1",
+        "name": "joined_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "rewardspins0001",
+    "name": "reward_spin_entitlements",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_reward_entitlement_source` ON `reward_spin_entitlements` (`tenant`, `campaign_id`, `source_type`, `source_ref`)",
+      "CREATE INDEX `idx_reward_entitlement_customer` ON `reward_spin_entitlements` (`tenant`, `campaign_id`, `customer_ref`, `status`, `created`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "retenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "recamp001",
+        "name": "campaign_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "recref001",
+        "name": "customer_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "resrctype",
+        "name": "source_type",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "resrcref1",
+        "name": "source_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "restatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "available",
+            "revoked"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "reissued1",
+        "name": "issued_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "rewardresults01",
+    "name": "reward_spin_results",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_reward_result_entitlement` ON `reward_spin_results` (`entitlement_id`)",
+      "CREATE UNIQUE INDEX `idx_reward_result_idempotency` ON `reward_spin_results` (`tenant`, `idempotency_key`)",
+      "CREATE UNIQUE INDEX `idx_reward_result_prize_slot` ON `reward_spin_results` (`prize_slot_key`)",
+      "CREATE INDEX `idx_reward_result_prize` ON `reward_spin_results` (`prize_id`, `status`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "rrtenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrcamp001",
+        "name": "campaign_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrcref001",
+        "name": "customer_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrentit01",
+        "name": "entitlement_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrprize01",
+        "name": "prize_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrpname01",
+        "name": "prize_name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrptype01",
+        "name": "prize_type",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrvalue01",
+        "name": "prize_value_json",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrslot001",
+        "name": "prize_slot_key",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rridem001",
+        "name": "idempotency_key",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rrstatus1",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "won",
+            "no_win",
+            "claimed",
+            "expired",
+            "cancelled"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "rrspun001",
+        "name": "spun_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      }
+    ],
+    "options": {}
+  },
+  {
+    "id": "rewardclaims001",
+    "name": "reward_claims",
+    "type": "base",
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_reward_claim_result` ON `reward_claims` (`result_id`)",
+      "CREATE INDEX `idx_reward_claim_customer` ON `reward_claims` (`tenant`, `customer_ref`, `claimed_at`)"
+    ],
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "rctenant1",
+        "name": "tenant",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rccamp001",
+        "name": "campaign_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcresult1",
+        "name": "result_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rccref001",
+        "name": "customer_ref",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcprize01",
+        "name": "prize_id",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcpname01",
+        "name": "prize_name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcptype01",
+        "name": "prize_type",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcvalue01",
+        "name": "prize_value_json",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcnote001",
+        "name": "claim_note",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "rcclaim01",
+        "name": "claimed_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      }
+    ],
+    "options": {}
+  }
+]

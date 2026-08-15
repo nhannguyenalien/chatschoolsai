@@ -1,3 +1,21 @@
+import { createContentPlanningApi } from "./api/contentPlanning.js";
+import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
+import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
+import { createContentPlanningRepository } from "./repositories/pocketbase/contentPlanningRepository.js";
+import { createSanityHistoryAdapter } from "./adapters/sanity/history.js";
+import { createSanityBlogPublisher, isSkillgoBlogProfile } from "./adapters/sanity/blogPublisher.js";
+import { createOpenAiBlogWriter } from "./adapters/openai/blogWriter.js";
+import { createOpenAiSegmentTranslator } from "./adapters/openai/segmentTranslator.js";
+import { createOpenAiBlogIllustrator } from "./adapters/openai/blogIllustrator.js";
+import { createTelegramClient } from "./adapters/telegram/client.js";
+import { createTelegramContentPlanningWebhook } from "./adapters/telegram/contentPlanningWebhook.js";
+import { createLoyaltyApi } from "./api/loyalty.js";
+import { createLoyaltyRepository } from "./repositories/pocketbase/loyaltyRepository.js";
+import { createRewardWorldAdminApi } from "./api/rewardWorldAdmin.js";
+import { createReloadlyRewardProvider } from "./adapters/rewards/reloadly.js";
+import { createPosRewardProvider } from "./adapters/rewards/pos.js";
+import { fulfillClaim } from "./workflows/loyalty/rewardCatalog.js";
+
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -7,8 +25,8 @@ var index_default = {
     const url = new URL(request.url);
     const cors = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Secret",
       "Content-Type": "application/json"
     };
     if (request.method === "OPTIONS") {
@@ -20,6 +38,16 @@ var index_default = {
       }
       // Route dùng ANYTHINGLLM/TELEGRAM/OPENAI/ADMIN_SECRET -> nạp system_config trước, ghi đè lên env.
       const env2 = { ...env, ...await getSystemConfig(env) };
+      if (url.pathname.startsWith("/api/v1/admin/reward-world/")) {
+        const providedKey = request.headers.get("X-Admin-Secret") || "";
+        if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
+        const pbToken = await getPbToken(env2);
+        const client = createPocketBaseClient({ baseUrl: env2.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+        const providers = createRewardProviders(env2);
+        const response = await createRewardWorldAdminApi({ repository: createLoyaltyRepository(client), providers })(request, { responseHeaders: cors });
+        if (response) return response;
+        return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
+      }
       if (url.pathname === "/chat" && request.method === "POST") return await handleChat(request, env2, cors);
       if (url.pathname === "/embed" && request.method === "POST") return await handleEmbed(request, env2, cors);
       if (url.pathname === "/doc" && request.method === "DELETE") return await handleDelete(request, env2, cors);
@@ -41,6 +69,9 @@ var index_default = {
       }
       if (url.pathname === "/telegram-webhook" && request.method === "POST") {
         return await handleTelegramWebhook(request, env2);
+      }
+      if (url.pathname === "/api/onboarding/register" && request.method === "POST") {
+        return await handleAccountRegistration(request, env2, cors);
       }
       if (url.pathname.startsWith("/api/v1/")) {
         return await handleApiV1(request, url, env2, cors, ctx);
@@ -100,13 +131,19 @@ var _pbTokenTime = 0;
 async function getPbToken(env) {
   const now = Date.now();
   if (_pbToken && now - _pbTokenTime < 55 * 60 * 1e3) return _pbToken;
-  const res = await fetchWithTimeout(`${env.PB_URL}/api/admins/auth-with-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identity: env.PB_ADMIN_EMAIL, password: env.PB_ADMIN_PASS })
-  });
-  const data = await res.json();
-  if (!data.token) throw new Error("PocketBase auth th\u1EA5t b\u1EA1i");
+  const body = JSON.stringify({ identity: env.PB_ADMIN_EMAIL, password: env.PB_ADMIN_PASS });
+  let data = null;
+  for (const path of ["/api/collections/_superusers/auth-with-password", "/api/admins/auth-with-password"]) {
+    const res = await fetchWithTimeout(`${env.PB_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body
+    });
+    data = await res.json().catch(() => ({}));
+    if (res.ok && data.token) break;
+    if (res.status !== 404) throw new Error("PocketBase auth th\u1EA5t b\u1EA1i");
+  }
+  if (!data?.token) throw new Error("PocketBase auth th\u1EA5t b\u1EA1i");
   // QUAN TR\u1ECCNG: PocketBase (b\u1EA3n /api/admins/auth-with-password) y\xEAu c\u1EA7u header Authorization
   // l\xE0 CH\xCDNH token th\u1EADt, KH\xD4NG th\xEAm ti\u1EC1n t\u1ED1 "Admin ". N\u1EBFu th\xEAm v\xE0o, PocketBase kh\xF4ng nh\u1EADn
   // di\u1EC7n \u0111\u01B0\u1EE3c \u0111\xE2y l\xE0 admin -> request b\u1ECB coi nh\u01B0 \u1EA9n danh. V\u1EDBi collection c\xF3 createRule/updateRule
@@ -138,6 +175,14 @@ var SYSTEM_CONFIG_OVERRIDABLE_KEYS = {
   dashboard_url: "DASHBOARD_URL"
 };
 
+function createRewardProviders(env) {
+  const providers = {};
+  if (env.RELOADLY_CLIENT_ID && env.RELOADLY_CLIENT_SECRET) providers.reloadly = createReloadlyRewardProvider({ clientId: env.RELOADLY_CLIENT_ID, clientSecret: env.RELOADLY_CLIENT_SECRET, sandbox: env.RELOADLY_ENV !== "live", fetchImpl: fetchWithTimeout });
+  if (env.POS_API_KEY) providers.self = createPosRewardProvider({ baseUrl: env.POS_API_URL || "https://pos-app-bq8.pages.dev", apiKey: env.POS_API_KEY, fetchImpl: fetchWithTimeout });
+  return providers;
+}
+__name(createRewardProviders, "createRewardProviders");
+
 async function getSystemConfig(env) {
   const now = Date.now();
   if (_systemConfigCache && now - _systemConfigCacheTime < 5 * 60 * 1e3) return _systemConfigCache;
@@ -164,6 +209,74 @@ async function getSystemConfig(env) {
   }
 }
 __name(getSystemConfig, "getSystemConfig");
+// POS đẩy một snapshot gọn vào session_summaries với date đặc biệt. Tái dùng collection
+// sẵn có giúp triển khai ngay, không cần thêm DB/migration; digest theo ngày không đọc
+// record này. Cache ngắn hạn tránh gọi PocketBase lại ở mọi câu chat.
+const customerContextCache = /* @__PURE__ */ new Map();
+const CUSTOMER_CONTEXT_DATE = "__POS_CUSTOMER_CONTEXT__";
+const CUSTOMER_CONTEXT_CACHE_MS = 5 * 60 * 1e3;
+function customerContextKey(tenant, session) {
+  return `${tenant}:${session}`;
+}
+__name(customerContextKey, "customerContextKey");
+async function getCustomerContext(env, pbToken, tenant, session) {
+  const key = customerContextKey(tenant, session);
+  const cached = customerContextCache.get(key);
+  if (cached && Date.now() - cached.time < CUSTOMER_CONTEXT_CACHE_MS) return cached.value;
+  try {
+    const filter = `tenant='${escFilterValue(tenant)}' && session_id='${escFilterValue(session)}' && date='${CUSTOMER_CONTEXT_DATE}'`;
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/session_summaries/records?perPage=1&filter=${encodeURIComponent(filter)}`, {
+      headers: { Authorization: pbToken }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = data.items?.[0]?.summary;
+    const value = raw ? JSON.parse(raw) : null;
+    customerContextCache.set(key, { value, time: Date.now() });
+    return value;
+  } catch (err) {
+    console.error("[CustomerContext] Không đọc được snapshot, tiếp tục chat bình thường:", err);
+    return null;
+  }
+}
+__name(getCustomerContext, "getCustomerContext");
+function formatCustomerContextForBot(context) {
+  const serialized = JSON.stringify(context).slice(0, 14e3);
+  return `THÔNG TIN NỘI BỘ CỦA RIÊNG KHÁCH ĐANG CHAT (snapshot từ POS):\n${serialized}\n\n` +
+    "Quy tắc: chỉ dùng dữ liệu này cho đúng phiên khách hiện tại; ưu tiên số liệu POS hơn suy đoán; " +
+    "không tự đọc toàn bộ số điện thoại/địa chỉ/ghi chú nhạy cảm nếu khách không hỏi; " +
+    "khi nói về công nợ phải nêu rõ chiều khách nợ cửa hàng hay cửa hàng nợ khách; " +
+    "nếu dữ liệu không có hoặc đã cũ thì nói rõ và đề nghị nhân viên kiểm tra.";
+}
+__name(formatCustomerContextForBot, "formatCustomerContextForBot");
+async function upsertCustomerContext(env, pbToken, tenant, session, context) {
+  const filter = `tenant='${escFilterValue(tenant)}' && session_id='${escFilterValue(session)}' && date='${CUSTOMER_CONTEXT_DATE}'`;
+  const listRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/session_summaries/records?perPage=1&filter=${encodeURIComponent(filter)}`, {
+    headers: { Authorization: pbToken }
+  });
+  if (!listRes.ok) throw new Error(`Không đọc được customer context (${listRes.status})`);
+  const existing = (await listRes.json()).items?.[0];
+  const payload = {
+    tenant,
+    session_id: session,
+    date: CUSTOMER_CONTEXT_DATE,
+    status: "Khác",
+    contact_info: String(context?.customer?.name || ""),
+    summary: JSON.stringify(context).slice(0, 2e4)
+  };
+  const endpoint = existing
+    ? `${env.PB_URL}/api/collections/session_summaries/records/${existing.id}`
+    : `${env.PB_URL}/api/collections/session_summaries/records`;
+  const saveRes = await fetchWithTimeout(endpoint, {
+    method: existing ? "PATCH" : "POST",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify(payload)
+  });
+  if (!saveRes.ok) throw new Error(`Không lưu được customer context (${saveRes.status}): ${await saveRes.text()}`);
+  customerContextCache.set(customerContextKey(tenant, session), { value: context, time: Date.now() });
+}
+__name(upsertCustomerContext, "upsertCustomerContext");
+
 async function handleChat(request, env, cors) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";
@@ -177,12 +290,17 @@ async function handleChat(request, env, cors) {
     browser,
     location: `${request.cf?.city || "Unknown"}, ${request.cf?.country || "Unknown"}`
   };
-  const body = await request.json();
-  const { tenant, session, question } = body;
-  const pbToken = await getPbToken(env);
+  const body = await request.json().catch(() => ({}));
+  const tenant = typeof body.tenant === "string" ? body.tenant.trim() : "";
+  const session = typeof body.session === "string" ? body.session.trim() : "";
+  const question = typeof body.question === "string" ? body.question.trim() : "";
   if (!tenant || !session || !question) {
     return new Response(JSON.stringify({ error: "Thi\u1EBFu d\u1EEF li\u1EC7u" }), { status: 400, headers: cors });
   }
+  if (tenant.length > 100 || session.length > 200 || question.length > 10000) {
+    return new Response(JSON.stringify({ error: "D\u1EEF li\u1EC7u v\u01B0\u1EE3t qu\xE1 gi\u1EDBi h\u1EA1n cho ph\xE9p" }), { status: 400, headers: cors });
+  }
+  const pbToken = await getPbToken(env);
   await ensureWorkspaceExists(tenant, env);
   let botName = "AI Assistant";
   try {
@@ -243,7 +361,12 @@ async function handleChat(request, env, cors) {
     const configData = await configRes.json();
     const botConfig = configData.items?.[0] || {};
     botName = botConfig.bot_name || "AI Assistant";
-    const systemPrompt = (botConfig.system_prompt || "") + HANDOFF_INSTRUCTION;
+    const responseLanguage = String(botConfig.response_language || "auto").toLowerCase();
+    const languageNames = { vi: "Vietnamese", en: "English", ja: "Japanese", es: "Spanish", fr: "French", ko: "Korean" };
+    const languageInstruction = languageNames[responseLanguage]
+      ? `\n\nLANGUAGE: Always answer in ${languageNames[responseLanguage]}, regardless of the customer's input language.`
+      : "\n\nLANGUAGE: Detect the language used by the customer and answer in that same language.";
+    const systemPrompt = (botConfig.system_prompt || "") + languageInstruction + HANDOFF_INSTRUCTION;
     const temperature = botConfig.temperature !== void 0 ? botConfig.temperature : 0.7;
     await ensureWorkspaceExists(tenant, env);
     console.log("SYSTEM PROMPT:", systemPrompt);
@@ -275,6 +398,10 @@ async function handleChat(request, env, cors) {
       );
       workspaceConfigCache.set(tenant, currentConfigHash);
     }
+    const customerContext = await getCustomerContext(env, pbToken, tenant, session);
+    const contextualQuestion = customerContext
+      ? `${formatCustomerContextForBot(customerContext)}\n\nCÂU HỎI HIỆN TẠI CỦA KHÁCH:\n${question}`
+      : question;
     const anythingRes = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}/chat`, {
       method: "POST",
       headers: {
@@ -283,7 +410,7 @@ async function handleChat(request, env, cors) {
         "accept": "application/json"
       },
       body: JSON.stringify({
-        message: question,
+        message: contextualQuestion,
         mode: "chat",
         sessionId: session
       })
@@ -408,8 +535,10 @@ async function ensureWorkspaceExists(tenant, env) {
 }
 __name(ensureWorkspaceExists, "ensureWorkspaceExists");
 async function handleEmbed(request, env, cors) {
-  const { tenant, title, text } = await request.json();
-  if (!tenant || !text) return new Response(JSON.stringify({ error: "Thi\u1EBFu d\u1EEF li\u1EC7u" }), { status: 400, headers: cors });
+  const body = await request.json().catch(() => null);
+  const validation = validateKnowledgePayload(body);
+  if (validation.error) return new Response(JSON.stringify({ error: validation.error }), { status: 400, headers: cors });
+  const { tenant, title, text } = validation.value;
   await ensureWorkspaceExists(tenant, env);
   const pbToken = await getPbToken(env);
   try {
@@ -476,6 +605,19 @@ async function handleEmbed(request, env, cors) {
   }
 }
 __name(handleEmbed, "handleEmbed");
+
+function validateKnowledgePayload(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "Payload training kh\xF4ng h\u1EE3p l\u1EC7" };
+  if (typeof body.tenant !== "string" || !body.tenant.trim()) return { error: "Thi\u1EBFu tenant" };
+  if (body.tenant.trim().length > 100) return { error: "tenant qu\xE1 d\xE0i" };
+  if (typeof body.text !== "string" || !body.text.trim()) return { error: "N\u1ED9i dung training kh\xF4ng h\u1EE3p l\u1EC7" };
+  if (body.text.length > 500000) return { error: "N\u1ED9i dung training v\u01B0\u1EE3t qu\xE1 500.000 k\xFD t\u1EF1" };
+  if (body.title != null && typeof body.title !== "string") return { error: "Ti\xEAu \u0111\u1EC1 ph\u1EA3i l\xE0 chu\u1ED7i" };
+  const title = (body.title || "").trim();
+  if (title.length > 200) return { error: "Ti\xEAu \u0111\u1EC1 v\u01B0\u1EE3t qu\xE1 200 k\xFD t\u1EF1" };
+  return { value: { tenant: body.tenant.trim(), title, text: body.text.trim() } };
+}
+__name(validateKnowledgePayload, "validateKnowledgePayload");
 async function handleDelete(request, env, cors) {
   const { doc_id, tenant } = await request.json();
   if (!doc_id || !tenant) return new Response(JSON.stringify({ error: "Thi\u1EBFu d\u1EEF li\u1EC7u" }), { status: 400, headers: cors });
@@ -486,23 +628,31 @@ async function handleDelete(request, env, cors) {
     });
     if (!docRes.ok) throw new Error("Kh\xF4ng t\xECm th\u1EA5y t\xE0i li\u1EC7u trong Database PocketBase");
     const doc = await docRes.json();
+    if (doc.tenant !== tenant) {
+      return new Response(JSON.stringify({ error: "Kh\xF4ng c\xF3 quy\u1EC1n x\xF3a t\xE0i li\u1EC7u n\xE0y" }), { status: 403, headers: cors });
+    }
     const exactAnythingPath = doc.anything_path;
-    await fetchWithTimeout(`${env.PB_URL}/api/collections/documents/records/${doc_id}`, {
-      method: "DELETE",
-      headers: { "Authorization": pbToken }
-    });
     if (exactAnythingPath) {
-      await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}/update-embeddings`, {
+      const embeddingRes = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}/update-embeddings`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${env.ANYTHINGLLM_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ adds: [], deletes: [exactAnythingPath] })
       });
-      await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/system/remove-document`, {
+      if (!embeddingRes.ok) throw new Error("Kh\xF4ng th\u1EC3 x\xF3a embeddings. Metadata v\u1EABn \u0111\u01B0\u1EE3c gi\u1EEF \u0111\u1EC3 th\u1EED l\u1EA1i");
+      const removeRes = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/system/remove-document`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${env.ANYTHINGLLM_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ name: exactAnythingPath })
       });
+      if (!removeRes.ok && removeRes.status !== 404) {
+        throw new Error("Kh\xF4ng th\u1EC3 x\xF3a t\xE0i li\u1EC7u AI. Metadata v\u1EABn \u0111\u01B0\u1EE3c gi\u1EEF \u0111\u1EC3 th\u1EED l\u1EA1i");
+      }
     }
+    const deleteRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/documents/records/${doc_id}`, {
+      method: "DELETE",
+      headers: { "Authorization": pbToken }
+    });
+    if (!deleteRes.ok) throw new Error("Kh\xF4ng th\u1EC3 x\xF3a metadata t\xE0i li\u1EC7u trong PocketBase");
     return new Response(JSON.stringify({ success: true }), { headers: cors });
   } catch (err) {
     console.error("L\u1ED7i Delete:", err);
@@ -512,13 +662,23 @@ async function handleDelete(request, env, cors) {
 __name(handleDelete, "handleDelete");
 async function handleTelegramWebhook(request, env) {
   try {
+    if (env.TELEGRAM_WEBHOOK_SECRET && request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.TELEGRAM_WEBHOOK_SECRET) {
+      return new Response("Unauthorized", { status: 401 });
+    }
     const update = await request.json();
     console.log("===================================");
     console.log("[Telegram Webhook] \u0110\xE3 nh\u1EADn tin nh\u1EAFn m\u1EDBi:", JSON.stringify(update));
+    const pbToken = await getPbToken(env);
+    const client = createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+    const repository = createContentPlanningRepository(client);
+    const telegram = createTelegramClient({ token: env.TELEGRAM_BOT_TOKEN });
+    const contentPlanningHandled = await createTelegramContentPlanningWebhook({
+      repository, legacyHistoryAdapter: createSanityHistoryAdapter(), telegram,
+    })(update);
+    if (contentPlanningHandled) return new Response("OK", { status: 200 });
     const message = update.message;
     if (!message) return new Response("OK", { status: 200 });
     const chatId = message.chat.id;
-    const pbToken = await getPbToken(env);
     if (message.text && message.text.startsWith("/start HT")) {
       const code = message.text.split(" ")[1];
       console.log(`[Nh\xE1nh 1] Kh\xE1ch \u0111ang g\u1EEDi m\xE3 Code: ${code}`);
@@ -1041,7 +1201,13 @@ async function ensureContentWorkspace(env, systemPrompt, temperature) {
 __name(ensureContentWorkspace, "ensureContentWorkspace");
 
 async function generatePostFromRssItem(env, item, aiPrompt) {
-  const systemPrompt = (aiPrompt.system_prompt || "") + CONTENT_OUTPUT_INSTRUCTION;
+  const configuredLanguage = String(aiPrompt.content_language || "auto:vi").toLowerCase();
+  const languageCode = configuredLanguage.startsWith("auto:") ? configuredLanguage.slice(5) : configuredLanguage;
+  const languageNames = { vi: "Vietnamese", en: "English", ja: "Japanese", es: "Spanish", fr: "French", ko: "Korean" };
+  const contentLanguage = languageNames[languageCode] || "Vietnamese";
+  const systemPrompt = (aiPrompt.system_prompt || "")
+    + `\n\nLANGUAGE: Write the title and complete post content in ${contentLanguage}. The image_prompt remains in English.`
+    + CONTENT_OUTPUT_INSTRUCTION;
   const temperature = 0.7;
   try {
     await ensureContentWorkspace(env, systemPrompt, temperature);
@@ -1741,7 +1907,28 @@ async function claimTargetForPublishing(env, pbToken, targetId) {
 }
 __name(claimTargetForPublishing, "claimTargetForPublishing");
 
+async function checkTargetPublishingDependencies(env, pbToken, target) {
+  const post = target.expand?.post_id;
+  if (!post?.content_plan_item_id) return true;
+  const itemRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/content_plan_items/records/${post.content_plan_item_id}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const planItem = itemRes.ok ? await itemRes.json() : null;
+  try {
+    assertPublishingDependencies({ post, planItem });
+    return true;
+  } catch (error) {
+    console.log(`[Publish] Chờ dependency cho target ${target.id}: ${error.message}`);
+    return false;
+  }
+}
+__name(checkTargetPublishingDependencies, "checkTargetPublishingDependencies");
+
 async function publishOneTarget(env, pbToken, target) {
+  // Gate trước claim: dependency chưa xong là trạng thái chờ hợp lệ, không phải lỗi publish.
+  // Giữ nguyên approved/scheduled để dispatcher tự thử lại sau khi translation hoàn tất.
+  if (!await checkTargetPublishingDependencies(env, pbToken, target)) return;
   const claimed = await claimTargetForPublishing(env, pbToken, target.id);
   if (!claimed) return;
 
@@ -1787,7 +1974,14 @@ async function publishOneTarget(env, pbToken, target) {
     } else if (target.platform === "wordpress") {
       publishedId = await publishToWordPress(page, post, media);
     } else if (target.platform === "sanity") {
-      publishedId = await publishToSanity(page, post, media);
+      // Content Planning sites opt into the exact Skillgo `blog` schema. Legacy
+      // Sanity pages continue through the original configurable generic adapter.
+      if (post.content_plan_item_id && !isSkillgoBlogProfile(page)) {
+        throw new Error('Managed Sanity publishing requires extra_config.contentPlanningProfile="skillgo-blog-v1".');
+      }
+      publishedId = post.content_plan_item_id
+        ? await createSanityBlogPublisher({ fetchImpl: fetchWithTimeout })(page, post, media)
+        : await publishToSanity(page, post, media);
     } else {
       throw new Error(`Chưa hỗ trợ đăng tự động cho platform "${target.platform}"`);
     }
@@ -1939,6 +2133,117 @@ async function resolveTenantByApiKey(env, pbToken, apiKey) {
 }
 __name(resolveTenantByApiKey, "resolveTenantByApiKey");
 
+function normalizeTenantSlug(value) {
+  const tenant = String(value || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_-]{2,39}$/.test(tenant)) {
+    throw new Error("Mã bot gồm 3-40 ký tự: chữ thường, số, gạch ngang hoặc gạch dưới");
+  }
+  return tenant;
+}
+
+function newBotApiKey() {
+  return `sk_${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
+}
+
+async function createBotConfig(env, pbToken, input) {
+  const tenant = normalizeTenantSlug(input.tenant);
+  const existsRes = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const exists = await existsRes.json().catch(() => ({}));
+  if (exists.items?.length) return { error: "Mã bot đã được sử dụng", status: 409 };
+
+  const apiKey = newBotApiKey();
+  const botName = String(input.bot_name || "").trim();
+  if (botName.length < 2 || botName.length > 80) return { error: "Tên bot phải từ 2-80 ký tự", status: 400 };
+  const greeting = String(input.greeting || `Xin chào! Tôi là ${botName}.`).trim();
+  const systemPrompt = String(input.system_prompt || `Bạn là ${botName}, trợ lý AI hữu ích và chính xác.`).trim();
+  if (greeting.length > 500 || systemPrompt.length > 10000) {
+    return { error: "Lời chào hoặc hướng dẫn bot vượt quá giới hạn", status: 400 };
+  }
+  const createRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify({
+      tenant,
+      bot_name: botName,
+      api_key: apiKey,
+      greeting,
+      system_prompt: systemPrompt,
+      temperature: 0.3,
+      max_tokens: 1000,
+      streaming: true
+    })
+  });
+  if (!createRes.ok) {
+    const detail = await createRes.json().catch(() => ({}));
+    return { error: detail.message || "Không thể tạo bot", status: 502 };
+  }
+  return { tenant, bot_name: botName, api_key: apiKey };
+}
+
+async function handleAccountRegistration(request, env, cors) {
+  const body = await request.json().catch(() => ({}));
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const name = String(body.name || "").trim();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return new Response(JSON.stringify({ error: "Email không hợp lệ" }), { status: 400, headers: cors });
+  }
+  if (password.length < 8 || password.length > 128) {
+    return new Response(JSON.stringify({ error: "Mật khẩu phải từ 8-128 ký tự" }), { status: 400, headers: cors });
+  }
+  if (name.length > 80) {
+    return new Response(JSON.stringify({ error: "Tên tài khoản không được quá 80 ký tự" }), { status: 400, headers: cors });
+  }
+  let tenant;
+  try { tenant = normalizeTenantSlug(body.tenant); }
+  catch (error) { return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: cors }); }
+
+  const pbToken = await getPbToken(env);
+  const emailCheck = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/tenants/records?perPage=1&filter=${encodeURIComponent(`email='${escFilterValue(email)}'`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const emailData = await emailCheck.json().catch(() => ({}));
+  if (emailData.items?.length) {
+    return new Response(JSON.stringify({ error: "Email đã được đăng ký" }), { status: 409, headers: cors });
+  }
+
+  const bot = await createBotConfig(env, pbToken, { ...body, tenant });
+  if (bot.error) return new Response(JSON.stringify({ error: bot.error }), { status: bot.status, headers: cors });
+
+  const accountRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants/records`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify({ email, password, passwordConfirm: password, name, tenant })
+  });
+  if (!accountRes.ok) {
+    const botLookup = await fetchWithTimeout(
+      `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&filter=${encodeURIComponent(`api_key='${escFilterValue(bot.api_key)}'`)}`,
+      { headers: { Authorization: pbToken } }
+    );
+    const botData = await botLookup.json().catch(() => ({}));
+    if (botData.items?.[0]?.id) {
+      await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records/${botData.items[0].id}`, { method: "DELETE", headers: { Authorization: pbToken } });
+    }
+    return new Response(JSON.stringify({ error: "Không thể tạo tài khoản" }), { status: 502, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, ...bot, display_name: name || email }), { status: 201, headers: cors });
+}
+__name(handleAccountRegistration, "handleAccountRegistration");
+
+async function handleApiCreateBot(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  let result;
+  try { result = await createBotConfig(env, await getPbToken(env), body); }
+  catch (error) { return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: cors }); }
+  if (result.error) return new Response(JSON.stringify({ error: result.error }), { status: result.status, headers: cors });
+  return new Response(JSON.stringify({ success: true, ...result, created_from: cfg.tenant }), { status: 201, headers: cors });
+}
+__name(handleApiCreateBot, "handleApiCreateBot");
+
 async function handleApiListPosts(request, env, cors, cfg) {
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status");
@@ -2027,6 +2332,17 @@ __name(handleApiCreatePost, "handleApiCreatePost");
 
 async function handleApiApprovePost(env, cors, cfg, postId) {
   const pbToken = await getPbToken(env);
+  const postRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/posts/records/${postId}`, { headers: { Authorization: pbToken } });
+  if (!postRes.ok) return new Response(JSON.stringify({ error: "Post not found." }), { status: 404, headers: cors });
+  const post = await postRes.json();
+  if (post.tenant !== cfg.tenant) return new Response(JSON.stringify({ error: "Post not found." }), { status: 404, headers: cors });
+  if (post.content_plan_item_id) {
+    const itemRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/content_plan_items/records/${post.content_plan_item_id}`, { headers: { Authorization: pbToken } });
+    const item = await itemRes.json().catch(() => null);
+    if (!itemRes.ok || item?.tenant !== cfg.tenant || item.dependencies_ready !== true) {
+      return new Response(JSON.stringify({ error: "Content Planning dependencies are not ready; approval is blocked." }), { status: 409, headers: cors });
+    }
+  }
   const targetsRes = await fetchWithTimeout(
     `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}' && post_id='${escFilterValue(postId)}' && status='pending'`)}`,
     { headers: { Authorization: pbToken } }
@@ -2092,14 +2408,45 @@ __name(handleApiChat, "handleApiChat");
 // ================= [API: BOT CONFIG] =================
 var CONFIG_READABLE_FIELDS = [
   "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
+  "response_language",
   "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
   "cloudinary_cloud_name", "brand_logo_url"
 ];
 var CONFIG_WRITABLE_FIELDS = [
   "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
+  "response_language",
   "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
   "cloudinary_cloud_name", "cloudinary_api_key", "cloudinary_api_secret", "brand_logo_url"
 ];
+
+function validateConfigPatch(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "Payload config kh\xF4ng h\u1EE3p l\u1EC7" };
+  const patch = {};
+  const stringFields = CONFIG_WRITABLE_FIELDS.filter((field) => !["temperature", "max_tokens", "streaming"].includes(field));
+  for (const field of stringFields) {
+    if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+    if (typeof body[field] !== "string") return { error: `${field} ph\u1EA3i l\xE0 chu\u1ED7i` };
+    patch[field] = body[field].trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "temperature")) {
+    if (typeof body.temperature !== "number" || !Number.isFinite(body.temperature) || body.temperature < 0 || body.temperature > 2) {
+      return { error: "temperature ph\u1EA3i l\xE0 s\u1ED1 t\u1EEB 0 \u0111\u1EBFn 2" };
+    }
+    patch.temperature = body.temperature;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "max_tokens")) {
+    if (!Number.isInteger(body.max_tokens) || body.max_tokens < 1 || body.max_tokens > 32768) {
+      return { error: "max_tokens ph\u1EA3i l\xE0 s\u1ED1 nguy\xEAn t\u1EEB 1 \u0111\u1EBFn 32768" };
+    }
+    patch.max_tokens = body.max_tokens;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "streaming")) {
+    if (typeof body.streaming !== "boolean") return { error: "streaming ph\u1EA3i l\xE0 boolean" };
+    patch.streaming = body.streaming;
+  }
+  return { patch };
+}
+__name(validateConfigPatch, "validateConfigPatch");
 
 async function handleApiGetConfig(env, cors, cfg) {
   const out = { tenant: cfg.tenant };
@@ -2110,10 +2457,9 @@ __name(handleApiGetConfig, "handleApiGetConfig");
 
 async function handleApiUpdateConfig(request, env, cors, cfg) {
   const body = await request.json().catch(() => ({}));
-  const patch = {};
-  for (const f of CONFIG_WRITABLE_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(body, f)) patch[f] = body[f];
-  }
+  const validation = validateConfigPatch(body);
+  if (validation.error) return new Response(JSON.stringify({ error: validation.error }), { status: 400, headers: cors });
+  const patch = validation.patch;
   if (Object.keys(patch).length === 0) {
     return new Response(JSON.stringify({ error: "Kh\xF4ng c\xF3 field n\xE0o hợp lệ để cập nhật" }), { status: 400, headers: cors });
   }
@@ -2293,10 +2639,9 @@ __name(getConfigSnapshot, "getConfigSnapshot");
 async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools = [], ctx) {
   switch (name) {
     case "update_bot_config": {
-      const patch = {};
-      for (const f of CONFIG_WRITABLE_FIELDS) {
-        if (Object.prototype.hasOwnProperty.call(args, f)) patch[f] = args[f];
-      }
+      const validation = validateConfigPatch(args);
+      if (validation.error) return `C\u1EA5u h\xECnh kh\xF4ng h\u1EE3p l\u1EC7: ${validation.error}`;
+      const patch = validation.patch;
       if (Object.keys(patch).length === 0) return "Kh\xF4ng c\xF3 field n\xE0o hợp lệ để cập nhật.";
       const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records/${cfg.id}`, {
         method: "PATCH",
@@ -2394,10 +2739,9 @@ __name(executeConfigChatTool, "executeConfigChatTool");
 
 async function handleApiAgentChat(request, env, cors, cfg, ctx) {
   const body = await request.json().catch(() => ({}));
-  const history = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
-  if (history.length === 0) {
-    return new Response(JSON.stringify({ error: "Thiếu messages" }), { status: 400, headers: cors });
-  }
+  const validation = validateAgentChatMessages(body.messages);
+  if (validation.error) return new Response(JSON.stringify({ error: validation.error }), { status: 400, headers: cors });
+  const history = validation.messages;
   const pbToken = await getPbToken(env);
   // Nhét sẵn dữ liệu thật vào system prompt thay vì chỉ trông chờ model tự gọi get_current_config —
   // model nhỏ đôi khi bỏ qua việc gọi tool để đọc, dẫn đến bịa ra giá trị. Có sẵn context thì dù model
@@ -2445,6 +2789,22 @@ Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\x
   }
 }
 __name(handleApiAgentChat, "handleApiAgentChat");
+
+function validateAgentChatMessages(input) {
+  if (!Array.isArray(input) || input.length === 0) return { error: "Thi\u1EBFu messages" };
+  if (input.length > 100) return { error: "L\u1ECBch s\u1EED h\u1ED9i tho\u1EA1i qu\xE1 d\xE0i" };
+  const messages = [];
+  for (const message of input.slice(-20)) {
+    if (!message || typeof message !== "object" || Array.isArray(message)) return { error: "Message kh\xF4ng h\u1EE3p l\u1EC7" };
+    if (!['user', 'assistant'].includes(message.role)) return { error: "Role message kh\xF4ng h\u1EE3p l\u1EC7" };
+    if (typeof message.content !== "string" || !message.content.trim()) return { error: "N\u1ED9i dung message kh\xF4ng h\u1EE3p l\u1EC7" };
+    if (message.content.length > 10000) return { error: "N\u1ED9i dung message qu\xE1 d\xE0i" };
+    messages.push({ role: message.role, content: message.content.trim() });
+  }
+  if (messages.at(-1).role !== "user") return { error: "Message cu\u1ED1i ph\u1EA3i do ng\u01B0\u1EDDi d\xF9ng g\u1EEDi" };
+  return { messages };
+}
+__name(validateAgentChatMessages, "validateAgentChatMessages");
 
 // Danh sách tool THẬT của agent-chat — lấy trực tiếp từ CONFIG_CHAT_TOOLS + agent_tools tùy chỉnh
 // của tenant (nguồn duy nhất, giống hệt những gì handleApiAgentChat thực sự trao cho model),
@@ -2511,11 +2871,33 @@ async function handleApiCreateChatLink(request, env, cors, cfg) {
     return new Response(JSON.stringify({ error: "Thiếu customer_name" }), { status: 400, headers: cors });
   }
   const session = crypto.randomUUID();
+  if (body.customer_context && typeof body.customer_context === "object") {
+    const pbToken = await getPbToken(env);
+    await upsertCustomerContext(env, pbToken, cfg.tenant, session, body.customer_context);
+  }
   const baseUrl = (env.DASHBOARD_URL || "https://chat.schoolsai.work").replace(/\/+$/, "");
   const chatUrl = `${baseUrl}/chat.html?bot=${encodeURIComponent(cfg.tenant)}&session=${session}&u=${encodeURIComponent(customerName)}`;
   return new Response(JSON.stringify({ success: true, session, chat_url: chatUrl }), { headers: cors });
 }
 __name(handleApiCreateChatLink, "handleApiCreateChatLink");
+
+async function handleApiCustomerContext(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const session = String(body.session || "").trim();
+  const context = body.context;
+  if (!session || !context || typeof context !== "object" || Array.isArray(context)) {
+    return new Response(JSON.stringify({ error: "Cần session và context dạng object" }), { status: 400, headers: cors });
+  }
+  try {
+    const pbToken = await getPbToken(env);
+    await upsertCustomerContext(env, pbToken, cfg.tenant, session, context);
+    return new Response(JSON.stringify({ success: true, session }), { headers: cors });
+  } catch (err) {
+    console.error("[CustomerContext] Lỗi đồng bộ:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleApiCustomerContext, "handleApiCustomerContext");
 
 async function handleApiListMessages(request, env, cors, cfg) {
   const url = new URL(request.url);
@@ -2530,13 +2912,113 @@ async function handleApiListMessages(request, env, cors, cfg) {
   const data = await res.json();
   const messages = (data.items || []).map((m) => ({
     id: m.id, session: m.session, username: m.username, text: m.text,
-    is_bot: m.is_bot, needs_human: m.needs_human || false, created: m.created
+    is_bot: m.is_bot, needs_human: m.needs_human || false,
+    escalation_resolved: m.escalation_resolved || false, created: m.created
   }));
   return new Response(JSON.stringify({ success: true, messages }), { headers: cors });
 }
 __name(handleApiListMessages, "handleApiListMessages");
 
+function validateAdminMessagePayload(body) {
+  const session = String(body?.session || "").trim();
+  const text = String(body?.text || "").trim();
+  if (!session) return { error: "Thiếu session" };
+  if (session.length > 200) return { error: "Session không hợp lệ" };
+  if (!text) return { error: "Nội dung phản hồi không được để trống" };
+  if (text.length > 1e4) return { error: "Nội dung phản hồi quá dài" };
+  return { session, text };
+}
+__name(validateAdminMessagePayload, "validateAdminMessagePayload");
+
+async function handleApiSendMessage(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const payload = validateAdminMessagePayload(body);
+  if (payload.error) {
+    return new Response(JSON.stringify({ error: payload.error }), { status: 400, headers: cors });
+  }
+
+  try {
+    const pbToken = await getPbToken(env);
+    const filter = `tenant='${escFilterValue(cfg.tenant)}' && session='${escFilterValue(payload.session)}'`;
+    const lookupRes = await fetchWithTimeout(
+      `${env.PB_URL}/api/collections/messages/records?perPage=100&sort=-created&filter=${encodeURIComponent(filter)}`,
+      { headers: { Authorization: pbToken } }
+    );
+    if (!lookupRes.ok) throw new Error(`Không thể kiểm tra phiên (${lookupRes.status})`);
+    const lookup = await lookupRes.json();
+    const existing = lookup.items || [];
+    if (existing.length === 0) {
+      return new Response(JSON.stringify({ error: "Không tìm thấy phiên trò chuyện" }), { status: 404, headers: cors });
+    }
+
+    const createRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records`, {
+      method: "POST",
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session: payload.session,
+        tenant: cfg.tenant,
+        username: "Admin",
+        text: payload.text,
+        is_bot: true
+      })
+    });
+    if (!createRes.ok) throw new Error(`Không thể gửi phản hồi (${createRes.status})`);
+    const created = await createRes.json();
+
+    const pending = existing.filter((m) => m.needs_human && !m.escalation_resolved);
+    const results = await Promise.allSettled(pending.map((m) => fetchWithTimeout(
+      `${env.PB_URL}/api/collections/messages/records/${encodeURIComponent(m.id)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: pbToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ escalation_resolved: true })
+      }
+    )));
+    const resolved = results.filter((result) => result.status === "fulfilled" && result.value.ok).length;
+    return new Response(JSON.stringify({
+      success: true,
+      resolved,
+      message: {
+        id: created.id, session: created.session, username: created.username,
+        text: created.text, is_bot: created.is_bot, needs_human: false,
+        escalation_resolved: true, created: created.created
+      }
+    }), { headers: cors });
+  } catch (err) {
+    console.error("[Messages] Lỗi gửi phản hồi admin:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleApiSendMessage, "handleApiSendMessage");
+
 // ================= [API: LỊCH ĐĂNG BÀI TỰ ĐỘNG] =================
+const PUBLISH_DAYS = new Set(["all", "mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+function normalizePublishSchedule(body, { partial = false } = {}) {
+  const patch = {};
+  if (!partial || body.content_type !== undefined) {
+    if (!["blog", "social"].includes(body.content_type)) throw new Error('content_type phải là "blog" hoặc "social"');
+    patch.content_type = body.content_type;
+  }
+  if (!partial || body.times !== undefined) {
+    if (!Array.isArray(body.times) || !body.times.length || body.times.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time)))) {
+      throw new Error('times phải là mảng giờ hợp lệ dạng "HH:MM"');
+    }
+    patch.times = JSON.stringify([...new Set(body.times.map(String))]);
+  }
+  if (body.days !== undefined) {
+    if (!Array.isArray(body.days) || body.days.some((day) => !PUBLISH_DAYS.has(String(day).toLowerCase()))) {
+      throw new Error("days chỉ nhận all, mon, tue, wed, thu, fri, sat, sun");
+    }
+    patch.days = JSON.stringify([...new Set(body.days.map((day) => String(day).toLowerCase()))]);
+  } else if (!partial) patch.days = "[]";
+  if (body.is_active !== undefined) {
+    if (typeof body.is_active !== "boolean") throw new Error("is_active phải là boolean");
+    patch.is_active = body.is_active;
+  } else if (!partial) patch.is_active = true;
+  if (partial && !Object.keys(patch).length) throw new Error("Không có trường lịch hợp lệ để cập nhật");
+  return patch;
+}
+
 async function handleApiListSchedules(env, cors, cfg) {
   const pbToken = await getPbToken(env);
   const res = await fetchWithTimeout(
@@ -2557,22 +3039,16 @@ __name(handleApiListSchedules, "handleApiListSchedules");
 
 async function handleApiCreateSchedule(request, env, cors, cfg) {
   const body = await request.json().catch(() => ({}));
-  if (!["blog", "social"].includes(body.content_type)) {
-    return new Response(JSON.stringify({ error: 'content_type phải l\xE0 "blog" hoặc "social"' }), { status: 400, headers: cors });
-  }
-  if (!Array.isArray(body.times) || body.times.length === 0) {
-    return new Response(JSON.stringify({ error: 'Thiếu times (mảng giờ dạng "HH:MM")' }), { status: 400, headers: cors });
-  }
+  let schedule;
+  try { schedule = normalizePublishSchedule(body); }
+  catch (error) { return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: cors }); }
   const pbToken = await getPbToken(env);
   const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: pbToken },
     body: JSON.stringify({
       tenant: cfg.tenant,
-      content_type: body.content_type,
-      days: JSON.stringify(Array.isArray(body.days) ? body.days : []),
-      times: JSON.stringify(body.times),
-      is_active: body.is_active !== false
+      ...schedule
     })
   });
   const data = await res.json();
@@ -2583,13 +3059,15 @@ __name(handleApiCreateSchedule, "handleApiCreateSchedule");
 
 async function handleApiUpdateSchedule(request, env, cors, cfg, id) {
   const body = await request.json().catch(() => ({}));
-  const patch = {};
-  if (body.content_type) patch.content_type = body.content_type;
-  if (Array.isArray(body.days)) patch.days = JSON.stringify(body.days);
-  if (Array.isArray(body.times)) patch.times = JSON.stringify(body.times);
-  if (typeof body.is_active === "boolean") patch.is_active = body.is_active;
+  let patch;
+  try { patch = normalizePublishSchedule(body, { partial: true }); }
+  catch (error) { return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: cors }); }
   const pbToken = await getPbToken(env);
-  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}?filter=${encodeURIComponent(`tenant='${escFilterValue(cfg.tenant)}'`)}`, {
+  const checkRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}`, { headers: { Authorization: pbToken } });
+  if (!checkRes.ok) return new Response(JSON.stringify({ error: "Không tìm thấy lịch" }), { status: 404, headers: cors });
+  const record = await checkRes.json();
+  if (record.tenant !== cfg.tenant) return new Response(JSON.stringify({ error: "Không có quyền" }), { status: 403, headers: cors });
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: pbToken },
     body: JSON.stringify(patch)
@@ -2622,8 +3100,37 @@ async function handleApiV1(request, url, env, cors, ctx) {
     return new Response(JSON.stringify({ error: "API key kh\xF4ng hợp lệ — v\xE0o config.html lấy API key của bạn" }), { status: 401, headers: cors });
   }
 
+  if (url.pathname.startsWith("/api/v1/loyalty/")) {
+    const client = createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+    const repository = createLoyaltyRepository(client);
+    const providers = createRewardProviders(env);
+    // Always run the fulfillment boundary. Legacy prizes without catalog_item_id
+    // remain unchanged; catalog-backed prizes must fail explicitly when their
+    // provider is not configured instead of being marked claimed silently.
+    const response = await createLoyaltyApi({ repository, fulfillmentService: (args) => fulfillClaim({ ...args, providers }) })(request, { tenant: cfg.tenant, responseHeaders: cors });
+    if (response) return response;
+  }
+
+  if (url.pathname.startsWith("/api/v1/content-planning/")) {
+    const client = createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+    const repository = createContentPlanningRepository(client);
+    const legacyHistoryAdapter = createSanityHistoryAdapter({ fetchImpl: fetchWithTimeout });
+    const blogWriter = env.OPENAI_BASE_URL && env.OPENAI_KEY
+      ? createOpenAiBlogWriter({ baseUrl: env.OPENAI_BASE_URL, apiKey: env.OPENAI_KEY, model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", fetchImpl: fetchWithTimeout })
+      : null;
+    const imageGenerator = env.OPENAI_BASE_URL && env.OPENAI_KEY && env.PB_URL && pbToken
+      ? createOpenAiBlogIllustrator({ baseUrl: env.OPENAI_BASE_URL, apiKey: env.OPENAI_KEY, model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", mediaBaseUrl: env.PB_URL, mediaToken: pbToken, fetchImpl: fetchWithTimeout })
+      : null;
+    const translator = env.OPENAI_BASE_URL && env.OPENAI_KEY
+      ? createOpenAiSegmentTranslator({ baseUrl: env.OPENAI_BASE_URL, apiKey: env.OPENAI_KEY, model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", fetchImpl: fetchWithTimeout })
+      : null;
+    const response = await createContentPlanningApi({ repository, legacyHistoryAdapter, blogWriter, imageGenerator, translator })(request, { tenant: cfg.tenant, responseHeaders: cors });
+    if (response) return response;
+  }
+
   if (url.pathname === "/api/v1/posts" && request.method === "GET") return await handleApiListPosts(request, env, cors, cfg);
   if (url.pathname === "/api/v1/posts" && request.method === "POST") return await handleApiCreatePost(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/bots" && request.method === "POST") return await handleApiCreateBot(request, env, cors, cfg);
 
   const approveMatch = url.pathname.match(/^\/api\/v1\/posts\/([^/]+)\/approve$/);
   if (approveMatch && request.method === "POST") return await handleApiApprovePost(env, cors, cfg, approveMatch[1]);
@@ -2669,8 +3176,10 @@ async function handleApiV1(request, url, env, cors, ctx) {
   if (knowledgeDeleteMatch && request.method === "DELETE") return await handleApiDeleteKnowledge(env, cors, cfg, knowledgeDeleteMatch[1]);
 
   if (url.pathname === "/api/v1/messages" && request.method === "GET") return await handleApiListMessages(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/messages" && request.method === "POST") return await handleApiSendMessage(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/chat-link" && request.method === "POST") return await handleApiCreateChatLink(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/customer-context" && request.method === "PUT") return await handleApiCustomerContext(request, env, cors, cfg);
 
   if (url.pathname === "/api/v1/schedules" && request.method === "GET") return await handleApiListSchedules(env, cors, cfg);
   if (url.pathname === "/api/v1/schedules" && request.method === "POST") return await handleApiCreateSchedule(request, env, cors, cfg);
@@ -2952,6 +3461,17 @@ async function handleAgentRun(env, tenantFilter) {
 __name(handleAgentRun, "handleAgentRun");
 
 export {
-  index_default as default
+  index_default as default,
+  callInternalHandlerWithForcedTenant,
+  handleApiGetConfig,
+  handleApiUpdateConfig,
+  handleChat,
+  handleEmbed,
+  handleDelete,
+  handleApiSendMessage,
+  validateAgentChatMessages,
+  validateAdminMessagePayload,
+  validateConfigPatch,
+  validateKnowledgePayload
 };
 //# sourceMappingURL=index.js.map

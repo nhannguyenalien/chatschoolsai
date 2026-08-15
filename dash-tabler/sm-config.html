@@ -12,7 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
-    <script src="_shared/i18n.js?v=20260813-2"></script>
+    <script src="_shared/i18n.js?v=20260814-1"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -135,6 +135,15 @@
             <div class="mb-3">
               <label class="form-label">Access Token / API Key</label>
               <input type="text" id="page-token" class="form-control token-mask">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" data-i18n="comp_content_language">Ngôn ngữ nội dung</label>
+              <select id="page-language" class="form-select">
+                <option value="auto" data-i18n="lang_auto_interface">Tự động theo ngôn ngữ giao diện</option>
+                <option value="vi">Tiếng Việt</option><option value="en">English</option>
+                <option value="ja">日本語</option><option value="es">Español</option>
+                <option value="fr">Français</option><option value="ko">한국어</option>
+              </select>
             </div>
             <div class="mb-3">
               <label class="form-label">Cấu hình thêm (JSON, tuỳ chọn)</label>
@@ -274,6 +283,7 @@
         document.getElementById('page-label').value = pc?.label || '';
         document.getElementById('page-pageid').value = pc?.page_id || '';
         document.getElementById('page-token').value = pc?.access_token || '';
+        document.getElementById('page-language').value = pc?.default_language ? pc.default_language : 'auto';
         document.getElementById('page-extra').value = pc?.extra_config || '';
         document.getElementById('page-active').checked = pc ? !!pc.is_active : true;
         document.getElementById('delete-page-btn').classList.toggle('d-none', !pc);
@@ -294,6 +304,9 @@
             label: document.getElementById('page-label').value,
             page_id: document.getElementById('page-pageid').value,
             access_token: document.getElementById('page-token').value,
+            default_language: document.getElementById('page-language').value === 'auto'
+                ? (typeof getLang === 'function' ? getLang() : 'vi')
+                : document.getElementById('page-language').value,
             extra_config: extraRaw,
             is_active: document.getElementById('page-active').checked
         };

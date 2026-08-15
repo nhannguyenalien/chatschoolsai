@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reward World Admin</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <style>
+    .campaign-card[data-status="active"] { border-left: 4px solid var(--tblr-success); }
+    .campaign-card[data-status="paused"] { border-left: 4px solid var(--tblr-warning); }
+    .campaign-card[data-status="draft"] { border-left: 4px solid var(--tblr-secondary); }
+    .prize-row:last-child { border-bottom: 0 !important; }
+  </style>
+</head>
+<body>
+<main class="page-body">
+  <div class="container-xl py-4">
+    <div class="d-flex align-items-start mb-4">
+      <div><h1 class="mb-1">Reward World — quản trị hệ thống</h1><div class="text-secondary">Tạo thể lệ và giải thưởng một lần; cửa hàng chỉ chọn tham gia.</div></div>
+      <button id="logout-btn" class="btn btn-outline-secondary ms-auto d-none" type="button"><i class="ti ti-logout me-1"></i>Đăng xuất</button>
+    </div>
+    <div id="alert"></div>
+
+    <section id="login-screen" class="row justify-content-center">
+      <div class="col-md-6 col-lg-5"><div class="card">
+        <div class="card-header"><h3 class="card-title"><i class="ti ti-shield-lock me-2"></i>Đăng nhập PocketBase Admin</h3></div>
+        <form id="login-form" class="card-body">
+          <div class="mb-3"><label class="form-label">Email superuser</label><input id="admin-email" type="email" class="form-control" autocomplete="username" required></div>
+          <div class="mb-3"><label class="form-label">Mật khẩu</label><input id="admin-password" type="password" class="form-control" autocomplete="current-password" required></div>
+          <div id="login-error" class="alert alert-danger d-none"></div>
+          <button id="login-btn" class="btn btn-primary w-100" type="submit">Đăng nhập</button>
+          <div class="form-hint mt-3">Dùng tài khoản quản trị PocketBase, không dùng tài khoản cửa hàng.</div>
+        </form>
+      </div></div>
+    </section>
+
+    <section id="workspace" class="d-none">
+      <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title"><i class="ti ti-confetti me-2"></i><span id="campaign-form-title">Tạo chương trình chung</span></h3></div>
+        <form id="campaign-form" class="card-body">
+          <input id="campaign-id" type="hidden">
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">Tên chương trình</label><input id="campaign-name" class="form-control" maxlength="200" required></div>
+            <div class="col-md-3"><label class="form-label">Bắt đầu</label><input id="campaign-start" type="datetime-local" class="form-control" required></div>
+            <div class="col-md-3"><label class="form-label">Kết thúc</label><input id="campaign-end" type="datetime-local" class="form-control" required></div>
+            <div class="col-md-6"><label class="form-label">Mô tả / thể lệ ngắn</label><textarea id="campaign-description" class="form-control" rows="3" maxlength="2000" placeholder="Điều kiện tham gia, cách nhận giải..."></textarea></div>
+            <div class="col-md-2"><label class="form-label">Chi tiêu / lượt (VND)</label><input id="campaign-spend" type="number" min="1" step="1" value="100000" class="form-control" required></div>
+            <div class="col-md-2"><label class="form-label">Tối đa / hóa đơn</label><input id="campaign-max-spins" type="number" min="1" step="1" value="1" class="form-control" required></div>
+            <div class="col-md-2"><label class="form-label">Trạng thái</label><select id="campaign-status" class="form-select"><option value="draft">Bản nháp</option><option value="active">Đang chạy</option><option value="paused">Tạm dừng</option><option value="ended">Kết thúc</option></select></div>
+          </div>
+          <div class="mt-3 d-flex gap-2"><button class="btn btn-success" type="submit"><i class="ti ti-device-floppy me-1"></i>Lưu chương trình</button><button id="cancel-edit" class="btn btn-outline-secondary d-none" type="button">Hủy sửa</button></div>
+        </form>
+      </div>
+      <div class="d-flex align-items-center mb-3"><h2 class="m-0">Các chương trình</h2><button id="refresh-btn" class="btn btn-outline-primary btn-sm ms-auto" type="button"><i class="ti ti-refresh me-1"></i>Làm mới</button></div>
+      <div id="campaigns"><div class="text-secondary">Đang tải...</div></div>
+    </section>
+  </div>
+</main>
+<script>
+class IsolatedAuthStore {
+  constructor(key) { this.key=key; let data={token:'',model:null}; try{data=JSON.parse(localStorage.getItem(key)||'null')||data}catch{} this.token=data.token||''; this.model=data.model||null; }
+  get isValid(){return !!this.token} save(token,model){this.token=token;this.model=model;localStorage.setItem(this.key,JSON.stringify({token,model}))}
+  clear(){this.token='';this.model=null;localStorage.removeItem(this.key)} onChange(){return()=>{}}
+}
+const PBA = new PocketBase(PB_URL, new IsolatedAuthStore('reward_world_admin_auth'));
+let campaigns = [], prizes = [], prizeWinCounts = new Map();
+const esc=v=>String(v??'').replace(/[&<>\'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const statusLabel={draft:'Bản nháp',active:'Đang chạy',paused:'Tạm dừng',ended:'Kết thúc'};
+function notice(message,type='success'){document.getElementById('alert').innerHTML=`<div class="alert alert-${type}">${esc(message)}</div>`}
+function pbDate(value){return value ? new Date(value).toISOString().replace('T',' ').replace('Z','') : ''}
+function inputDate(value){if(!value)return '';const d=new Date(value);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
+async function adminLogin(email,password){return PBA.admins?.authWithPassword ? PBA.admins.authWithPassword(email,password) : PBA.collection('_superusers').authWithPassword(email,password)}
+async function adminRefresh(){return PBA.admins?.authRefresh ? PBA.admins.authRefresh() : PBA.collection('_superusers').authRefresh()}
+function showLogin(){document.getElementById('login-screen').classList.remove('d-none');document.getElementById('workspace').classList.add('d-none');document.getElementById('logout-btn').classList.add('d-none')}
+function showWorkspace(){document.getElementById('login-screen').classList.add('d-none');document.getElementById('workspace').classList.remove('d-none');document.getElementById('logout-btn').classList.remove('d-none');load()}
+function resetCampaignForm(){document.getElementById('campaign-form').reset();document.getElementById('campaign-id').value='';document.getElementById('campaign-spend').value=100000;document.getElementById('campaign-max-spins').value=1;document.getElementById('campaign-form-title').textContent='Tạo chương trình chung';document.getElementById('cancel-edit').classList.add('d-none')}
+function prizeRows(campaign){const rows=prizes.filter(p=>p.campaign_id===campaign.id);const eligible=p=>p.status==='active'&&(!Number(p.max_wins)||(prizeWinCounts.get(p.id)||0)<Number(p.max_wins));const total=rows.filter(eligible).reduce((sum,p)=>sum+Number(p.weight),0);return rows.map(p=>{const wins=prizeWinCounts.get(p.id)||0;const probability=total&&eligible(p)?(Number(p.weight)/total*100).toFixed(2):'0.00';return `<div class="prize-row border-bottom py-2"><div class="d-flex align-items-center gap-2"><div class="flex-fill"><strong>${esc(p.name)}</strong><div class="small text-secondary">${esc(p.prize_type)} · trọng số ${esc(p.weight)} · xác suất hiện tại ≈ ${probability}% · đã trúng ${wins}/${Number(p.max_wins)||'∞'}</div></div><span class="badge ${p.status==='active'?'bg-green-lt':'bg-secondary-lt'}">${p.status==='active'?'Bật':'Tắt'}</span><button class="btn btn-sm btn-outline-secondary toggle-prize" data-id="${esc(p.id)}" data-status="${p.status==='active'?'paused':'active'}" type="button">${p.status==='active'?'Tắt':'Bật'}</button></div></div>`}).join('')||'<div class="text-secondary py-2">Chưa có giải thưởng.</div>'}
+function campaignCard(c){return `<article class="card campaign-card mb-3" data-status="${esc(c.status)}"><div class="card-header"><div><h3 class="card-title">${esc(c.name)}</h3><div class="small text-secondary">${esc(c.description||'Chưa có mô tả')}</div></div><span class="badge ms-auto">${esc(statusLabel[c.status]||c.status)}</span></div><div class="card-body"><div class="row mb-3"><div class="col-md-4"><strong>${Number(c.spend_per_spin_minor).toLocaleString('vi-VN')} ₫</strong> / lượt</div><div class="col-md-4">Tối đa <strong>${Number(c.max_spins_per_sale)}</strong> lượt / hóa đơn</div><div class="col-md-4">${esc(new Date(c.starts_at).toLocaleString('vi-VN'))} → ${esc(new Date(c.ends_at).toLocaleString('vi-VN'))}</div></div><div class="mb-3">${prizeRows(c)}</div><form class="prize-form row g-2" data-campaign="${esc(c.id)}"><div class="col-md-3"><input name="name" class="form-control" placeholder="Tên giải" required></div><div class="col-md-2"><select name="type" class="form-select"><option value="voucher">Voucher</option><option value="product">Sản phẩm</option><option value="points">Điểm</option><option value="partner_code">Mã đối tác</option><option value="none">Không trúng</option></select></div><div class="col-md-2"><input name="weight" type="number" min="0.01" step="0.01" value="1" class="form-control" title="Trọng số" required></div><div class="col-md-2"><input name="max" type="number" min="0" value="0" class="form-control" title="Số lượng tối đa; 0 là không giới hạn"></div><div class="col-md-2"><input name="value" class="form-control" placeholder="Giá trị/mã/SKU"></div><div class="col-md-1"><button class="btn btn-success w-100" title="Thêm giải" type="submit"><i class="ti ti-plus"></i></button></div></form><div class="form-hint mt-2">Trọng số quyết định tỷ lệ tương đối. Nên có giải “Không trúng” để kiểm soát ngân sách.</div></div><div class="card-footer d-flex gap-2"><button class="btn btn-sm btn-outline-primary edit-campaign" data-id="${esc(c.id)}" type="button">Sửa thể lệ</button>${c.status!=='ended'?`<button class="btn btn-sm btn-outline-${c.status==='active'?'warning':'success'} toggle-campaign" data-id="${esc(c.id)}" data-status="${c.status==='active'?'paused':'active'}" type="button">${c.status==='active'?'Tạm dừng':'Kích hoạt'}</button>`:''}</div></article>`}
+async function load(){try{let results;[campaigns,prizes,results]=await Promise.all([PBA.collection('reward_campaigns').getFullList({sort:'-created'}),PBA.collection('reward_campaign_prizes').getFullList({sort:'sort_order,created'}),PBA.collection('reward_spin_results').getFullList({fields:'prize_id'})]);prizeWinCounts=new Map();results.forEach(r=>prizeWinCounts.set(r.prize_id,(prizeWinCounts.get(r.prize_id)||0)+1));document.getElementById('campaigns').innerHTML=campaigns.map(campaignCard).join('')||'<div class="empty"><p class="empty-title">Chưa có chương trình</p></div>'}catch(error){notice(error.message,'danger')}}
+document.getElementById('login-form').addEventListener('submit',async event=>{event.preventDefault();const button=document.getElementById('login-btn');button.disabled=true;try{await adminLogin(document.getElementById('admin-email').value.trim(),document.getElementById('admin-password').value);showWorkspace()}catch{const el=document.getElementById('login-error');el.textContent='Sai thông tin hoặc tài khoản không phải PocketBase superuser.';el.classList.remove('d-none')}finally{button.disabled=false}});
+document.getElementById('logout-btn').onclick=()=>{PBA.authStore.clear();showLogin()};document.getElementById('refresh-btn').onclick=load;document.getElementById('cancel-edit').onclick=resetCampaignForm;
+document.getElementById('campaign-form').addEventListener('submit',async event=>{event.preventDefault();const id=document.getElementById('campaign-id').value;const data={name:document.getElementById('campaign-name').value.trim(),description:document.getElementById('campaign-description').value.trim(),starts_at:pbDate(document.getElementById('campaign-start').value),ends_at:pbDate(document.getElementById('campaign-end').value),spend_per_spin_minor:Number(document.getElementById('campaign-spend').value),max_spins_per_sale:Number(document.getElementById('campaign-max-spins').value),status:document.getElementById('campaign-status').value};if(new Date(data.ends_at)<=new Date(data.starts_at)){notice('Thời gian kết thúc phải sau thời gian bắt đầu.','danger');return}try{if(id)await PBA.collection('reward_campaigns').update(id,data);else await PBA.collection('reward_campaigns').create(data);resetCampaignForm();await load();notice(id?'Đã cập nhật thể lệ.':'Đã tạo chương trình.')}catch(error){notice(error.message,'danger')}});
+document.getElementById('campaigns').addEventListener('click',async event=>{const edit=event.target.closest('.edit-campaign');const toggle=event.target.closest('.toggle-campaign,.toggle-prize');if(edit){const c=campaigns.find(x=>x.id===edit.dataset.id);if(!c)return;document.getElementById('campaign-id').value=c.id;document.getElementById('campaign-name').value=c.name;document.getElementById('campaign-description').value=c.description||'';document.getElementById('campaign-start').value=inputDate(c.starts_at);document.getElementById('campaign-end').value=inputDate(c.ends_at);document.getElementById('campaign-spend').value=c.spend_per_spin_minor;document.getElementById('campaign-max-spins').value=c.max_spins_per_sale;document.getElementById('campaign-status').value=c.status;document.getElementById('campaign-form-title').textContent='Sửa thể lệ';document.getElementById('cancel-edit').classList.remove('d-none');window.scrollTo({top:0,behavior:'smooth'});return}if(!toggle)return;try{const collection=toggle.classList.contains('toggle-prize')?'reward_campaign_prizes':'reward_campaigns';await PBA.collection(collection).update(toggle.dataset.id,{status:toggle.dataset.status});await load()}catch(error){notice(error.message,'danger')}});
+document.getElementById('campaigns').addEventListener('submit',async event=>{if(!event.target.matches('.prize-form'))return;event.preventDefault();const f=new FormData(event.target);const value=String(f.get('value')||'').trim();try{await PBA.collection('reward_campaign_prizes').create({campaign_id:event.target.dataset.campaign,name:String(f.get('name')).trim(),prize_type:f.get('type'),weight:Number(f.get('weight')),max_wins:Number(f.get('max')),sort_order:prizes.filter(p=>p.campaign_id===event.target.dataset.campaign).length,status:'active',value_json:JSON.stringify(value?{value}:{})});await load();notice('Đã thêm giải thưởng.')}catch(error){notice(error.message,'danger')}});
+(async()=>{if(PBA.authStore.isValid){try{await adminRefresh();showWorkspace()}catch{PBA.authStore.clear();showLogin()}}else showLogin()})();
+</script>
+</body>
+</html>

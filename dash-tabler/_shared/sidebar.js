@@ -13,6 +13,7 @@ const SIDEBAR_NAV = [
       { href: 'agent-chat.html', icon: 'ti-message-2-bot',  labelKey: 'nav_agent_chat' },
       { href: 'knowledge.html',icon: 'ti-book',             labelKey: 'nav_knowledge' },
       { href: 'messages.html', icon: 'ti-message-circle',   labelKey: 'nav_messages' },
+      { href: 'loyalty.html',  icon: 'ti-gift',             labelKey: 'nav_loyalty' },
       { href: 'leads.html',    icon: 'ti-users',            labelKey: 'nav_leads' },
       { href: 'billing.html',  icon: 'ti-receipt',          labelKey: 'nav_billing' },
     ]

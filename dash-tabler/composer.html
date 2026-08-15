@@ -12,7 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
-    <script src="_shared/i18n.js?v=20260813-2"></script>
+    <script src="_shared/i18n.js?v=20260814-1"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -83,6 +83,7 @@
 
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item"><a href="#tab-posts" class="nav-link active" data-bs-toggle="tab">Bài viết</a></li>
+                        <li class="nav-item"><a href="#tab-content-planning" class="nav-link" data-bs-toggle="tab">Content Planning</a></li>
                         <li class="nav-item"><a href="#tab-media" class="nav-link" data-bs-toggle="tab">Thư viện Media</a></li>
                         <li class="nav-item"><a href="#tab-rss" class="nav-link" data-bs-toggle="tab">RSS &amp; Prompt AI</a></li>
                         <li class="nav-item"><a href="#tab-schedule" class="nav-link" data-bs-toggle="tab">Lịch đăng bài</a></li>
@@ -113,6 +114,65 @@
                                 <div class="card-body">
                                     <div id="posts-list" class="row row-cards"></div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- ===== TAB CONTENT PLANNING ===== -->
+                        <div class="tab-pane" id="tab-content-planning">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="text-secondary">Duyệt đề xuất trend và bản nháp. Bài chỉ được publish sau khi mọi dependency bắt buộc hoàn tất.</div>
+                                <button id="refresh-content-planning" class="btn btn-outline-secondary ms-auto"><i class="ti ti-refresh me-1"></i>Làm mới</button>
+                            </div>
+                            <div id="content-planning-alert"></div>
+                            <div class="row row-cards mb-4">
+                                <div class="col-lg-5">
+                                    <div class="card h-100">
+                                        <div class="card-header"><h3 class="card-title"><i class="ti ti-radar text-primary me-2"></i>Nhập trend &amp; tư vấn topic</h3></div>
+                                        <div class="card-body">
+                                            <label class="form-label">Website</label>
+                                            <select id="cp-trend-site" class="form-select mb-3"></select>
+                                            <label class="form-label">Trend JSON</label>
+                                            <textarea id="cp-trend-json" class="form-control mb-3" rows="5" placeholder='Dán nguyên JSON report từ Skillgo/nguồn trend'></textarea>
+                                            <div class="d-flex gap-2">
+                                                <button id="cp-import-trend" class="btn btn-outline-primary">Import</button>
+                                                <button id="cp-recommend-topic" class="btn btn-primary">AI tư vấn topic</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-7">
+                                    <div class="card h-100">
+                                        <div class="card-header"><h3 class="card-title"><i class="ti ti-calendar-stats text-primary me-2"></i>Content plans &amp; cadence</h3></div>
+                                        <div class="card-body">
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-4"><select id="cp-plan-site" class="form-select"></select></div>
+                                                <div class="col-md-3"><input id="cp-plan-name" class="form-control" placeholder="Tên plan"></div>
+                                                <div class="col-md-3"><input id="cp-plan-time" class="form-control" value="03:00" placeholder="HH:mm,HH:mm"></div>
+                                                <div class="col-md-2"><button id="cp-create-plan" class="btn btn-primary w-100">Tạo plan</button></div>
+                                            </div>
+                                            <div class="text-secondary fs-6 mb-3">Mặc định chạy hàng ngày theo múi giờ Asia/Ho_Chi_Minh. Có thể pause/resume và xếp lịch 90 ngày mà không ảnh hưởng lịch publish legacy.</div>
+                                            <div id="content-planning-plans" class="d-flex flex-column gap-2">Đang tải...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row row-cards">
+                                <div class="col-lg-5">
+                                    <div class="card">
+                                        <div class="card-header"><h3 class="card-title"><i class="ti ti-bulb text-yellow me-2"></i>Topic chờ duyệt</h3></div>
+                                        <div id="content-planning-topics" class="card-body d-flex flex-column gap-3">Đang tải...</div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-7">
+                                    <div class="card">
+                                        <div class="card-header"><h3 class="card-title"><i class="ti ti-file-check text-primary me-2"></i>Bản nháp chờ duyệt</h3></div>
+                                        <div id="content-planning-drafts" class="card-body d-flex flex-column gap-3">Đang tải...</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card mt-4">
+                                <div class="card-header"><h3 class="card-title"><i class="ti ti-list-check text-primary me-2"></i>Plan queue &amp; schedule</h3></div>
+                                <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Plan / Website</th><th>Topic</th><th>Trạng thái</th><th>Lịch chạy</th><th>Dependency</th><th>Lỗi</th></tr></thead><tbody id="content-planning-queue"></tbody></table></div>
                             </div>
                         </div>
 
@@ -325,6 +385,15 @@
               <input type="text" id="prompt-model" class="form-control" placeholder="models/gemini-2.5-flash-lite">
             </div>
             <div class="mb-3">
+              <label class="form-label" data-i18n="comp_content_language">Ngôn ngữ nội dung</label>
+              <select id="prompt-language" class="form-select">
+                <option value="auto" data-i18n="lang_auto_interface">Tự động theo ngôn ngữ giao diện</option>
+                <option value="vi">Tiếng Việt</option><option value="en">English</option>
+                <option value="ja">日本語</option><option value="es">Español</option>
+                <option value="fr">Français</option><option value="ko">한국어</option>
+              </select>
+            </div>
+            <div class="mb-3">
               <label class="form-label">System prompt</label>
               <textarea id="prompt-system" class="form-control" rows="10" placeholder="VAI TRÒ: ...&#10;NHIỆM VỤ: ...&#10;YÊU CẦU OUTPUT: ..."></textarea>
               <small class="form-hint mt-1">n8n sẽ nối phần data RSS crawl được vào sau prompt này rồi gửi cho model.</small>
@@ -488,6 +557,8 @@
         await loadMediaLibrary();
         await loadPosts();
         await loadSchedules();
+        await loadContentPlanningSites();
+        await loadContentPlanningReview();
     })();
 
     // ═══════════════════════════════════════
@@ -670,6 +741,202 @@
     document.getElementById('filter-status').addEventListener('change', loadPosts);
     document.getElementById('refresh-posts').addEventListener('click', loadPosts);
     document.getElementById('new-post-btn').addEventListener('click', () => openPostModal(null));
+
+    // ═══════════════════════════════════════
+    // CONTENT PLANNING REVIEW
+    // ═══════════════════════════════════════
+    let contentPlanningApiKey = '';
+    let contentPlanningSnapshot = { plans: [], topics: [], items: [] };
+    let contentPlanningOverview = { plans: [] };
+
+    async function getContentPlanningApiKey() {
+        if (contentPlanningApiKey) return contentPlanningApiKey;
+        const configs = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
+        if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+        contentPlanningApiKey = configs.items[0].api_key;
+        return contentPlanningApiKey;
+    }
+
+    async function contentPlanningFetch(path, options = {}) {
+        const apiKey = await getContentPlanningApiKey();
+        const response = await fetch(`${WORKER_URL}${path}`, {
+            ...options,
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, ...(options.headers || {}) }
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `Content Planning trả về HTTP ${response.status}`);
+        return body;
+    }
+
+    async function loadContentPlanningReview() {
+        const topicsEl = document.getElementById('content-planning-topics');
+        const draftsEl = document.getElementById('content-planning-drafts');
+        const alertEl = document.getElementById('content-planning-alert');
+        topicsEl.innerHTML = draftsEl.innerHTML = '<div class="text-secondary">Đang tải...</div>';
+        alertEl.innerHTML = '';
+        try {
+            [contentPlanningSnapshot, contentPlanningOverview] = await Promise.all([
+                contentPlanningFetch('/api/v1/content-planning/review'),
+                contentPlanningFetch('/api/v1/content-planning/plans')
+            ]);
+            renderContentPlanningReview();
+            renderContentPlanningPlans();
+        } catch (err) {
+            topicsEl.innerHTML = draftsEl.innerHTML = '';
+            alertEl.innerHTML = `<div class="alert alert-danger">Không tải được Content Planning: ${escHtml(err.message)}</div>`;
+        }
+    }
+
+    async function loadContentPlanningSites() {
+        const sites = await PB.collection('pages_config').getFullList({ filter: `tenant = "${window.TENANT}"`, sort: 'label' });
+        const options = sites.map(site => `<option value="${escHtml(site.id)}">${escHtml(site.label || site.page_id || site.id)}</option>`).join('');
+        document.getElementById('cp-trend-site').innerHTML = options || '<option value="">Chưa cấu hình website</option>';
+        document.getElementById('cp-plan-site').innerHTML = options || '<option value="">Chưa cấu hình website</option>';
+    }
+
+    function parseCadenceValue(value) {
+        const times = String(value || '').split(',').map(v => v.trim()).filter(Boolean);
+        if (!times.length || times.some(v => !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(v))) throw new Error('Giờ cadence phải theo HH:mm, ngăn cách bằng dấu phẩy.');
+        return { days: ['all'], times };
+    }
+
+    function renderContentPlanningPlans() {
+        const plansEl = document.getElementById('content-planning-plans');
+        const queueEl = document.getElementById('content-planning-queue');
+        const plans = contentPlanningOverview.plans || [];
+        plansEl.innerHTML = plans.length ? plans.map((plan, index) => {
+            let cadence = plan.cadence_json; try { cadence = typeof cadence === 'string' ? JSON.parse(cadence) : cadence; } catch { cadence = {}; }
+            return `<div class="border rounded p-2 d-flex align-items-center gap-2 flex-wrap">
+                <div><strong>${escHtml(plan.name)}</strong><div class="text-secondary fs-6">${escHtml(plan.site_id)} · ${escHtml(plan.timezone)} · ${(cadence.times || []).map(escHtml).join(', ') || '—'}</div></div>
+                <span class="badge bg-${plan.status === 'active' ? 'green' : 'secondary'}-lt ms-auto">${escHtml(plan.status)}</span>
+                <button class="btn btn-sm btn-outline-secondary" data-cp-plan-action="toggle" data-index="${index}">${plan.status === 'active' ? 'Pause' : 'Activate'}</button>
+                <button class="btn btn-sm btn-primary" ${plan.status === 'active' ? '' : 'disabled'} data-cp-plan-action="schedule" data-index="${index}">Xếp lịch 90 ngày</button>
+            </div>`;
+        }).join('') : '<div class="text-secondary">Chưa có content plan.</div>';
+        const rows = plans.flatMap(plan => (plan.items || []).map(item => ({ plan, item })));
+        queueEl.innerHTML = rows.length ? rows.map(({ plan, item }) => `<tr>
+            <td><strong>${escHtml(plan.name)}</strong><div class="text-secondary fs-6">${escHtml(plan.site_id)}</div></td>
+            <td>${escHtml(item.topic)}</td><td><span class="badge bg-blue-lt">${escHtml(item.status)}</span></td>
+            <td class="text-secondary">${item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('vi-VN') : 'Chưa xếp'}</td>
+            <td>${item.dependencies_ready ? '<span class="text-success">Sẵn sàng</span>' : escHtml(item.translation_status || '—')}</td>
+            <td class="text-danger fs-6">${escHtml(item.error_log || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="text-center text-secondary py-4">Queue đang trống.</td></tr>';
+    }
+
+    async function createDashboardContentPlan() {
+        try {
+            const siteId = document.getElementById('cp-plan-site').value;
+            const name = document.getElementById('cp-plan-name').value.trim();
+            await contentPlanningFetch('/api/v1/content-planning/plans', { method: 'POST', body: JSON.stringify({ siteId, name, timezone: 'Asia/Ho_Chi_Minh', cadence: parseCadenceValue(document.getElementById('cp-plan-time').value), status: 'active' }) });
+            showToast('Đã tạo content plan.'); await loadContentPlanningReview();
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function importDashboardTrend(recommendAfter = false) {
+        try {
+            const siteId = document.getElementById('cp-trend-site').value;
+            const trendJson = document.getElementById('cp-trend-json').value;
+            if (trendJson.trim()) await contentPlanningFetch('/api/v1/content-planning/trends/import', { method: 'POST', body: JSON.stringify({ siteId, trendJson }) });
+            if (recommendAfter) await contentPlanningFetch('/api/v1/content-planning/trends/recommend', { method: 'POST', body: JSON.stringify({ siteId }) });
+            showToast(recommendAfter ? 'Đã tư vấn topic.' : 'Đã import trend.'); await loadContentPlanningReview();
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    function renderContentPlanningReview() {
+        const planNames = new Map(contentPlanningSnapshot.plans.map(p => [p.id, p.name || p.site_id]));
+        const topicsEl = document.getElementById('content-planning-topics');
+        const draftsEl = document.getElementById('content-planning-drafts');
+        const topics = contentPlanningSnapshot.topics || [];
+        const items = contentPlanningSnapshot.items || [];
+        topicsEl.innerHTML = topics.length ? topics.map((topic, index) => `
+          <div class="border rounded p-3">
+            <div class="d-flex gap-2"><span class="badge bg-yellow-lt">#${Number(topic.rank) || '—'}</span><strong>${escHtml(topic.title)}</strong></div>
+            <div class="text-secondary mt-1">Keyword: ${escHtml(topic.primary_keyword || '—')} · Điểm: ${escHtml(topic.overall_score ?? '—')}</div>
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-sm btn-primary" data-content-planning-action="approve-topic" data-index="${index}"><i class="ti ti-check me-1"></i>Duyệt &amp; đưa vào plan</button>
+              <button class="btn btn-sm btn-outline-danger" data-content-planning-action="reject-topic" data-index="${index}">Bỏ qua</button>
+            </div>
+          </div>`).join('') : '<div class="text-secondary">Không có topic đang chờ duyệt.</div>';
+        draftsEl.innerHTML = items.length ? items.map((item, index) => `
+          <div class="border rounded p-3">
+            <div class="d-flex align-items-start gap-2"><strong>${escHtml(item.post?.title || item.topic)}</strong><span class="badge bg-primary-lt ms-auto">${escHtml(item.status)}</span></div>
+            <div class="text-secondary fs-6 mt-1">${escHtml(planNames.get(item.plan_id) || item.site_id)}</div>
+            <p class="mt-2 mb-2 text-secondary">${escHtml((item.post?.content || '').slice(0, 300))}${(item.post?.content || '').length > 300 ? '…' : ''}</p>
+            <div class="mb-2"><span class="badge ${item.dependencies_ready ? 'bg-green-lt' : 'bg-orange-lt'}">Dependency: ${item.dependencies_ready ? 'sẵn sàng' : escHtml(item.translation_status || 'chưa hoàn tất')}</span></div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-success" ${item.dependencies_ready ? '' : 'disabled'} data-content-planning-action="approve-draft" data-index="${index}"><i class="ti ti-check me-1"></i>Duyệt publish</button>
+              <button class="btn btn-sm btn-outline-danger" data-content-planning-action="reject-draft" data-index="${index}"><i class="ti ti-trash me-1"></i>Xóa bản nháp</button>
+            </div>
+          </div>`).join('') : '<div class="text-secondary">Không có bản nháp đang chờ duyệt.</div>';
+    }
+
+    async function approveContentPlanningTopic(topicId) {
+        const topic = contentPlanningSnapshot.topics.find(t => t.id === topicId);
+        const plans = contentPlanningSnapshot.plans.filter(p => p.site_id === topic?.site_id);
+        if (plans.length !== 1) { showToast('Topic cần đúng một active plan cùng website.', 'error'); return; }
+        try {
+            await contentPlanningFetch(`/api/v1/content-planning/topics/${encodeURIComponent(topicId)}/approve-to-plan`, { method: 'POST', body: JSON.stringify({ planId: plans[0].id }) });
+            showToast('Đã duyệt topic và đưa vào content plan.');
+            await loadContentPlanningReview();
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function rejectContentPlanningTopic(topicId) {
+        const topic = contentPlanningSnapshot.topics.find(t => t.id === topicId);
+        try {
+            await contentPlanningFetch(`/api/v1/content-planning/topics/${encodeURIComponent(topicId)}/review`, { method: 'POST', body: JSON.stringify({ siteId: topic?.site_id || '', action: 'reject' }) });
+            showToast('Đã bỏ qua topic.');
+            await loadContentPlanningReview();
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function approveContentPlanningDraft(itemId) {
+        try {
+            await contentPlanningFetch(`/api/v1/content-planning/items/${encodeURIComponent(itemId)}/approve`, { method: 'POST', body: '{}' });
+            showToast('Đã duyệt bản nháp; bài sẵn sàng theo lịch publish.');
+            await Promise.all([loadContentPlanningReview(), loadPosts()]);
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function rejectContentPlanningDraft(itemId) {
+        if (!confirm('Xóa bản nháp và toàn bộ bản dịch chưa publish?')) return;
+        try {
+            await contentPlanningFetch(`/api/v1/content-planning/items/${encodeURIComponent(itemId)}/reject`, { method: 'POST', body: '{}' });
+            showToast('Đã xóa bản nháp.');
+            await Promise.all([loadContentPlanningReview(), loadPosts()]);
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    document.getElementById('content-planning-topics').addEventListener('click', event => {
+        const button = event.target.closest('[data-content-planning-action]');
+        if (!button) return;
+        const topic = contentPlanningSnapshot.topics[Number(button.dataset.index)];
+        if (!topic) return;
+        if (button.dataset.contentPlanningAction === 'approve-topic') approveContentPlanningTopic(topic.id);
+        if (button.dataset.contentPlanningAction === 'reject-topic') rejectContentPlanningTopic(topic.id);
+    });
+
+    document.getElementById('content-planning-drafts').addEventListener('click', event => {
+        const button = event.target.closest('[data-content-planning-action]');
+        if (!button || button.disabled) return;
+        const item = contentPlanningSnapshot.items[Number(button.dataset.index)];
+        if (!item) return;
+        if (button.dataset.contentPlanningAction === 'approve-draft') approveContentPlanningDraft(item.id);
+        if (button.dataset.contentPlanningAction === 'reject-draft') rejectContentPlanningDraft(item.id);
+    });
+
+    document.getElementById('refresh-content-planning').addEventListener('click', loadContentPlanningReview);
+    document.getElementById('cp-create-plan').addEventListener('click', createDashboardContentPlan);
+    document.getElementById('cp-import-trend').addEventListener('click', () => importDashboardTrend(false));
+    document.getElementById('cp-recommend-topic').addEventListener('click', () => importDashboardTrend(true));
+    document.getElementById('content-planning-plans').addEventListener('click', async event => {
+        const button = event.target.closest('[data-cp-plan-action]'); if (!button || button.disabled) return;
+        const plan = (contentPlanningOverview.plans || [])[Number(button.dataset.index)]; if (!plan) return;
+        try {
+            if (button.dataset.cpPlanAction === 'toggle') await contentPlanningFetch(`/api/v1/content-planning/plans/${encodeURIComponent(plan.id)}`, { method: 'PATCH', body: JSON.stringify({ status: plan.status === 'active' ? 'paused' : 'active' }) });
+            if (button.dataset.cpPlanAction === 'schedule') await contentPlanningFetch(`/api/v1/content-planning/plans/${encodeURIComponent(plan.id)}/schedule`, { method: 'POST', body: JSON.stringify({ horizonDays: 90 }) });
+            showToast(button.dataset.cpPlanAction === 'schedule' ? 'Đã xếp lịch content plan.' : 'Đã cập nhật trạng thái plan.'); await loadContentPlanningReview();
+        } catch (err) { showToast(err.message, 'error'); }
+    });
 
     function mediaRowTemplate(m={}) {
         mediaRowCount++;
@@ -895,6 +1162,8 @@
         document.getElementById('prompt-label').value = p?.label || '';
         document.getElementById('prompt-category').value = p?.category || '';
         document.getElementById('prompt-model').value = p?.model || 'models/gemini-2.5-flash-lite';
+        const savedLanguage = p?.content_language || 'auto';
+        document.getElementById('prompt-language').value = savedLanguage.startsWith('auto:') ? 'auto' : savedLanguage;
         document.getElementById('prompt-system').value = p?.system_prompt || '';
         document.getElementById('prompt-active').checked = p ? !!p.is_active : true;
         document.getElementById('delete-prompt-btn').classList.toggle('d-none', !p);
@@ -908,6 +1177,9 @@
             label: document.getElementById('prompt-label').value,
             category: document.getElementById('prompt-category').value,
             model: document.getElementById('prompt-model').value,
+            content_language: document.getElementById('prompt-language').value === 'auto'
+                ? `auto:${typeof getLang === 'function' ? getLang() : 'vi'}`
+                : document.getElementById('prompt-language').value,
             system_prompt: document.getElementById('prompt-system').value,
             is_active: document.getElementById('prompt-active').checked
         };

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "rewardcatalog01", "name": "reward_catalog_items", "type": "base",
+    "listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_reward_catalog_source` ON `reward_catalog_items` (`provider`, `external_ref`)",
+      "CREATE INDEX `idx_reward_catalog_active` ON `reward_catalog_items` (`status`, `provider`, `name`)"
+    ], "system": false,
+    "schema": [
+      {"id":"rcatsource01","name":"source_type","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["internal","external_api"]}},
+      {"id":"rcatprovider","name":"provider","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["self","reloadly"]}},
+      {"id":"rcatexternal","name":"external_ref","type":"text","required":true,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rcatname0001","name":"name","type":"text","required":true,"presentable":true,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rcatstockmg","name":"stock_management","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["self_tracked","provider_managed"]}},
+      {"id":"rcatcost000","name":"cost_to_platform","type":"number","required":false,"presentable":false,"unique":false,"options":{"min":0,"max":null,"noDecimal":false}},
+      {"id":"rcatface000","name":"face_value","type":"number","required":false,"presentable":false,"unique":false,"options":{"min":0,"max":null,"noDecimal":false}},
+      {"id":"rcatcurrency","name":"currency","type":"text","required":false,"presentable":false,"unique":false,"options":{"min":null,"max":10,"pattern":""}},
+      {"id":"rcatcountry0","name":"country_code","type":"text","required":false,"presentable":false,"unique":false,"options":{"min":null,"max":2,"pattern":""}},
+      {"id":"rcatimageurl","name":"image_url","type":"url","required":false,"presentable":false,"unique":false,"options":{"exceptDomains":null,"onlyDomains":null}},
+      {"id":"rcatstatus00","name":"status","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["active","paused","unavailable"]}},
+      {"id":"rcatstock000","name":"available_stock","type":"number","required":false,"presentable":false,"unique":false,"options":{"min":0,"max":null,"noDecimal":true}},
+      {"id":"rcatconfig00","name":"source_config_json","type":"text","required":false,"presentable":false,"unique":false,"options":{"min":null,"max":20000,"pattern":""}},
+      {"id":"rcatsynced00","name":"synced_at","type":"date","required":false,"presentable":false,"unique":false,"options":{"min":"","max":""}}
+    ], "options": {}
+  },
+  {
+    "id": "rewardfulfill01", "name": "reward_fulfillments", "type": "base",
+    "listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null,
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_reward_fulfillment_claim` ON `reward_fulfillments` (`claim_id`)",
+      "CREATE INDEX `idx_reward_fulfillment_status` ON `reward_fulfillments` (`tenant`, `status`, `created`)"
+    ], "system": false,
+    "schema": [
+      {"id":"rftenant0001","name":"tenant","type":"text","required":true,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rfcampaign0","name":"campaign_id","type":"text","required":true,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rfresult000","name":"result_id","type":"text","required":true,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rfclaim0000","name":"claim_id","type":"text","required":true,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rfcatalog00","name":"catalog_item_id","type":"text","required":true,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rfsource000","name":"source_type","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["internal","external_api"]}},
+      {"id":"rfprovider0","name":"provider","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["self","reloadly"]}},
+      {"id":"rfstatus000","name":"status","type":"select","required":true,"presentable":false,"unique":false,"options":{"maxSelect":1,"values":["processing","fulfilled","manual_review","failed"]}},
+      {"id":"rfproviderref","name":"provider_ref","type":"text","required":false,"presentable":false,"unique":false,"options":{"min":null,"max":200,"pattern":""}},
+      {"id":"rfdelivery0","name":"delivery_json","type":"text","required":false,"presentable":false,"unique":false,"options":{"min":null,"max":5000,"pattern":""}},
+      {"id":"rferror0000","name":"error_message","type":"text","required":false,"presentable":false,"unique":false,"options":{"min":null,"max":500,"pattern":""}},
+      {"id":"rfattempts00","name":"attempts","type":"number","required":true,"presentable":false,"unique":false,"options":{"min":1,"max":20,"noDecimal":true}},
+      {"id":"rfrequested0","name":"requested_at","type":"date","required":true,"presentable":false,"unique":false,"options":{"min":"","max":""}},
+      {"id":"rffulfilled0","name":"fulfilled_at","type":"date","required":false,"presentable":false,"unique":false,"options":{"min":"","max":""}}
+    ], "options": {}
+  }
+]

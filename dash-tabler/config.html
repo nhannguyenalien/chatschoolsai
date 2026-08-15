@@ -12,7 +12,7 @@
     <script src="_shared/config.js"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
-    <script src="_shared/i18n.js?v=20260813-2"></script>
+    <script src="_shared/i18n.js?v=20260814-1"></script>
     <script src="_shared/sidebar.js"></script>
 
     <style>
@@ -288,6 +288,16 @@
                                         </button>
                                     </div>
                                     <div class="card-body pt-2">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-i18n="cfg_response_language">Ngôn ngữ trả lời</label>
+                                            <select class="form-select" id="responseLanguage">
+                                                <option value="auto" data-i18n="lang_auto_customer">Tự động theo ngôn ngữ khách hàng</option>
+                                                <option value="vi">Tiếng Việt</option><option value="en">English</option>
+                                                <option value="ja">日本語</option><option value="es">Español</option>
+                                                <option value="fr">Français</option><option value="ko">한국어</option>
+                                            </select>
+                                            <small class="form-hint" data-i18n="cfg_response_language_hint">Tự động sẽ nhận diện ngôn ngữ khách đang dùng; chọn một ngôn ngữ để bot luôn trả lời bằng ngôn ngữ đó.</small>
+                                        </div>
                                         <label class="form-label text-uppercase tracking-wide text-secondary fs-5">System Instructions (Prompt)</label>
                                         <textarea class="form-control font-monospace fs-4 bg-light" id="systemPrompt" placeholder="Nhập system prompt..." rows="8"></textarea>
                                         <small class="form-hint mt-2">Bot sẽ hành xử theo hướng dẫn này. Dùng cùng ngôn ngữ với khách hàng.</small>
@@ -525,6 +535,7 @@
             previewBrandLogo();
             document.getElementById("apiKeyDisplay").value = r.api_key || "";
             document.getElementById("systemPrompt").value = r.system_prompt || "";
+            document.getElementById("responseLanguage").value = r.response_language || "auto";
             document.getElementById("tempSlider").value  = r.temperature  || 0.3;
             document.getElementById("tempValue").textContent = r.temperature || 0.3;
             document.getElementById("maxTokensSlider").value = r.max_tokens || 1000;
@@ -898,6 +909,7 @@
             cloudinary_api_secret: document.getElementById("cloudinaryApiSecret").value.trim(),
             brand_logo_url: document.getElementById("brandLogoUrl").value.trim(),
             system_prompt: document.getElementById("systemPrompt").value.trim(),
+            response_language: document.getElementById("responseLanguage").value,
             model:         selectedModel,
             temperature:   parseFloat(document.getElementById("tempSlider").value),
             max_tokens:    parseInt(document.getElementById("maxTokensSlider").value),
@@ -951,6 +963,7 @@
         document.getElementById("brandLogoUrl").value = originalData.brand_logo_url || "";
         previewBrandLogo();
         document.getElementById("systemPrompt").value  = originalData.system_prompt || "";
+        document.getElementById("responseLanguage").value = originalData.response_language || "auto";
         document.getElementById("tempSlider").value    = originalData.temperature   || 0.3;
         document.getElementById("tempValue").textContent = originalData.temperature || 0.3;
         document.getElementById("maxTokensSlider").value = originalData.max_tokens  || 1000;

@@ -26,6 +26,16 @@ Mọi request/response đều là JSON. Không cần các header khác.
 
 ---
 
+## `POST /api/onboarding/register` — Tạo tài khoản và bot đầu tiên
+
+Endpoint công khai dùng cho màn hình đăng ký của app. Request gồm `name`, `email`, `password` (8-128 ký tự), `tenant` (mã bot duy nhất) và `bot_name`. Khi thành công, API tạo đồng thời tài khoản, cấu hình bot và trả API key để app đăng nhập ngay.
+
+## `POST /api/v1/bots` — Tạo thêm bot
+
+Yêu cầu Bearer API key hiện tại. Request gồm `tenant` và `bot_name`. API trả `api_key`, `tenant`, `bot_name`; app lưu key mới và chuyển thẳng sang bot vừa tạo.
+
+---
+
 ## `POST /api/v1/posts` — Tạo bài viết mới
 
 Tạo bài + tự tạo `post_targets` cho các platform chỉ định (dùng page/token đã cấu hình sẵn ở `sm-config.html`). Đây là cách để hệ thống ngoài "bơm" nội dung vào thẳng, bỏ qua bước RSS/AI viết bài nếu không cần.
@@ -238,7 +248,7 @@ Dùng khi hệ thống ngoài (vd phần mềm POS đã có sẵn 1 tài khoản
 
 Request:
 ```json
-{ "customer_name": "Chị Hoa" }
+{ "customer_name": "Chị Hoa", "customer_context": { "customer": { "name": "Chị Hoa" }, "recent_orders": [] } }
 ```
 Response:
 ```json
@@ -249,9 +259,28 @@ Response:
 }
 ```
 
-Không tạo bản ghi nào trong DB trước — widget `chat.html` đã tự đọc `session`/tên khách (`u`) từ URL và tự lưu vào localStorage khi khách mở link, nên chỉ cần đúng URL là đủ. Muốn xem lại hội thoại của khách này sau: `GET /api/v1/messages?session=<session>`.
+`customer_context` là tuỳ chọn. Nếu có, snapshot được lưu riêng theo tenant + session để bot dùng khi trả lời. Muốn xem lại hội thoại của khách này sau: `GET /api/v1/messages?session=<session>`.
 
 Cũng gọi được ngay trong **Chat với Agent** bằng câu kiểu "tạo link chat cho khách tên Anh Tuấn" — tool `create_chat_link`.
+
+## `PUT /api/v1/customer-context` — Đồng bộ dữ liệu riêng của khách
+
+POS gọi endpoint này khi thông tin khách, toa hoặc thanh toán thay đổi. Bot đọc snapshot nội bộ
+theo session và không cần gọi ngược về POS trong từng lượt chat.
+
+```json
+{
+  "session": "22c29691-3838-4ca6-8b67-0cc7e7b457b3",
+  "context": {
+    "customer": { "name": "Chị Hoa" },
+    "debt": { "money": 1200000, "money_direction": "customer_owes_shop" },
+    "recent_orders": []
+  }
+}
+```
+
+Tenant luôn được suy ra từ Bearer API key, không nhận từ body. Snapshot được cache 5 phút;
+một lần PUT mới sẽ làm mới cache ngay.
 
 ---
 
@@ -430,6 +459,8 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 | Cấu hình bot | `GET/PATCH /api/v1/config` | API key riêng tenant |
 | Knowledge base | `GET/POST /api/v1/knowledge`, `DELETE /api/v1/knowledge/:id`, `POST /api/v1/knowledge/sync` | API key riêng tenant |
 | Chat logs | `GET /api/v1/messages` | API key riêng tenant |
+| Loyalty / Reward World | `PUT /api/v1/loyalty/program`, `POST /api/v1/loyalty/sales`, `GET /api/v1/loyalty/account`, `GET /api/v1/loyalty/reward-world/campaigns`, `POST /api/v1/loyalty/reward-world/campaigns/:id/join`, `POST /api/v1/loyalty/reward-world/spins` | API key riêng tenant |
+| Reward Catalog admin | `GET /api/v1/admin/reward-world/catalog`, `POST /api/v1/admin/reward-world/catalog/sync/self`, `POST /api/v1/admin/reward-world/catalog/sync/reloadly` | `X-Admin-Secret` |
 | Widget công khai (không dùng cho hệ thống ngoài) | `POST /chat`, `POST /embed`, `DELETE /doc`, `POST /sync-docs` | không — tenant tự khai trong body, dành cho widget nhúng công khai trên website khách, KHÔNG nên gọi trực tiếp các endpoint này từ hệ thống ngoài (dùng bản `/api/v1/*` tương ứng ở trên thay thế, có xác thực đàng hoàng) |
 | Vận hành nội bộ (chỉ admin hệ thống) | `POST /run-digest`, `/run-rss-crawl`, `/run-publish-dispatch`, `/run-agent`, `/ping-anyllm` | header `X-Admin-Secret` = `ADMIN_SECRET` chung — chạy cho **TẤT CẢ** tenant cùng lúc |
 | Khác | `GET /health` (không auth), `POST /telegram-webhook` (Telegram tự gọi) | — |

@@ -1,0 +1,60 @@
+{
+  "similarityCases": [
+    { "left": "Tự động hóa & AI!", "right": "Tu dong hoa AI", "expected": 1 },
+    { "left": "AI agents for retail", "right": "Retail AI Agents", "expected": 1 },
+    { "left": "Docker networking", "right": "Email marketing", "expected": 0 },
+    { "left": "How to learn Git for beginners", "right": "Git for Beginners", "expected": 0.8 },
+    { "left": "SEO với trí tuệ nhân tạo", "right": "SEO tri tue nhan tao", "expected": 1 },
+    { "left": "", "right": "Content planning", "expected": 0 }
+  ],
+  "recommendationCases": [
+    {
+      "name": "skip highest-ranked duplicate",
+      "candidates": [
+        { "id": "one", "title": "AI Agents for Retail", "primaryKeyword": "retail ai agents" },
+        { "id": "two", "title": "Warehouse Robotics", "primaryKeyword": "warehouse robots" }
+      ],
+      "history": [{ "title": "Retail AI Agents", "source": "blog" }],
+      "expectedRecommendationId": "two",
+      "expectedDuplicateIds": ["one"]
+    },
+    {
+      "name": "primary keyword can make a title duplicate",
+      "candidates": [
+        { "id": "one", "title": "A Practical Guide for Modern Teams", "primaryKeyword": "technical seo audit" },
+        { "id": "two", "title": "Content Operations Metrics", "primaryKeyword": "content ops metrics" }
+      ],
+      "history": [{ "title": "Technical SEO Audit", "source": "queue" }],
+      "expectedRecommendationId": "two",
+      "expectedDuplicateIds": ["one"]
+    },
+    {
+      "name": "all candidates duplicate",
+      "candidates": [
+        { "id": "one", "title": "Prompt Engineering Basics", "primaryKeyword": "prompt engineering" }
+      ],
+      "history": [{ "title": "Prompt Engineering Basics", "source": "blog" }],
+      "expectedRecommendationId": null,
+      "expectedDuplicateIds": ["one"]
+    },
+    {
+      "name": "empty history selects first candidate",
+      "candidates": [
+        { "id": "one", "title": "Serverless Cost Controls", "primaryKeyword": "serverless cost" },
+        { "id": "two", "title": "API Design", "primaryKeyword": "api design" }
+      ],
+      "history": [],
+      "expectedRecommendationId": "one",
+      "expectedDuplicateIds": []
+    }
+  ],
+  "cadence": {
+    "from": "2026-08-05T02:00:00.000Z",
+    "until": "2026-08-07T04:00:00.000Z",
+    "expectedSkillgoSlots": [
+      "2026-08-05T03:00:00.000Z",
+      "2026-08-06T03:00:00.000Z",
+      "2026-08-07T03:00:00.000Z"
+    ]
+  }
+}
