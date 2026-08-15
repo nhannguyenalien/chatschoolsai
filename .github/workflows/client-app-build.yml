@@ -63,15 +63,6 @@ jobs:
           path: apps/client_app/dist/Schools-AI-Android.*
           if-no-files-found: error
           retention-days: 30
-      - name: Add Android packages to GitHub Release
-        if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Schools AI ${{ github.ref_name }}
-          generate_release_notes: true
-          files: apps/client_app/dist/Schools-AI-Android.*
-          fail_on_unmatched_files: true
-
   windows:
     name: Windows x64
     needs: quality
@@ -90,26 +81,16 @@ jobs:
       - name: Create portable Windows package
         shell: pwsh
         run: |
-          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$').Matches.Groups[1].Value.Split('+')[0]
-          $package = "Schools-AI-$version-Windows-x64"
+          $package = "Schools-AI-Windows-x64"
           New-Item -ItemType Directory -Force -Path "dist/$package" | Out-Null
           Copy-Item 'build/windows/x64/runner/Release/*' "dist/$package" -Recurse -Force
           Compress-Archive -Path "dist/$package" -DestinationPath "dist/$package.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
           name: Schools-AI-Windows-x64
-          path: apps/client_app/dist/Schools-AI-*-Windows-x64.zip
+          path: apps/client_app/dist/Schools-AI-Windows-x64.zip
           if-no-files-found: error
           retention-days: 30
-      - name: Add Windows package to GitHub Release
-        if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Schools AI ${{ github.ref_name }}
-          generate_release_notes: true
-          files: apps/client_app/dist/Schools-AI-*-Windows-x64.zip
-          fail_on_unmatched_files: true
-
   apple:
     name: iOS and macOS
     needs: quality
@@ -130,25 +111,33 @@ jobs:
         run: flutter build macos --release
       - name: Package Apple builds
         run: |
-          version="$(sed -nE 's/^version:[[:space:]]*([^+]+).*/\1/p' pubspec.yaml)"
           mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app "dist/Schools-AI-${version}-iOS-unsigned.zip"
-          hdiutil create -volname 'Schools AI' -srcfolder 'build/macos/Build/Products/Release/Schools AI.app' -ov -format UDZO "dist/Schools-AI-${version}-macOS-unsigned.dmg"
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app "dist/Schools-AI-iOS-unsigned.zip"
+          hdiutil create -volname 'Schools AI' -srcfolder 'build/macos/Build/Products/Release/Schools AI.app' -ov -format UDZO "dist/Schools-AI-macOS-unsigned.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: Schools-AI-Apple-unsigned
           path: |
-            apps/client_app/dist/Schools-AI-*-iOS-unsigned.zip
-            apps/client_app/dist/Schools-AI-*-macOS-unsigned.dmg
+            apps/client_app/dist/Schools-AI-iOS-unsigned.zip
+            apps/client_app/dist/Schools-AI-macOS-unsigned.dmg
           if-no-files-found: error
           retention-days: 30
-      - name: Add Apple test packages to GitHub Release
-        if: github.ref_type == 'tag'
+  publish:
+    name: Publish public downloads
+    needs: [android, windows, apple]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Schools-AI-*
+          path: dist
+          merge-multiple: true
+      - name: Publish rolling or versioned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Schools AI ${{ github.ref_name }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'client-latest' }}
+          name: ${{ github.ref_type == 'tag' && format('Schools AI {0}', github.ref_name) || 'Schools AI — Latest build' }}
+          prerelease: ${{ github.ref_type != 'tag' }}
           generate_release_notes: true
-          files: |
-            apps/client_app/dist/Schools-AI-*-iOS-unsigned.zip
-            apps/client_app/dist/Schools-AI-*-macOS-unsigned.dmg
+          files: dist/*
           fail_on_unmatched_files: true
