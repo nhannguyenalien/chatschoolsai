@@ -51,8 +51,15 @@ class ChatbotController extends StateNotifier<ChatbotState> {
   final ChatbotRepository _repository;
   String _testSession;
 
-  static String _newTestSession() =>
-      'app-test-${DateTime.now().microsecondsSinceEpoch}';
+  static int _lastTestSessionId = 0;
+
+  static String _newTestSession() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    _lastTestSessionId = now > _lastTestSessionId
+        ? now
+        : _lastTestSessionId + 1;
+    return 'app-test-$_lastTestSessionId';
+  }
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
