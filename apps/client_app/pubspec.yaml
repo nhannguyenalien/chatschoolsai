@@ -44,6 +44,8 @@ dependencies:
   url_launcher: ^6.3.2
   desktop_webview_window: ^0.3.0
   shared_preferences: ^2.5.3
+  flutter_webrtc: ^0.12.10
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:

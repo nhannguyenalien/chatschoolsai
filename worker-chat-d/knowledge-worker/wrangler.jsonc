@@ -13,6 +13,10 @@
       "previews_enabled": false
     }
   ],
+  // CF_CALLS_APP_ID và CF_CALLS_APP_SECRET (gọi thoại qua Cloudflare Realtime) KHÔNG khai báo ở
+  // đây — chúng là secret thật, set bằng `wrangler secret put CF_CALLS_APP_ID` /
+  // `wrangler secret put CF_CALLS_APP_SECRET`. Khi chạy `wrangler dev` cục bộ, đọc từ .dev.vars
+  // (đã gitignore, không commit).
   "vars": {
     "OPENAI_BASE_URL": "https://v98store.com/v1",
     "OPENAI_CHAT_MODEL": "gpt-4o-mini",
@@ -28,6 +32,9 @@
       "index_name": "knowledge"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
   "triggers": {
     // 01:00 UTC = 08:00 giờ VN — báo cáo tổng hợp ngày hôm trước.
     // 00:30 UTC = 07:30 giờ VN — crawl RSS + AI viết bài nháp (post_targets status=pending, chờ duyệt).

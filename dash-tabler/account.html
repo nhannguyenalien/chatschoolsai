@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Thông tin tài khoản - Customer AI Hub</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js?v=20260814-1"></script>
+    <script src="_shared/sidebar.js"></script>
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+        body { font-family: var(--tblr-font-sans-serif); }
+        .toast-msg { position:fixed; right:24px; bottom:24px; z-index:9999; padding:12px 20px; border-radius:8px; background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.12); opacity:0; transform:translateY(70px); transition:.25s; }
+        .toast-msg.show { opacity:1; transform:translateY(0); }
+        .toast-msg.success { border-left:4px solid #2fb344; color:#2fb344; }
+        .toast-msg.error { border-left:4px solid #d63939; color:#d63939; }
+    </style>
+</head>
+<body class="layout-fluid">
+    <div class="toast-msg" id="toast"></div>
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
+                    <div class="navbar-brand fw-bold text-primary">AI Admin</div>
+                </div>
+            </header>
+            <div class="page-body mt-4">
+                <div class="container-xl">
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2"><a href="index.html" class="text-reset text-decoration-none">Overview</a> <i class="ti ti-chevron-right"></i> Tài khoản</div>
+                        <h1 class="page-title fs-1">Thông tin tài khoản</h1>
+                        <div class="text-secondary fs-3 mt-1">Quản lý thông tin đăng nhập của bạn.</div>
+                    </div>
+                    <div class="row row-cards">
+                        <div class="col-lg-5">
+                            <div class="card h-100">
+                                <div class="card-body text-center py-5">
+                                    <span id="account-avatar" class="avatar avatar-xl rounded-circle mb-3"><i class="ti ti-user fs-1"></i></span>
+                                    <h2 id="account-name" class="mb-1">—</h2>
+                                    <div id="account-email-display" class="text-secondary mb-3">—</div>
+                                    <span class="badge bg-primary-lt"><i class="ti ti-building me-1"></i><span id="account-tenant">—</span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-7">
+                            <div class="card">
+                                <div class="card-header"><h3 class="card-title"><i class="ti ti-lock me-2 text-primary"></i>Tạo hoặc đổi mật khẩu</h3></div>
+                                <div class="card-body">
+                                    <div class="alert alert-info"><i class="ti ti-brand-google me-2"></i>Nếu bạn đăng nhập bằng Google, hãy tạo mật khẩu tại đây để lần sau có thể đăng nhập bằng email và mật khẩu.</div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Email đăng nhập</label>
+                                        <input id="account-email" class="form-control bg-light" type="email" readonly>
+                                    </div>
+                                    <form id="account-password-form">
+                                        <div class="mb-3">
+                                            <label class="form-label" for="account-current-password">Mật khẩu hiện tại</label>
+                                            <input id="account-current-password" class="form-control" type="password" autocomplete="current-password" placeholder="Để trống nếu đăng nhập bằng Google và chưa tạo mật khẩu">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="account-new-password">Mật khẩu mới</label>
+                                            <input id="account-new-password" class="form-control" type="password" minlength="8" autocomplete="new-password" placeholder="Ít nhất 8 ký tự" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="account-confirm-password">Nhập lại mật khẩu mới</label>
+                                            <input id="account-confirm-password" class="form-control" type="password" minlength="8" autocomplete="new-password" required>
+                                        </div>
+                                        <div id="account-password-error" class="alert alert-danger d-none py-2" role="alert"></div>
+                                        <button id="account-password-submit" class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-2"></i>Lưu mật khẩu</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script>
+        (async () => {
+            await requireAuth();
+            const user = window.AUTH_USER;
+            renderSidebar(user);
+            document.getElementById('account-name').textContent = user.name || user.email || '—';
+            document.getElementById('account-email-display').textContent = user.email || '—';
+            document.getElementById('account-email').value = user.email || '';
+            document.getElementById('account-tenant').textContent = window.TENANT || '—';
+            if (user.avatar) {
+                const avatar = document.getElementById('account-avatar');
+                avatar.style.backgroundImage = `url('${PB.getFileUrl(user, user.avatar, { thumb: '160x160' })}')`;
+                avatar.innerHTML = '';
+            }
+        })();
+
+        document.getElementById('account-password-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const currentPassword = document.getElementById('account-current-password').value;
+            const password = document.getElementById('account-new-password').value;
+            const confirmation = document.getElementById('account-confirm-password').value;
+            const errorEl = document.getElementById('account-password-error');
+            const button = document.getElementById('account-password-submit');
+            errorEl.classList.add('d-none');
+            if (password.length < 8 || password !== confirmation) {
+                errorEl.textContent = password.length < 8 ? 'Mật khẩu phải có ít nhất 8 ký tự.' : 'Hai mật khẩu mới chưa khớp.';
+                errorEl.classList.remove('d-none');
+                return;
+            }
+            const payload = { password, passwordConfirm: confirmation };
+            if (currentPassword) payload.oldPassword = currentPassword;
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
+            try {
+                const updatedUser = await PB.collection('tenants').update(window.AUTH_USER.id, payload);
+                window.AUTH_USER = updatedUser;
+                event.target.reset();
+                showToast('Đã lưu mật khẩu. Bạn có thể đăng nhập bằng email ở lần sau.', 'success');
+            } catch (err) {
+                const fields = err?.response?.data || {};
+                errorEl.textContent = fields.oldPassword?.message || fields.password?.message || err?.message || 'Không thể lưu mật khẩu.';
+                errorEl.classList.remove('d-none');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="ti ti-device-floppy me-2"></i>Lưu mật khẩu';
+            }
+        });
+    </script>
+</body>
+</html>

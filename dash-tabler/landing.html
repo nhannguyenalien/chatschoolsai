@@ -192,6 +192,13 @@
 .login-card::before { content:''; position:absolute; top:-40px; left:50%; transform:translateX(-50%); width:160px; height:160px; background: radial-gradient(circle, rgba(0,100,124,0.12) 0%, transparent 70%); pointer-events:none; }
 .btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; width:100%; padding:13px 20px; background:#f8f9fa; border: 1px solid #ddd; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
 .btn-google:hover { background: #e2e6ea; }
+.login-divider { display:flex; align-items:center; gap:12px; margin:18px 0; color:#9ca3af; font-size:13px; }
+.login-divider::before, .login-divider::after { content:""; flex:1; height:1px; background:#e5e7eb; }
+.login-input { width:100%; border:1px solid #d1d5db; border-radius:8px; padding:11px 12px; margin-bottom:10px; outline:none; }
+.login-input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+.btn-password-login { width:100%; border:0; border-radius:8px; padding:12px 20px; color:#fff; background:#111827; font-weight:600; cursor:pointer; }
+.btn-password-login:disabled, .btn-google:disabled { cursor:not-allowed; opacity:.65; }
+.login-error { color:#dc2626; font-size:13px; margin-top:10px; text-align:left; }
     </style>
 <script>
         function togglePricing() {
@@ -733,6 +740,14 @@
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" class="w-5 h-5" />
             Tiếp tục với Google
         </button>
+
+        <div class="login-divider">hoặc</div>
+        <form id="password-login-form">
+            <input id="login-email" class="login-input" type="email" autocomplete="email" placeholder="Email" required>
+            <input id="login-password" class="login-input" type="password" autocomplete="current-password" placeholder="Mật khẩu" required>
+            <button id="btn-password-login" class="btn-password-login" type="submit">Đăng nhập bằng email</button>
+            <p id="login-error" class="login-error hidden" role="alert"></p>
+        </form>
         
         <button onclick="closeLoginModal()" class="mt-4 text-sm text-gray-400 hover:text-gray-600">
             Đóng
@@ -794,6 +809,36 @@
             window.location.href = googleProvider.authUrl + window.location.origin;
         } catch (err) {
             alert(err.message || "Lỗi kết nối Google.");
+        }
+    });
+
+    // 6. Đăng nhập bằng mật khẩu đã tạo sau lần xác thực Google.
+    document.getElementById('password-login-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = document.getElementById('btn-password-login');
+        const errorEl = document.getElementById('login-error');
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        errorEl.classList.add('hidden');
+        button.disabled = true;
+        button.textContent = 'Đang đăng nhập...';
+
+        try {
+            await window.PB.collection('tenants').authWithPassword(email, password);
+            const user = window.PB.authStore.model;
+            if (!user?.tenant) {
+                window.PB.authStore.clear();
+                throw new Error('Tài khoản chưa được cấp tenant.');
+            }
+            window.location.href = 'index.html';
+        } catch (err) {
+            errorEl.textContent = err?.status === 400
+                ? 'Email hoặc mật khẩu không đúng.'
+                : (err?.message || 'Không thể đăng nhập. Vui lòng thử lại.');
+            errorEl.classList.remove('hidden');
+            button.disabled = false;
+            button.textContent = 'Đăng nhập bằng email';
         }
     });
 </script>

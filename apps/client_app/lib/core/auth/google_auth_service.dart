@@ -4,6 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../config/app_config.dart';
 import 'oauth_window.dart';
+import 'pocketbase_tenant_resolver.dart';
 
 class GoogleSignInResult {
   const GoogleSignInResult({
@@ -97,13 +98,7 @@ class PocketBaseGoogleAuthService implements GoogleAuthService {
         );
       }
 
-      final botConfig = await _client
-          .collection('bot_configs')
-          .getFirstListItem(
-            _client.filter('tenant = {:tenant}', {'tenant': tenant}),
-            fields: 'tenant,api_key',
-          );
-      final apiKey = botConfig.getStringValue('api_key').trim();
+      final apiKey = await resolveApiKeyForTenant(_client, tenant);
       if (apiKey.isEmpty) {
         throw const GoogleAuthException(
           'Cửa hàng chưa có API key cho chatbot.',

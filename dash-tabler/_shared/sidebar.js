@@ -16,6 +16,7 @@ const SIDEBAR_NAV = [
       { href: 'loyalty.html',  icon: 'ti-gift',             labelKey: 'nav_loyalty' },
       { href: 'leads.html',    icon: 'ti-users',            labelKey: 'nav_leads' },
       { href: 'billing.html',  icon: 'ti-receipt',          labelKey: 'nav_billing' },
+      { href: 'account.html',  icon: 'ti-user-circle',      label: 'Thông tin tài khoản' },
     ]
   },
   {
@@ -51,14 +52,15 @@ function renderSidebar(user) {
     const itemsHtml = group.items.map(item => {
       const isActive = currentPage === item.href ||
         (item.href !== 'index.html' && currentPage.startsWith(item.href.replace('.html','')));
-      const label = typeof t === 'function' ? t(item.labelKey) : item.labelKey;
+      const label = item.label || (typeof t === 'function' ? t(item.labelKey) : item.labelKey);
+      const i18nAttr = item.labelKey ? ` data-i18n="${item.labelKey}"` : '';
       return `
         <li class="nav-item">
           <a class="nav-link ${isActive ? 'active' : ''}" href="${item.href}">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <i class="ti ${item.icon}"></i>
             </span>
-            <span class="nav-link-title" data-i18n="${item.labelKey}">${label}</span>
+            <span class="nav-link-title"${i18nAttr}>${label}</span>
           </a>
         </li>`;
     }).join('');

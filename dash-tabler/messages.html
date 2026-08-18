@@ -54,6 +54,23 @@
             .mobile-chat-open #chat-view { display: flex !important; }
             #chat-view { display: none !important; }
         }
+
+        /* Popup cuộc gọi đến — hiện đè lên toàn màn hình bất kể đang mở phiên nào */
+        #incoming-call-overlay {
+            position: fixed; inset: 0; z-index: 2000;
+            background: rgba(11,28,48,0.75); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        }
+        #incoming-call-avatar { width: 96px; height: 96px; font-size: 36px; }
+        .call-ring-pulse {
+            animation: call-ring-pulse 1.4s infinite;
+            box-shadow: 0 0 0 0 rgba(47,179,68,0.6);
+        }
+        @keyframes call-ring-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(47,179,68,0.6); }
+            70%  { box-shadow: 0 0 0 18px rgba(47,179,68,0); }
+            100% { box-shadow: 0 0 0 0 rgba(47,179,68,0); }
+        }
     </style>
 </head>
 <body class="layout-fluid">
@@ -114,6 +131,9 @@
                             </div>
                         </div>
                         <div class="d-flex gap-2 flex-shrink-0">
+                            <button class="btn btn-icon btn-ghost-secondary" id="btn-call" onclick="startCall()" title="Gọi thoại cho khách">
+                                <i class="ti ti-phone"></i>
+                            </button>
                             <button class="btn btn-icon btn-ghost-secondary d-xl-none" onclick="document.getElementById('right-info-panel').classList.toggle('d-none'); document.getElementById('right-info-panel').classList.toggle('d-flex');">
                                 <i class="ti ti-info-circle"></i>
                             </button>
@@ -124,6 +144,23 @@
                         <i class="ti ti-alert-triangle"></i>
                         <span>AI chưa trả lời được câu hỏi này — khách đang chờ bạn hỗ trợ. Gửi tin nhắn bên dưới để đánh dấu đã xử lý.</span>
                     </div>
+
+                    <div class="alert alert-info d-none m-3 mb-0 py-2 d-flex align-items-center justify-content-between gap-2" id="call-bar">
+                        <div class="d-flex align-items-center gap-2 text-truncate">
+                            <i class="ti ti-phone-outgoing fs-3 flex-shrink-0" id="call-bar-icon"></i>
+                            <span class="text-truncate" id="call-bar-text">—</span>
+                            <span class="text-secondary flex-shrink-0 d-none" id="call-timer">00:00</span>
+                        </div>
+                        <div class="d-flex gap-2 flex-shrink-0">
+                            <button class="btn btn-sm btn-icon btn-ghost-secondary d-none" id="call-btn-mute" onclick="toggleCallMute()" title="Tắt mic">
+                                <i class="ti ti-microphone"></i>
+                            </button>
+                            <button class="btn btn-sm btn-icon btn-danger" id="call-btn-end" onclick="endCall()" title="Kết thúc/từ chối">
+                                <i class="ti ti-phone-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <audio id="call-remote-audio" autoplay></audio>
 
                     <div class="flex-grow-1 overflow-auto p-3 p-md-4 d-flex flex-column gap-3" id="messages-area">
                         </div>
@@ -170,6 +207,24 @@
         </div>
     </div>
 
+    <div id="incoming-call-overlay" class="d-none">
+        <div class="card shadow-lg text-center" style="width: 100%; max-width: 340px; border-radius: 20px; margin: 0 16px;">
+            <div class="card-body p-4">
+                <div class="avatar avatar-xl rounded-circle bg-blue-lt mx-auto mb-3" id="incoming-call-avatar">KH</div>
+                <h3 class="fs-2 fw-bold mb-1" id="incoming-call-name">Khách hàng</h3>
+                <p class="text-secondary mb-4">Đang gọi đến...</p>
+                <div class="d-flex justify-content-center gap-4">
+                    <button class="btn btn-danger btn-icon rounded-circle" style="width:60px;height:60px;" onclick="declineIncomingCall()" title="Từ chối">
+                        <i class="ti ti-phone-x fs-1"></i>
+                    </button>
+                    <button class="btn btn-success btn-icon rounded-circle call-ring-pulse" style="width:60px;height:60px;" onclick="acceptIncomingCall()" title="Nghe">
+                        <i class="ti ti-phone fs-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
 
     <script>
@@ -192,6 +247,7 @@
     let messageIds = new Set();
     let verifiedUsers = {};
     let sessionFilter = "all"; // 'all' | 'needs_human'
+    let ringingSessions = new Set(); // session id đang có cuộc gọi ringing/active — để hiện badge
 
     const sessionListItemsEl = document.getElementById("session-list-items");
     const messagesArea = document.getElementById("messages-area");
@@ -376,6 +432,7 @@
 
             const verifyIcon = session.isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue ms-1" title="SĐT: ${session.phone}"></i>` : '';
             const escalationIcon = session.needsHuman ? `<i class="ti ti-alert-triangle-filled text-danger ms-1" title="Cần admin hỗ trợ"></i>` : '';
+            const callIcon = ringingSessions.has(session.session) ? `<i class="ti ti-phone-ringing text-success ms-1" title="Đang có cuộc gọi"></i>` : '';
 
             html += `
                 <div class="list-group-item session-item p-3 border-0 border-bottom ${isActive ? 'active' : ''}" onclick="openChat('${session.session}')">
@@ -383,7 +440,7 @@
                         <div class="avatar bg-blue-lt rounded-circle flex-shrink-0 fw-bold">${avatarChar}</div>
                         <div class="flex-fill min-w-0">
                             <div class="d-flex justify-content-between align-items-baseline mb-1">
-                                <h4 class="m-0 fs-5 fw-bold text-body text-truncate pe-2">${escapeHtml(session.username)}${verifyIcon}${escalationIcon}</h4>
+                                <h4 class="m-0 fs-5 fw-bold text-body text-truncate pe-2">${escapeHtml(session.username)}${verifyIcon}${escalationIcon}${callIcon}</h4>
                                 <span class="text-secondary fs-6 whitespace-nowrap">${time}</span>
                             </div>
                             <div class="text-secondary fs-6 text-truncate" style="max-width: 200px;">${previewText}</div>
@@ -411,6 +468,11 @@
         const banner = document.getElementById("escalation-banner");
         if (banner) banner.classList.toggle("d-none", !activeSession.needsHuman);
 
+        // Chuyển phiên: ẩn thanh gọi thoại trừ khi cuộc gọi đang biết tới đúng là của phiên này
+        if (!activeCallRecord || activeCallRecord.session !== sessionId) {
+            setCallBar({ visible: false });
+        }
+
         renderSessionList();
         renderMessages();
         renderUserInfo();
@@ -426,35 +488,37 @@
         sorted.forEach(msg => {
             const time = formatDateTime(msg.created);
             const cleanText = DOMPurify.sanitize(marked.parse(msg.text || ""), { ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt'] });
+            const voiceBorder = msg.via_voice ? 'border-start border-4 border-purple' : '';
+            const voiceBadge = msg.via_voice ? `<span class="badge bg-purple-lt ms-1" title="Từ cuộc gọi AI"><i class="ti ti-microphone me-1"></i>Giọng nói</span>` : '';
 
             if (!msg.is_bot) {
                 // User Message (Left)
                 html += `
                     <div class="d-flex align-items-end gap-2 justify-content-start w-100">
                         <div class="avatar avatar-sm bg-secondary-lt rounded-circle fw-bold fs-5 flex-shrink-0">${(msg.username || "KH").slice(0,2).toUpperCase()}</div>
-                        <div class="bg-white border rounded-3 px-3 py-2 shadow-sm" style="max-width: 85%; border-bottom-left-radius: 4px !important;">
+                        <div class="bg-white border rounded-3 px-3 py-2 shadow-sm ${voiceBorder}" style="max-width: 85%; border-bottom-left-radius: 4px !important;">
                             <div class="fs-6 fw-bold text-secondary mb-1">${escapeHtml(msg.username)}</div>
                             <div class="fs-4 text-body chat-prose">${cleanText}</div>
-                            <div class="fs-6 text-secondary mt-1">${time}</div>
+                            <div class="fs-6 text-secondary mt-1">${time}${voiceBadge}</div>
                         </div>
                     </div>
                 `;
             } else {
                 // Bot / Admin Message (Right)
                 const isAdmin = msg.username === "Admin";
-                const bgClass = isAdmin ? "bg-green" : "bg-primary"; 
+                const bgClass = isAdmin ? "bg-green" : "bg-primary";
                 const icon = isAdmin ? "ti-headset" : "ti-robot";
                 const displayName = isAdmin ? "Admin (Bạn)" : escapeHtml(msg.username);
-                
+
                 html += `
                     <div class="d-flex align-items-end gap-2 justify-content-end w-100">
-                        <div class="${bgClass} text-white rounded-3 px-3 py-2 shadow-sm" style="max-width: 85%; border-bottom-right-radius: 4px !important;">
+                        <div class="${bgClass} text-white rounded-3 px-3 py-2 shadow-sm ${voiceBorder}" style="max-width: 85%; border-bottom-right-radius: 4px !important;">
                             <div class="d-flex align-items-center justify-content-end gap-1 mb-1 opacity-75">
                                 <i class="ti ${icon} fs-5"></i>
                                 <div class="fs-6 fw-bold tracking-wide">${displayName}</div>
                             </div>
                             <div class="fs-4 chat-prose" style="color: rgba(255,255,255,0.95)">${cleanText}</div>
-                            <div class="fs-6 opacity-75 mt-1 text-end">${time}</div>
+                            <div class="fs-6 opacity-75 mt-1 text-end">${time}${voiceBadge}</div>
                         </div>
                     </div>
                 `;
@@ -548,7 +612,7 @@
             const msg = e.record;
             if (msg.tenant !== CURRENT_TENANT) return;
             if (messageIds.has(msg.id)) return;
-            
+
             messageIds.add(msg.id);
             allMessages.unshift(msg);
 
@@ -560,10 +624,280 @@
                 renderMessages();
             }
         });
+        await pb.collection("calls").subscribe("*", e => handleCallRecord(e.record));
     }
 
     function closeChat() { document.body.classList.remove("mobile-chat-open"); }
     function escapeHtml(str = "") { return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"); }
+
+    // ═══════════════════════════════════════
+    // GỌI THOẠI (Cloudflare Realtime — SFU, xem worker /call/rtc/* và /call/state)
+    // Trạng thái "ai đang gọi ai" nằm ở collection PocketBase "calls", đẩy realtime ở trên.
+    // App Secret của Cloudflare không bao giờ tới trình duyệt — mọi request Calls API đi qua
+    // worker (WORKER_URL/call/rtc/*), worker mới là nơi giữ Bearer secret.
+    // ═══════════════════════════════════════
+    let activeCallRecord = null;   // cuộc gọi đang hiện trên call-bar (của phiên đang mở)
+    let incomingCall = null;       // cuộc gọi đang đổ chuông chờ nghe/từ chối (popup toàn màn hình)
+    let callPc = null;
+    let callLocalStream = null;
+    let callLocalSessionId = null;
+    let callLocalTrackName = null;
+    let callTimerHandle = null;
+    let callStartedAt = null;
+    let callMuted = false;
+
+    // Chuông báo cuộc gọi đến — tự tạo bằng Web Audio, không cần file mp3 rời.
+    let ringtoneCtx = null;
+    let ringtoneHandle = null;
+    function playRingtone() {
+        stopRingtone();
+        try {
+            ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const beep = () => {
+                if (!ringtoneCtx) return;
+                const osc = ringtoneCtx.createOscillator();
+                const gain = ringtoneCtx.createGain();
+                osc.frequency.value = 880;
+                osc.connect(gain);
+                gain.connect(ringtoneCtx.destination);
+                gain.gain.setValueAtTime(0.18, ringtoneCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ringtoneCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(ringtoneCtx.currentTime + 0.4);
+            };
+            beep();
+            ringtoneHandle = setInterval(beep, 1000);
+        } catch (err) { console.warn("Không phát được chuông:", err); }
+    }
+    function stopRingtone() {
+        if (ringtoneHandle) clearInterval(ringtoneHandle);
+        ringtoneHandle = null;
+        if (ringtoneCtx) { ringtoneCtx.close().catch(() => {}); ringtoneCtx = null; }
+    }
+
+    function callRtc(path, body) {
+        return fetch(`${WORKER_URL}${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body || {})
+        }).then(r => r.json());
+    }
+
+    // Tạo phiên Cloudflare Realtime của riêng máy này + xin mic + đẩy track lên SFU.
+    async function createLocalCallLeg() {
+        const created = await callRtc("/call/rtc/session-new");
+        if (!created?.sessionId) throw new Error(created?.error || "Không tạo được phiên gọi");
+        callLocalSessionId = created.sessionId;
+
+        callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        callPc = new RTCPeerConnection();
+        callPc.ontrack = (e) => { document.getElementById("call-remote-audio").srcObject = e.streams[0]; };
+
+        const track = callLocalStream.getAudioTracks()[0];
+        const transceiver = callPc.addTransceiver(track, { direction: "sendonly" });
+        callLocalTrackName = "mic-" + Math.random().toString(36).slice(2, 10);
+
+        const offer = await callPc.createOffer();
+        await callPc.setLocalDescription(offer);
+
+        const pushed = await callRtc("/call/rtc/tracks-new", {
+            sessionId: callLocalSessionId,
+            payload: {
+                sessionDescription: { type: "offer", sdp: offer.sdp },
+                tracks: [{ location: "local", mid: transceiver.mid, trackName: callLocalTrackName }]
+            }
+        });
+        if (pushed?.sessionDescription) {
+            await callPc.setRemoteDescription(new RTCSessionDescription(pushed.sessionDescription));
+        }
+        return { sessionId: callLocalSessionId, trackName: callLocalTrackName };
+    }
+
+    // Kéo track audio của phía bên kia về, renegotiate nếu Cloudflare yêu cầu.
+    async function pullRemoteCallLeg(remoteSessionId, remoteTrackName) {
+        const pulled = await callRtc("/call/rtc/tracks-new", {
+            sessionId: callLocalSessionId,
+            payload: { tracks: [{ location: "remote", sessionId: remoteSessionId, trackName: remoteTrackName }] }
+        });
+        if (pulled?.requiresImmediateRenegotiation) {
+            const offer = await callPc.createOffer();
+            await callPc.setLocalDescription(offer);
+            const reneg = await callRtc("/call/rtc/renegotiate", {
+                sessionId: callLocalSessionId,
+                payload: { sessionDescription: { type: "offer", sdp: offer.sdp } }
+            });
+            if (reneg?.sessionDescription) {
+                await callPc.setRemoteDescription(new RTCSessionDescription(reneg.sessionDescription));
+            }
+        }
+    }
+
+    function setCallBar({ visible, icon, text, showMute, timer }) {
+        document.getElementById("call-bar").classList.toggle("d-none", !visible);
+        if (icon) document.getElementById("call-bar-icon").className = `ti ${icon} fs-3 flex-shrink-0`;
+        if (text) document.getElementById("call-bar-text").textContent = text;
+        document.getElementById("call-btn-mute").classList.toggle("d-none", !showMute);
+        document.getElementById("call-timer").classList.toggle("d-none", !timer);
+    }
+
+    function showIncomingCallPopup(record) {
+        incomingCall = record;
+        const session = sessions.find(s => s.session === record.session);
+        const name = session?.username || "Khách hàng";
+        document.getElementById("incoming-call-name").textContent = name;
+        document.getElementById("incoming-call-avatar").textContent = name.slice(0, 2).toUpperCase();
+        document.getElementById("incoming-call-overlay").classList.remove("d-none");
+        playRingtone();
+    }
+    function hideIncomingCallPopup() {
+        incomingCall = null;
+        document.getElementById("incoming-call-overlay").classList.add("d-none");
+        stopRingtone();
+    }
+
+    function startCallTimer() {
+        callStartedAt = Date.now();
+        const timerEl = document.getElementById("call-timer");
+        timerEl.classList.remove("d-none");
+        callTimerHandle = setInterval(() => {
+            const secs = Math.floor((Date.now() - callStartedAt) / 1000);
+            timerEl.textContent = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+        }, 1000);
+    }
+    function stopCallTimer() {
+        if (callTimerHandle) clearInterval(callTimerHandle);
+        callTimerHandle = null;
+        document.getElementById("call-timer").classList.add("d-none");
+    }
+
+    async function startCall() {
+        if (!activeSession) return;
+        if (activeCallRecord && activeCallRecord.status !== "ended") return;
+        setCallBar({ visible: true, icon: "ti-phone-outgoing", text: `Đang gọi ${activeSession.username}...`, showMute: false, timer: false });
+        try {
+            const leg = await createLocalCallLeg();
+            activeCallRecord = await pb.collection("calls").create({
+                tenant: CURRENT_TENANT, session: activeSession.session, status: "ringing", initiator: "admin",
+                admin_cf_session_id: leg.sessionId, admin_track_name: leg.trackName
+            });
+        } catch (err) {
+            console.error("Lỗi bắt đầu cuộc gọi:", err);
+            alert("Không thể bắt đầu cuộc gọi: " + err.message);
+            await endCall("error");
+        }
+    }
+
+    // Bấm "Nghe" trên popup — hoạt động bất kể đang mở phiên nào, tự mở đúng phiên của cuộc gọi.
+    async function acceptIncomingCall() {
+        const record = incomingCall;
+        if (!record) return;
+        hideIncomingCallPopup();
+
+        if (!activeSession || activeSession.session !== record.session) {
+            openChat(record.session);
+        }
+        activeCallRecord = record;
+        setCallBar({ visible: true, icon: "ti-phone", text: `Đang kết nối với ${activeSession?.username || "khách"}...`, showMute: false, timer: false });
+        try {
+            const leg = await createLocalCallLeg();
+            await pullRemoteCallLeg(record.customer_cf_session_id, record.customer_track_name);
+            activeCallRecord = await pb.collection("calls").update(record.id, {
+                admin_cf_session_id: leg.sessionId, admin_track_name: leg.trackName, status: "active"
+            });
+            setCallBar({ visible: true, icon: "ti-phone", text: `Đang gọi với ${activeSession?.username || "khách"}`, showMute: true, timer: true });
+            startCallTimer();
+        } catch (err) {
+            console.error("Lỗi trả lời cuộc gọi:", err);
+            alert("Không thể kết nối cuộc gọi: " + err.message);
+            await endCall("error");
+        }
+    }
+
+    // Bấm nút đỏ trên popup — từ chối thẳng, không cần mở phiên/tạo track audio.
+    async function declineIncomingCall() {
+        const record = incomingCall;
+        hideIncomingCallPopup();
+        if (!record) return;
+        try {
+            await pb.collection("calls").update(record.id, { status: "ended", ended_reason: "declined" });
+        } catch (err) { console.error("Lỗi từ chối cuộc gọi:", err); }
+    }
+
+    async function endCall(reason) {
+        stopCallTimer();
+        setCallBar({ visible: false });
+        if (activeCallRecord && activeCallRecord.status !== "ended") {
+            // Chưa từng trả lời (còn "ringing" do khách gọi tới) -> đây là từ chối, không phải cúp máy.
+            const isDecline = activeCallRecord.status === "ringing" && activeCallRecord.initiator === "customer";
+            try {
+                await pb.collection("calls").update(activeCallRecord.id, {
+                    status: "ended", ended_reason: reason || (isDecline ? "declined" : "hangup")
+                });
+            } catch (err) { console.error("Lỗi kết thúc cuộc gọi:", err); }
+        }
+        await teardownCallLocal();
+    }
+
+    async function teardownCallLocal() {
+        if (callLocalStream) callLocalStream.getTracks().forEach(t => t.stop());
+        if (callPc) callPc.close();
+        callPc = null;
+        callLocalStream = null;
+        if (callLocalSessionId) callRtc("/call/rtc/tracks-close", { sessionId: callLocalSessionId, payload: {} }).catch(() => {});
+        callLocalSessionId = null;
+        callLocalTrackName = null;
+        activeCallRecord = null;
+        callMuted = false;
+        const audioEl = document.getElementById("call-remote-audio");
+        if (audioEl) audioEl.srcObject = null;
+    }
+
+    function toggleCallMute() {
+        if (!callLocalStream) return;
+        callMuted = !callMuted;
+        callLocalStream.getAudioTracks().forEach(t => t.enabled = !callMuted);
+        document.getElementById("call-btn-mute").innerHTML = callMuted
+            ? '<i class="ti ti-microphone-off"></i>'
+            : '<i class="ti ti-microphone"></i>';
+    }
+
+    // Nhận cập nhật từ collection "calls" — cả cuộc gọi của phiên đang mở lẫn của các phiên khác
+    // (để hiện badge "đang có cuộc gọi" trong danh sách bên trái).
+    function handleCallRecord(record) {
+        if (!record || record.tenant !== CURRENT_TENANT) return;
+
+        if (record.status === "ringing" || record.status === "active") {
+            ringingSessions.add(record.session);
+        } else {
+            ringingSessions.delete(record.session);
+        }
+        renderSessionList();
+
+        // Khách gọi tới, chưa ai trả lời -> luôn bật popup toàn màn hình, bất kể đang mở phiên nào.
+        if (record.status === "ringing" && record.initiator === "customer") {
+            showIncomingCallPopup(record);
+            return;
+        }
+
+        // Cuộc gọi vừa được xử lý (trả lời/từ chối, có thể từ tab hoặc thiết bị admin khác) -> tắt popup.
+        if (incomingCall && incomingCall.id === record.id && record.status !== "ringing") {
+            hideIncomingCallPopup();
+        }
+
+        if (!activeSession || record.session !== activeSession.session) return;
+
+        if (record.status === "active") {
+            activeCallRecord = record;
+            if (!callTimerHandle) startCallTimer();
+            setCallBar({ visible: true, icon: "ti-phone", text: `Đang gọi với ${activeSession.username}`, showMute: true, timer: true });
+            return;
+        }
+        if (["ended", "declined", "missed"].includes(record.status) && activeCallRecord && activeCallRecord.id === record.id) {
+            stopCallTimer();
+            setCallBar({ visible: false });
+            teardownCallLocal();
+        }
+    }
     
     // ═══════════════════════════════════════
     // HIỂN THỊ THÔNG TIN HỆ THỐNG

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/app_localizations.dart';
+import '../../calls/presentation/call_controller.dart';
 import '../data/chat_message.dart';
 import 'messages_controller.dart';
 
@@ -234,12 +235,28 @@ class _ConversationState extends ConsumerState<_Conversation> {
             : const Icon(Icons.forum_rounded),
         title: Text(widget.session.customerName),
         subtitle: Text('${context.l10n.tr('session')} ${widget.session.id}'),
-        trailing: widget.session.requiresHuman
-            ? Chip(
-                label: Text(context.l10n.tr('needs_attention')),
-                avatar: const Icon(Icons.priority_high),
-              )
-            : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.session.requiresHuman)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Chip(
+                  label: Text(context.l10n.tr('needs_attention')),
+                  avatar: const Icon(Icons.priority_high),
+                ),
+              ),
+            IconButton(
+              tooltip: context.l10n.tr('call_customer'),
+              icon: const Icon(Icons.call_outlined),
+              onPressed: ref.watch(callControllerProvider).isIdle
+                  ? () => ref
+                        .read(callControllerProvider.notifier)
+                        .startCall(widget.session.id)
+                  : null,
+            ),
+          ],
+        ),
       ),
       const Divider(height: 1),
       Expanded(

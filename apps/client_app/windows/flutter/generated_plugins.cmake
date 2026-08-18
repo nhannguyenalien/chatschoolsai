@@ -3,8 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_windows
   desktop_webview_window
   flutter_secure_storage_windows
+  flutter_webrtc
   url_launcher_windows
 )
 

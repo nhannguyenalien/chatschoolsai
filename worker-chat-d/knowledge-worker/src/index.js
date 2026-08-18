@@ -51,7 +51,14 @@ var index_default = {
       if (url.pathname === "/chat" && request.method === "POST") return await handleChat(request, env2, cors);
       if (url.pathname === "/embed" && request.method === "POST") return await handleEmbed(request, env2, cors);
       if (url.pathname === "/doc" && request.method === "DELETE") return await handleDelete(request, env2, cors);
-      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent" || url.pathname === "/ping-anyllm") {
+      if (url.pathname === "/call/rtc/session-new" && request.method === "POST") return await handleCallRtcSessionNew(env2, cors);
+      if (url.pathname === "/call/rtc/tracks-new" && request.method === "POST") return await handleCallRtcProxy(request, env2, cors, (sid) => ({ path: `/sessions/${sid}/tracks/new`, method: "POST" }));
+      if (url.pathname === "/call/rtc/renegotiate" && request.method === "POST") return await handleCallRtcProxy(request, env2, cors, (sid) => ({ path: `/sessions/${sid}/renegotiate`, method: "PUT" }));
+      if (url.pathname === "/call/rtc/tracks-close" && request.method === "POST") return await handleCallRtcProxy(request, env2, cors, (sid) => ({ path: `/sessions/${sid}/tracks/close`, method: "PUT" }));
+      if (url.pathname === "/call/state" && request.method === "POST") return await handleCallState(request, env2, cors);
+      if (url.pathname === "/ai-voice/turn" && request.method === "POST") return await handleAiVoiceTurn(request, env2, cors);
+      if (url.pathname === "/ai-voice/greeting" && request.method === "POST") return await handleAiVoiceGreeting(request, env2, cors);
+      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent" || url.pathname === "/ping-anyllm" || url.pathname === "/call/setup" || url.pathname === "/messages/setup-via-voice" || url.pathname === "/system-config/setup-voice-fields") {
         if (request.method !== "POST") {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
         }
@@ -59,6 +66,9 @@ var index_default = {
         if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) {
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         }
+        if (url.pathname === "/call/setup") return await handleCallSetupCollection(env2, cors);
+        if (url.pathname === "/messages/setup-via-voice") return await handleMessagesAddViaVoiceField(env2, cors);
+        if (url.pathname === "/system-config/setup-voice-fields") return await handleSystemConfigAddVoiceFields(env2, cors);
         if (url.pathname === "/sync-docs") return await handleSyncDocs(request, env2, cors);
         if (url.pathname === "/run-digest") await handleDailyDigest(env2);
         else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env2);
@@ -172,7 +182,11 @@ var SYSTEM_CONFIG_OVERRIDABLE_KEYS = {
   openai_chat_model: "OPENAI_CHAT_MODEL",
   openai_embedding_model: "OPENAI_EMBEDDING_MODEL",
   admin_secret: "ADMIN_SECRET",
-  dashboard_url: "DASHBOARD_URL"
+  dashboard_url: "DASHBOARD_URL",
+  // Gọi thoại AI (STT/TTS) — chọn provider qua system-config.html, không cần sửa code/deploy lại.
+  deepgram_api_key: "DEEPGRAM_API_KEY",
+  stt_provider: "STT_PROVIDER",
+  tts_provider: "TTS_PROVIDER"
 };
 
 function createRewardProviders(env) {
@@ -277,6 +291,48 @@ async function upsertCustomerContext(env, pbToken, tenant, session, context) {
 }
 __name(upsertCustomerContext, "upsertCustomerContext");
 
+// Đếm số giây khách đã "nói chuyện" với AI qua giọng nói trong ngày (theo tenant+session), để
+// giới hạn tài khoản thường (không phải "pro") — tái dùng session_summaries với "date" đặc biệt
+// (không phải ngày thật) đúng theo pattern POS ở trên, tránh đụng record ngày thật của digest.
+const VOICE_USAGE_DATE_PREFIX = "__VOICE_USAGE__";
+const VOICE_DAILY_LIMIT_SECONDS = 60;
+function voiceUsageDateKey() {
+  return VOICE_USAGE_DATE_PREFIX + new Date().toISOString().slice(0, 10);
+}
+__name(voiceUsageDateKey, "voiceUsageDateKey");
+
+async function getVoiceUsageToday(env, pbToken, tenant, session) {
+  const filter = `tenant='${escFilterValue(tenant)}' && session_id='${escFilterValue(session)}' && date='${voiceUsageDateKey()}'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/session_summaries/records?perPage=1&filter=${encodeURIComponent(filter)}`, {
+    headers: { Authorization: pbToken }
+  });
+  if (!res.ok) return { recordId: null, seconds: 0 };
+  const row = (await res.json()).items?.[0];
+  if (!row) return { recordId: null, seconds: 0 };
+  let seconds = 0;
+  try { seconds = Number(JSON.parse(row.summary || "{}").secondsUsed) || 0; } catch {}
+  return { recordId: row.id, seconds };
+}
+__name(getVoiceUsageToday, "getVoiceUsageToday");
+
+async function addVoiceUsageToday(env, pbToken, tenant, session, existing, extraSeconds) {
+  const newSeconds = Math.max(0, (existing.seconds || 0) + extraSeconds);
+  const payload = {
+    tenant, session_id: session, date: voiceUsageDateKey(),
+    status: "Khác", summary: JSON.stringify({ secondsUsed: newSeconds })
+  };
+  const endpoint = existing.recordId
+    ? `${env.PB_URL}/api/collections/session_summaries/records/${existing.recordId}`
+    : `${env.PB_URL}/api/collections/session_summaries/records`;
+  await fetchWithTimeout(endpoint, {
+    method: existing.recordId ? "PATCH" : "POST",
+    headers: { "Content-Type": "application/json", Authorization: pbToken },
+    body: JSON.stringify(payload)
+  });
+  return newSeconds;
+}
+__name(addVoiceUsageToday, "addVoiceUsageToday");
+
 async function handleChat(request, env, cors) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";
@@ -294,6 +350,7 @@ async function handleChat(request, env, cors) {
   const tenant = typeof body.tenant === "string" ? body.tenant.trim() : "";
   const session = typeof body.session === "string" ? body.session.trim() : "";
   const question = typeof body.question === "string" ? body.question.trim() : "";
+  const viaVoice = body.via_voice === true;
   if (!tenant || !session || !question) {
     return new Response(JSON.stringify({ error: "Thi\u1EBFu d\u1EEF li\u1EC7u" }), { status: 400, headers: cors });
   }
@@ -446,7 +503,8 @@ async function handleChat(request, env, cors) {
         text: reply,
         is_bot: true,
         needs_human: needsHuman,
-        client_meta: clientMeta
+        client_meta: clientMeta,
+        via_voice: viaVoice
       })
     });
 
@@ -469,13 +527,250 @@ Tenant: ${tenant}`;
       }
     }
 
-    return new Response(JSON.stringify({ success: true, reply }), { headers: cors });
+    return new Response(JSON.stringify({ success: true, reply, needsHuman }), { headers: cors });
   } catch (err) {
     console.error("L\u1ED7i h\u1EC7 th\u1ED1ng Chat:", err);
     return new Response(JSON.stringify({ success: true, reply: "\u26A0\uFE0F H\u1EC7 th\u1ED1ng AI \u0111ang b\u1EADn ho\u1EB7c qu\xE1 t\u1EA3i. Vui l\xF2ng th\u1EED l\u1EA1i!" }), { headers: cors });
   }
 }
 __name(handleChat, "handleChat");
+
+// ================= [AI VOICE: STT -> handleChat có sẵn -> TTS] =================
+// MVP nói chuyện bằng giọng nói với AI — KHÔNG phải cuộc gọi Cloudflare Realtime (Worker không giữ
+// được 1 kết nối WebRTC sống lâu như trình duyệt). Đây là vòng lặp ghi âm -> gửi lên -> nhận lại
+// audio trả lời, tái dùng nguyên logic AnythingLLM/needs_human/lưu tin nhắn đã có ở handleChat.
+// Provider STT/TTS chọn qua system-config.html (STT_PROVIDER/TTS_PROVIDER, xem
+// SYSTEM_CONFIG_OVERRIDABLE_KEYS) — không cần sửa code/deploy lại để đổi.
+// LƯU Ý: Deepgram Aura (TTS) KHÔNG hỗ trợ tiếng Việt (chỉ EN/ES) — chỉ chọn khi khách nói tiếng Anh.
+// MeloTTS (Cloudflare Workers AI) đang lỗi nền tảng "3043: Internal server error" (outage đã xác
+// nhận, không phải do code); Aura qua Cloudflare binding test ra cũng không đọc được tiếng Việt.
+async function sttViaWhisper(env, audioBytes) {
+  const result = await env.AI.run("@cf/openai/whisper", { audio: [...audioBytes] });
+  return (result?.text || "").trim();
+}
+__name(sttViaWhisper, "sttViaWhisper");
+
+async function sttViaDeepgram(env, audioBytes, contentType) {
+  if (!env.DEEPGRAM_API_KEY) throw new Error("Chưa cấu h\xECnh DEEPGRAM_API_KEY");
+  const res = await fetchWithTimeout("https://api.deepgram.com/v1/listen?model=nova-2&language=vi&smart_format=true", {
+    method: "POST",
+    headers: { Authorization: `Token ${env.DEEPGRAM_API_KEY}`, "Content-Type": contentType || "audio/webm" },
+    body: audioBytes,
+    timeout: 3e4
+  });
+  if (!res.ok) throw new Error(`STT (Deepgram) lỗi ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return (data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "").trim();
+}
+__name(sttViaDeepgram, "sttViaDeepgram");
+
+async function runStt(env, audioBytes, contentType) {
+  if (env.STT_PROVIDER === "deepgram") return sttViaDeepgram(env, audioBytes, contentType);
+  return sttViaWhisper(env, audioBytes);
+}
+__name(runStt, "runStt");
+
+async function ttsViaOpenAi(env, text) {
+  const res = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/audio/speech`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "gpt-4o-mini-tts", input: text, voice: "alloy" }),
+    timeout: 3e4
+  });
+  if (!res.ok) throw new Error(`TTS (OpenAI) lỗi ${res.status}: ${await res.text()}`);
+  return arrayBufferToBase64(await res.arrayBuffer());
+}
+__name(ttsViaOpenAi, "ttsViaOpenAi");
+
+async function ttsViaDeepgram(env, text) {
+  if (!env.DEEPGRAM_API_KEY) throw new Error("Chưa cấu h\xECnh DEEPGRAM_API_KEY");
+  const res = await fetchWithTimeout("https://api.deepgram.com/v1/speak?model=aura-2-en", {
+    method: "POST",
+    headers: { Authorization: `Token ${env.DEEPGRAM_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    timeout: 3e4
+  });
+  if (!res.ok) throw new Error(`TTS (Deepgram) lỗi ${res.status}: ${await res.text()}`);
+  return arrayBufferToBase64(await res.arrayBuffer());
+}
+__name(ttsViaDeepgram, "ttsViaDeepgram");
+
+async function ttsToBase64(env, text) {
+  if (env.TTS_PROVIDER === "deepgram") return ttsViaDeepgram(env, text);
+  return ttsViaOpenAi(env, text);
+}
+__name(ttsToBase64, "ttsToBase64");
+
+function arrayBufferToBase64(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 32768;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+__name(arrayBufferToBase64, "arrayBufferToBase64");
+
+async function handleAiVoiceTurn(request, env, cors) {
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.includes("multipart/form-data")) {
+    return new Response(JSON.stringify({ error: "Cần gửi multipart/form-data với field audio" }), { status: 400, headers: cors });
+  }
+  const form = await request.formData().catch(() => null);
+  if (!form) return new Response(JSON.stringify({ error: "Kh\xF4ng đọc được form" }), { status: 400, headers: cors });
+
+  const tenant = String(form.get("tenant") || "").trim();
+  const session = String(form.get("session") || "").trim();
+  const username = String(form.get("username") || "").trim() || "Kh\xE1ch h\xE0ng";
+  const audioFile = form.get("audio");
+  const durationSec = Math.max(0, Math.round((Number(form.get("duration_ms")) || 0) / 1000));
+  if (!tenant || !session) return new Response(JSON.stringify({ error: "Thiếu tenant/session" }), { status: 400, headers: cors });
+  if (!audioFile || typeof audioFile === "string") {
+    return new Response(JSON.stringify({ error: "Thiếu file audio" }), { status: 400, headers: cors });
+  }
+
+  try {
+    const pbToken = await getPbToken(env);
+
+    // Giới hạn 1 ph\xFAt gọi AI/ng\xE0y/user cho t\xE0i khoản thường (kh\xF4ng phải "pro") — check TRƯỚC khi
+    // chạy Whisper/LLM/TTS để kh\xF4ng tốn ph\xED cho lượt đ\xE3 vượt giới hạn.
+    const tenantRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants/records?filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, {
+      headers: { Authorization: pbToken }
+    });
+    const tenantRow = (await tenantRes.json().catch(() => ({}))).items?.[0];
+    const isPro = tenantRow?.plan_id === "pro";
+    let voiceUsage = { recordId: null, seconds: 0 };
+    if (!isPro) {
+      voiceUsage = await getVoiceUsageToday(env, pbToken, tenant, session);
+      if (voiceUsage.seconds >= VOICE_DAILY_LIMIT_SECONDS) {
+        return new Response(JSON.stringify({
+          error: "Bạn đ\xE3 d\xF9ng hết 1 ph\xFAt gọi AI miễn ph\xED h\xF4m nay, vui l\xF2ng thử lại v\xE0o ng\xE0y mai hoặc gọi trực tiếp cho nh\xE2n vi\xEAn.",
+          limitReached: true
+        }), { status: 429, headers: cors });
+      }
+    }
+
+    const audioBytes = new Uint8Array(await audioFile.arrayBuffer());
+    const transcript = await runStt(env, audioBytes, audioFile.type || "audio/webm");
+
+    if (!isPro && durationSec > 0) {
+      addVoiceUsageToday(env, pbToken, tenant, session, voiceUsage, durationSec).catch((err) => console.error("[AiVoice] Kh\xF4ng ghi được usage:", err));
+    }
+
+    if (!transcript) {
+      return new Response(JSON.stringify({ success: true, transcript: "", reply: "M\xECnh chưa nghe r\xF5, bạn n\xF3i lại được kh\xF4ng?", audioBase64: null, needsHuman: false }), { headers: cors });
+    }
+
+    fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records`, {
+      method: "POST",
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant, session, username, text: transcript, is_bot: false, via_voice: true })
+    }).catch((err) => console.error("[AiVoice] Kh\xF4ng lưu được transcript:", err));
+
+    const chatRequest = new Request("https://internal/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant, session, question: transcript, via_voice: true })
+    });
+    const chatRes = await handleChat(chatRequest, env, cors);
+    const chatData = await chatRes.json().catch(() => ({}));
+    const reply = chatData.reply || "Hệ thống AI đang bận, vui l\xF2ng thử lại.";
+    const needsHuman = !!chatData.needsHuman;
+
+    let audioBase64 = null;
+    try {
+      audioBase64 = await ttsToBase64(env, reply);
+    } catch (ttsErr) {
+      console.error("[AiVoice] Lỗi TTS:", ttsErr);
+    }
+
+    return new Response(JSON.stringify({ success: true, transcript, reply, audioBase64, needsHuman }), { headers: cors });
+  } catch (err) {
+    console.error("[AiVoice] Lỗi xử l\xFD voice turn:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleAiVoiceTurn, "handleAiVoiceTurn");
+
+// Câu chào mở đầu cuộc gọi AI — phát ngay khi kết nối xong (trước khi khách kịp nói gì), để
+// khách nghe thấy có tiếng ngay thay vì im lặng tưởng bị lỗi. Cũng tận dụng lượt play() đầu
+// tiên này để "unlock" phát audio trên tr\xECnh duyệt di động (xem client chat.html).
+// Sinh câu chào bằng ch\xEDnh LLM thay v\xEC set cứng 1 ngôn ngữ — linh hoạt cho mọi ngôn ngữ tr\xECnh
+// duyệt kh\xE1ch đang d\xF9ng (kh\xF4ng cần liệt k\xEA/dịch tay từng thứ tiếng). Cache ngắn theo tenant+ngôn
+// ngữ v\xEC c\xE2u ch\xE0o kh\xF4ng cần đổi li\xEAn tục, tr\xE1nh gọi LLM lại mỗi cuộc gọi.
+const greetingTextCache = /* @__PURE__ */ new Map();
+const GREETING_CACHE_MS = 6 * 60 * 60 * 1e3;
+
+async function generateGreetingText(env, botName, langHint) {
+  const cacheKey = `${botName}::${langHint}`;
+  const cached = greetingTextCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < GREETING_CACHE_MS) return cached.text;
+
+  const prompt = `Viết 1 c\xE2u ch\xE0o mở đầu cuộc gọi thoại, ngắn gọn (dưới 20 từ), thân thiện, tự nhi\xEAn. ` +
+    `Giới thiệu ngắn l\xE0 "${botName}" v\xE0 hỏi c\xF3 thể gi\xFAp g\xEC được cho kh\xE1ch. ` +
+    `Viết bằng ng\xF4n ngữ c\xF3 m\xE3 "${langHint}" (nếu kh\xF4ng nhận ra m\xE3 n\xE0y l\xE0 ng\xF4n ngữ g\xEC, d\xF9ng tiếng Anh). ` +
+    `CHỈ trả về đ\xFAng c\xE2u ch\xE0o, kh\xF4ng th\xEAm giải th\xEDch, kh\xF4ng th\xEAm dấu ngoặc k\xE9p.`;
+  const res = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 60
+    }),
+    timeout: 15e3
+  });
+  if (!res.ok) throw new Error(`Sinh lời ch\xE0o lỗi ${res.status}`);
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, "");
+  if (!text) throw new Error("Kh\xF4ng sinh được lời ch\xE0o");
+  greetingTextCache.set(cacheKey, { text, time: Date.now() });
+  return text;
+}
+__name(generateGreetingText, "generateGreetingText");
+
+async function handleAiVoiceGreeting(request, env, cors) {
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body?.tenant || "").trim();
+  const clientLang = String(body?.lang || "").trim();
+  if (!tenant) return new Response(JSON.stringify({ error: "Thiếu tenant" }), { status: 400, headers: cors });
+
+  try {
+    const pbToken = await getPbToken(env);
+    const configRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records?filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, {
+      headers: { Authorization: pbToken }
+    });
+    const botConfig = (await configRes.json().catch(() => ({}))).items?.[0] || {};
+    const botName = botConfig.bot_name || "trợ l\xFD AI";
+    // Tenant đ\xE3 chọn 1 ng\xF4n ngữ cố định (kh\xE1c "auto") th\xEC ưu ti\xEAn n\xF3; kh\xF4ng th\xEC d\xF9ng ng\xF4n ngữ
+    // tr\xEDnh duyệt kh\xE1ch gửi l\xEAn (navigator.language) l\xE0m phỏng đo\xE1n tốt nhất trước khi c\xF3 audio.
+    const configLang = String(botConfig.response_language || "").trim().toLowerCase();
+    const effectiveLang = (configLang && configLang !== "auto") ? configLang : (clientLang || "vi");
+
+    let greetingText;
+    try {
+      greetingText = await generateGreetingText(env, botName, effectiveLang);
+    } catch (genErr) {
+      console.error("[AiVoice] Kh\xF4ng sinh được lời ch\xE0o bằng LLM, d\xF9ng c\xE2u mặc định:", genErr);
+      greetingText = `Xin ch\xE0o! T\xF4i l\xE0 ${botName}, t\xF4i c\xF3 thể gi\xFAp g\xEC cho bạn?`;
+    }
+
+    let audioBase64 = null;
+    try {
+      audioBase64 = await ttsToBase64(env, greetingText);
+    } catch (ttsErr) {
+      console.error("[AiVoice] Lỗi TTS lời ch\xE0o:", ttsErr);
+    }
+    return new Response(JSON.stringify({ success: true, text: greetingText, audioBase64 }), { headers: cors });
+  } catch (err) {
+    console.error("[AiVoice] Lỗi tạo lời ch\xE0o:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleAiVoiceGreeting, "handleAiVoiceGreeting");
+
 async function ensureWorkspaceExists(tenant, env) {
   try {
     const checkRes = await fetch(
@@ -2991,6 +3286,388 @@ async function handleApiSendMessage(request, env, cors, cfg) {
 }
 __name(handleApiSendMessage, "handleApiSendMessage");
 
+// ================= [API /api/v1/calls — phía admin (app di động/dashboard)] =================
+// App di động không giữ phiên PocketBase riêng (chỉ có API key) nên không thể tự
+// pb.collection("calls").subscribe/create như messages.html — đi qua các endpoint REST này,
+// resolve tenant từ Bearer apiKey giống mọi route /api/v1/* khác. Trạng thái cuộc gọi vẫn nằm
+// trong collection "calls" (dùng chung với web), app tự poll GET /api/v1/calls để phát hiện
+// cuộc gọi khách gọi tới thay vì realtime SSE.
+function validateAdminCallStartPayload(body) {
+  const session = String(body?.session || "").trim();
+  const cfSessionId = String(body?.cf_session_id || "").trim();
+  const trackName = String(body?.track_name || "").trim();
+  if (!session) return { error: "Thiếu session" };
+  if (!cfSessionId || !trackName) return { error: "Thiếu thông tin phiên gọi (cf_session_id/track_name)" };
+  return { session, cfSessionId, trackName };
+}
+__name(validateAdminCallStartPayload, "validateAdminCallStartPayload");
+
+function validateAdminCallJoinPayload(body) {
+  const callId = String(body?.call_id || "").trim();
+  const cfSessionId = String(body?.cf_session_id || "").trim();
+  const trackName = String(body?.track_name || "").trim();
+  if (!callId) return { error: "Thiếu call_id" };
+  if (!cfSessionId || !trackName) return { error: "Thiếu thông tin phiên gọi (cf_session_id/track_name)" };
+  return { callId, cfSessionId, trackName };
+}
+__name(validateAdminCallJoinPayload, "validateAdminCallJoinPayload");
+
+async function handleApiListCalls(request, env, cors, cfg) {
+  const url = new URL(request.url);
+  const session = url.searchParams.get("session");
+  let filter = `tenant='${escFilterValue(cfg.tenant)}' && status!='ended'`;
+  if (session) filter += ` && session='${escFilterValue(session)}'`;
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/calls/records?perPage=50&sort=-created&filter=${encodeURIComponent(filter)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: `Không thể tải danh sách cuộc gọi (${res.status})` }), { status: 502, headers: cors });
+  }
+  const data = await res.json();
+  const calls = (data.items || []).map((c) => ({
+    id: c.id, session: c.session, status: c.status, initiator: c.initiator,
+    customer_cf_session_id: c.customer_cf_session_id, customer_track_name: c.customer_track_name,
+    admin_cf_session_id: c.admin_cf_session_id, admin_track_name: c.admin_track_name,
+    ended_reason: c.ended_reason || "", created: c.created
+  }));
+  return new Response(JSON.stringify({ success: true, calls }), { headers: cors });
+}
+__name(handleApiListCalls, "handleApiListCalls");
+
+async function handleApiStartCall(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const payload = validateAdminCallStartPayload(body);
+  if (payload.error) return new Response(JSON.stringify({ error: payload.error }), { status: 400, headers: cors });
+  try {
+    const pbToken = await getPbToken(env);
+    const createRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records`, {
+      method: "POST",
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant: cfg.tenant, session: payload.session, status: "ringing", initiator: "admin",
+        admin_cf_session_id: payload.cfSessionId, admin_track_name: payload.trackName
+      })
+    });
+    if (!createRes.ok) throw new Error(`Không thể bắt đầu cuộc gọi (${createRes.status})`);
+    return new Response(JSON.stringify({ success: true, call: await createRes.json() }), { status: 201, headers: cors });
+  } catch (err) {
+    console.error("[Calls][admin] Lỗi bắt đầu cuộc gọi:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleApiStartCall, "handleApiStartCall");
+
+async function lookupTenantCall(env, pbToken, tenant, callId) {
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records/${encodeURIComponent(callId)}`, {
+    headers: { Authorization: pbToken }
+  });
+  if (!res.ok) return null;
+  const record = await res.json();
+  return record.tenant === tenant ? record : null;
+}
+__name(lookupTenantCall, "lookupTenantCall");
+
+async function handleApiAcceptCall(request, env, cors, cfg) {
+  const body = await request.json().catch(() => ({}));
+  const payload = validateAdminCallJoinPayload(body);
+  if (payload.error) return new Response(JSON.stringify({ error: payload.error }), { status: 400, headers: cors });
+  try {
+    const pbToken = await getPbToken(env);
+    const existing = await lookupTenantCall(env, pbToken, cfg.tenant, payload.callId);
+    if (!existing) return new Response(JSON.stringify({ error: "Không tìm thấy cuộc gọi" }), { status: 404, headers: cors });
+    const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records/${payload.callId}`, {
+      method: "PATCH",
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_cf_session_id: payload.cfSessionId, admin_track_name: payload.trackName, status: "active" })
+    });
+    if (!patchRes.ok) throw new Error(`Không thể trả lời cuộc gọi (${patchRes.status})`);
+    return new Response(JSON.stringify({ success: true, call: await patchRes.json() }), { headers: cors });
+  } catch (err) {
+    console.error("[Calls][admin] Lỗi trả lời cuộc gọi:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleApiAcceptCall, "handleApiAcceptCall");
+
+async function handleApiEndOrDeclineCall(request, env, cors, cfg, defaultReason) {
+  const body = await request.json().catch(() => ({}));
+  const callId = String(body?.call_id || "").trim();
+  if (!callId) return new Response(JSON.stringify({ error: "Thiếu call_id" }), { status: 400, headers: cors });
+  try {
+    const pbToken = await getPbToken(env);
+    const existing = await lookupTenantCall(env, pbToken, cfg.tenant, callId);
+    if (!existing) return new Response(JSON.stringify({ error: "Không tìm thấy cuộc gọi" }), { status: 404, headers: cors });
+    const reason = String(body?.reason || "").trim() || defaultReason;
+    const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records/${callId}`, {
+      method: "PATCH",
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ended", ended_reason: reason })
+    });
+    if (!patchRes.ok) throw new Error(`Không thể kết thúc cuộc gọi (${patchRes.status})`);
+    return new Response(JSON.stringify({ success: true, call: await patchRes.json() }), { headers: cors });
+  } catch (err) {
+    console.error("[Calls][admin] Lỗi kết thúc cuộc gọi:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleApiEndOrDeclineCall, "handleApiEndOrDeclineCall");
+
+// ================= [GỌI THOẠI: Cloudflare Realtime (Calls SFU)] =================
+// App Secret KHÔNG BAO GIỜ được gửi ra trình duyệt — mọi lệnh gọi tới rtc.live.cloudflare.com
+// đều đi qua 2 proxy này (worker chèn Bearer secret). Trạng thái "ai đang gọi ai" (ringing/active/
+// ended) nằm ở collection PocketBase "calls", được đẩy realtime cho cả hai phía giống "messages".
+const CF_CALLS_API_BASE = "https://rtc.live.cloudflare.com/v1/apps";
+
+async function handleCallRtcSessionNew(env, cors) {
+  if (!env.CF_CALLS_APP_ID || !env.CF_CALLS_APP_SECRET) {
+    return new Response(JSON.stringify({ error: "Cloudflare Realtime chưa được cấu h\xECnh (thiếu CF_CALLS_APP_ID/CF_CALLS_APP_SECRET)" }), { status: 500, headers: cors });
+  }
+  const res = await fetchWithTimeout(`${CF_CALLS_API_BASE}/${env.CF_CALLS_APP_ID}/sessions/new`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.CF_CALLS_APP_SECRET}` }
+  });
+  const data = await res.json().catch(() => ({}));
+  return new Response(JSON.stringify(data), { status: res.status, headers: cors });
+}
+__name(handleCallRtcSessionNew, "handleCallRtcSessionNew");
+
+async function handleCallRtcProxy(request, env, cors, pathBuilder) {
+  if (!env.CF_CALLS_APP_ID || !env.CF_CALLS_APP_SECRET) {
+    return new Response(JSON.stringify({ error: "Cloudflare Realtime chưa được cấu h\xECnh (thiếu CF_CALLS_APP_ID/CF_CALLS_APP_SECRET)" }), { status: 500, headers: cors });
+  }
+  const body = await request.json().catch(() => ({}));
+  const sessionId = String(body?.sessionId || "").trim();
+  if (!sessionId) return new Response(JSON.stringify({ error: "Thiếu sessionId" }), { status: 400, headers: cors });
+  const { path, method } = pathBuilder(sessionId);
+  const res = await fetchWithTimeout(`${CF_CALLS_API_BASE}/${env.CF_CALLS_APP_ID}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${env.CF_CALLS_APP_SECRET}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body.payload || {})
+  });
+  const data = await res.json().catch(() => ({}));
+  return new Response(JSON.stringify(data), { status: res.status, headers: cors });
+}
+__name(handleCallRtcProxy, "handleCallRtcProxy");
+
+function validateCallStatePayload(body) {
+  const tenant = String(body?.tenant || "").trim();
+  const session = String(body?.session || "").trim();
+  const action = String(body?.action || "").trim();
+  const cfSessionId = String(body?.cf_session_id || "").trim();
+  const trackName = String(body?.track_name || "").trim();
+  if (!tenant) return { error: "Thiếu tenant" };
+  if (!session) return { error: "Thiếu session" };
+  if (!["start", "join", "end"].includes(action)) return { error: "H\xE0nh động kh\xF4ng hợp lệ" };
+  if ((action === "start" || action === "join") && (!cfSessionId || !trackName)) {
+    return { error: "Thiếu th\xF4ng tin phi\xEAn gọi (cf_session_id/track_name)" };
+  }
+  return { tenant, session, action, cfSessionId, trackName, reason: String(body?.reason || "").trim() };
+}
+__name(validateCallStatePayload, "validateCallStatePayload");
+
+// Widget khách hàng không có phiên PocketBase riêng (không đăng nhập) nên không thể tự ghi
+// vào collection "calls" như phía dashboard admin — phải đi qua endpoint này, dùng pbToken
+// của worker, y hệt cách "/chat" ghi vào "messages" thay cho khách hàng.
+async function handleCallState(request, env, cors) {
+  const body = await request.json().catch(() => ({}));
+  const payload = validateCallStatePayload(body);
+  if (payload.error) {
+    return new Response(JSON.stringify({ error: payload.error }), { status: 400, headers: cors });
+  }
+  try {
+    const pbToken = await getPbToken(env);
+    const filter = `tenant='${escFilterValue(payload.tenant)}' && session='${escFilterValue(payload.session)}' && status!='ended'`;
+    const lookupRes = await fetchWithTimeout(
+      `${env.PB_URL}/api/collections/calls/records?perPage=1&sort=-created&filter=${encodeURIComponent(filter)}`,
+      { headers: { Authorization: pbToken } }
+    );
+    if (!lookupRes.ok) throw new Error(`Kh\xF4ng thể kiểm tra cuộc gọi (${lookupRes.status})`);
+    const existing = (await lookupRes.json()).items?.[0] || null;
+
+    if (payload.action === "start") {
+      const createRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records`, {
+        method: "POST",
+        headers: { Authorization: pbToken, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant: payload.tenant, session: payload.session, status: "ringing", initiator: "customer",
+          customer_cf_session_id: payload.cfSessionId, customer_track_name: payload.trackName
+        })
+      });
+      if (!createRes.ok) throw new Error(`Kh\xF4ng thể tạo cuộc gọi (${createRes.status})`);
+      return new Response(JSON.stringify({ success: true, call: await createRes.json() }), { headers: cors });
+    }
+
+    if (!existing) {
+      return new Response(JSON.stringify({ error: "Kh\xF4ng t\xECm thấy cuộc gọi đang diễn ra" }), { status: 404, headers: cors });
+    }
+
+    if (payload.action === "join") {
+      const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records/${existing.id}`, {
+        method: "PATCH",
+        headers: { Authorization: pbToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ customer_cf_session_id: payload.cfSessionId, customer_track_name: payload.trackName, status: "active" })
+      });
+      if (!patchRes.ok) throw new Error(`Kh\xF4ng thể tham gia cuộc gọi (${patchRes.status})`);
+      return new Response(JSON.stringify({ success: true, call: await patchRes.json() }), { headers: cors });
+    }
+
+    // action === "end"
+    const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls/records/${existing.id}`, {
+      method: "PATCH",
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ended", ended_reason: payload.reason || "hangup" })
+    });
+    if (!patchRes.ok) throw new Error(`Kh\xF4ng thể kết th\xFAc cuộc gọi (${patchRes.status})`);
+    return new Response(JSON.stringify({ success: true, call: await patchRes.json() }), { headers: cors });
+  } catch (err) {
+    console.error("[Calls] Lỗi xử l\xFD trạng th\xE1i cuộc gọi:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: cors });
+  }
+}
+__name(handleCallState, "handleCallState");
+
+// Tạo collection "calls" trong PocketBase nếu chưa có — gọi 1 lần qua POST /call/setup kèm
+// header X-Admin-Secret (secret có sẵn, dùng chung với /sync-docs...). Idempotent: đã tồn tại
+// thì trả về luôn, không đụng gì tới dữ liệu cũ. createRule/updateRule để trống (public) vì
+// khách ẩn danh ở chat.html cần tự tạo/tự cập nhật bản ghi cuộc gọi của họ, giống collection
+// "messages" đã mở sẵn cho khách ẩn danh tạo tin nhắn.
+async function handleCallSetupCollection(env, cors) {
+  const pbToken = await getPbToken(env);
+  const checkRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/calls`, {
+    headers: { Authorization: pbToken }
+  });
+  if (checkRes.ok) {
+    return new Response(JSON.stringify({ success: true, alreadyExists: true }), { headers: cors });
+  }
+
+  // Không đoán mò format schema ("fields" vs "schema" theo phiên bản PocketBase) — lấy nguyên
+  // mẫu từ collection "messages" đã có sẵn trên chính server này rồi nhân bản đúng hình dạng đó,
+  // đảm bảo khớp 100% với phiên bản PocketBase đang chạy.
+  const templateRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages`, {
+    headers: { Authorization: pbToken }
+  });
+  if (!templateRes.ok) {
+    return new Response(JSON.stringify({ error: `Không đọc được collection mẫu "messages" (${templateRes.status})` }), { status: 502, headers: cors });
+  }
+  const template = await templateRes.json();
+  const fieldsKey = Array.isArray(template.fields) ? "fields" : "schema";
+  const templateFields = template[fieldsKey] || [];
+
+  const systemFields = templateFields.filter((f) => f.system);
+  const textTemplate = templateFields.find((f) => f.type === "text" && !f.system);
+  if (!textTemplate) {
+    return new Response(JSON.stringify({ error: `Collection mẫu "messages" không có field text nào để nhân bản` }), { status: 502, headers: cors });
+  }
+
+  const newFieldNames = [
+    "tenant", "session", "status", "initiator",
+    "admin_cf_session_id", "admin_track_name", "customer_cf_session_id", "customer_track_name", "ended_reason"
+  ];
+  const requiredFieldNames = new Set(["tenant", "session", "status", "initiator"]);
+  const customFields = newFieldNames.map((name) => {
+    const { id: _id, name: _name, required: _required, ...rest } = textTemplate;
+    return { ...rest, name, required: requiredFieldNames.has(name) };
+  });
+
+  const payload = {
+    name: "calls", type: "base",
+    [fieldsKey]: [...systemFields, ...customFields],
+    listRule: "", viewRule: "", createRule: "", updateRule: "", deleteRule: null
+  };
+
+  const createRes = await fetchWithTimeout(`${env.PB_URL}/api/collections`, {
+    method: "POST",
+    headers: { Authorization: pbToken, "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!createRes.ok) {
+    return new Response(JSON.stringify({ error: `Không tạo được collection "calls" (${createRes.status}): ${await createRes.text()}` }), { status: 502, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, created: true, format: fieldsKey }), { headers: cors });
+}
+__name(handleCallSetupCollection, "handleCallSetupCollection");
+
+// Thêm field "via_voice" (bool) vào collection "messages" nếu chưa có — gọi 1 lần qua
+// POST /messages/setup-via-voice kèm X-Admin-Secret. Idempotent, chỉ THÊM field, không đụng
+// field/dữ liệu cũ. Dùng để đánh dấu tin nhắn nào đến từ cuộc gọi AI (transcript + trả lời)
+// để UI hiển thị khác đi (xem chat.html/messages.html).
+async function handleMessagesAddViaVoiceField(env, cors) {
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages`, {
+    headers: { Authorization: pbToken }
+  });
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: `Kh\xF4ng đọc được collection "messages" (${res.status})` }), { status: 502, headers: cors });
+  }
+  const collection = await res.json();
+  const fieldsKey = Array.isArray(collection.fields) ? "fields" : "schema";
+  const fields = collection[fieldsKey] || [];
+
+  if (fields.some((f) => f.name === "via_voice")) {
+    return new Response(JSON.stringify({ success: true, alreadyExists: true }), { headers: cors });
+  }
+
+  const boolTemplate = fields.find((f) => f.type === "bool" && !f.system);
+  if (!boolTemplate) {
+    return new Response(JSON.stringify({ error: `Kh\xF4ng t\xECm thấy field bool mẫu để nh\xE2n bản` }), { status: 502, headers: cors });
+  }
+  const { id: _id, name: _name, ...rest } = boolTemplate;
+  const newField = { ...rest, name: "via_voice" };
+
+  const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages`, {
+    method: "PATCH",
+    headers: { Authorization: pbToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ [fieldsKey]: [...fields, newField] })
+  });
+  if (!patchRes.ok) {
+    return new Response(JSON.stringify({ error: `Kh\xF4ng th\xEAm được field via_voice (${patchRes.status}): ${await patchRes.text()}` }), { status: 502, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, created: true }), { headers: cors });
+}
+__name(handleMessagesAddViaVoiceField, "handleMessagesAddViaVoiceField");
+
+// Thêm 3 field text (stt_provider, tts_provider, deepgram_api_key) vào collection "system_config"
+// nếu chưa có — gọi 1 lần qua POST /system-config/setup-voice-fields kèm X-Admin-Secret.
+// Idempotent, chỉ THÊM field còn thiếu, không đụng field/dữ liệu cũ.
+async function handleSystemConfigAddVoiceFields(env, cors) {
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/system_config`, {
+    headers: { Authorization: pbToken }
+  });
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: `Kh\xF4ng đọc được collection "system_config" (${res.status})` }), { status: 502, headers: cors });
+  }
+  const collection = await res.json();
+  const fieldsKey = Array.isArray(collection.fields) ? "fields" : "schema";
+  const fields = collection[fieldsKey] || [];
+
+  const textTemplate = fields.find((f) => f.type === "text" && !f.system);
+  if (!textTemplate) {
+    return new Response(JSON.stringify({ error: `Kh\xF4ng t\xECm thấy field text mẫu để nh\xE2n bản` }), { status: 502, headers: cors });
+  }
+  const { id: _id, name: _name, required: _required, ...rest } = textTemplate;
+
+  const wantedNames = ["stt_provider", "tts_provider", "deepgram_api_key"];
+  const missingNames = wantedNames.filter((name) => !fields.some((f) => f.name === name));
+  if (missingNames.length === 0) {
+    return new Response(JSON.stringify({ success: true, alreadyExists: true }), { headers: cors });
+  }
+  const newFields = missingNames.map((name) => ({ ...rest, name, required: false }));
+
+  const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/system_config`, {
+    method: "PATCH",
+    headers: { Authorization: pbToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ [fieldsKey]: [...fields, ...newFields] })
+  });
+  if (!patchRes.ok) {
+    return new Response(JSON.stringify({ error: `Kh\xF4ng th\xEAm được field (${patchRes.status}): ${await patchRes.text()}` }), { status: 502, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, created: missingNames }), { headers: cors });
+}
+__name(handleSystemConfigAddVoiceFields, "handleSystemConfigAddVoiceFields");
+
 // ================= [API: LỊCH ĐĂNG BÀI TỰ ĐỘNG] =================
 const PUBLISH_DAYS = new Set(["all", "mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 function normalizePublishSchedule(body, { partial = false } = {}) {
@@ -3177,6 +3854,12 @@ async function handleApiV1(request, url, env, cors, ctx) {
 
   if (url.pathname === "/api/v1/messages" && request.method === "GET") return await handleApiListMessages(request, env, cors, cfg);
   if (url.pathname === "/api/v1/messages" && request.method === "POST") return await handleApiSendMessage(request, env, cors, cfg);
+
+  if (url.pathname === "/api/v1/calls" && request.method === "GET") return await handleApiListCalls(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/calls/start" && request.method === "POST") return await handleApiStartCall(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/calls/accept" && request.method === "POST") return await handleApiAcceptCall(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/calls/decline" && request.method === "POST") return await handleApiEndOrDeclineCall(request, env, cors, cfg, "declined");
+  if (url.pathname === "/api/v1/calls/end" && request.method === "POST") return await handleApiEndOrDeclineCall(request, env, cors, cfg, "hangup");
 
   if (url.pathname === "/api/v1/chat-link" && request.method === "POST") return await handleApiCreateChatLink(request, env, cors, cfg);
   if (url.pathname === "/api/v1/customer-context" && request.method === "PUT") return await handleApiCustomerContext(request, env, cors, cfg);
@@ -3471,6 +4154,9 @@ export {
   handleApiSendMessage,
   validateAgentChatMessages,
   validateAdminMessagePayload,
+  validateCallStatePayload,
+  validateAdminCallStartPayload,
+  validateAdminCallJoinPayload,
   validateConfigPatch,
   validateKnowledgePayload
 };

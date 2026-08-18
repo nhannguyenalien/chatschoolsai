@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:schools_ai_app/core/auth/account_auth_service.dart';
 import 'package:schools_ai_app/core/auth/auth_controller.dart';
 import 'package:schools_ai_app/core/auth/credential_store.dart';
 import 'package:schools_ai_app/core/auth/google_auth_service.dart';
@@ -34,6 +35,22 @@ class FakeGoogleAuthService implements GoogleAuthService {
   Future<void> signOut() async => signedOut = true;
 }
 
+class FakeAccountAuthService implements AccountAuthService {
+  FakeAccountAuthService({this.result, this.error});
+
+  final AccountSignInResult? result;
+  final AccountAuthException? error;
+
+  @override
+  Future<AccountSignInResult> signInWithPassword(
+    String email,
+    String password,
+  ) async {
+    if (error != null) throw error!;
+    return result!;
+  }
+}
+
 class FailingCredentialStore extends MemoryCredentialStore {
   @override
   Future<void> saveApiKey(String apiKey) async {
@@ -47,7 +64,11 @@ void main() {
     () async {
       final store = MemoryCredentialStore();
       final googleAuth = FakeGoogleAuthService();
-      final controller = AuthController(store, googleAuth);
+      final controller = AuthController(
+        store,
+        googleAuth,
+        FakeAccountAuthService(),
+      );
       await controller.initialize();
 
       await controller.signInWithApiKey('  secret-key  ');
@@ -65,6 +86,7 @@ void main() {
     final controller = AuthController(
       MemoryCredentialStore(),
       FakeGoogleAuthService(),
+      FakeAccountAuthService(),
     );
     await controller.signInWithApiKey('   ');
 
@@ -83,6 +105,7 @@ void main() {
           displayName: 'Teacher A',
         ),
       ),
+      FakeAccountAuthService(),
     );
 
     await controller.signInWithGoogle();
@@ -100,6 +123,7 @@ void main() {
       FakeGoogleAuthService(
         error: const GoogleAuthException('Tài khoản chưa được cấu hình.'),
       ),
+      FakeAccountAuthService(),
     );
 
     await controller.signInWithGoogle();
@@ -118,6 +142,7 @@ void main() {
           tenant: 'school-a',
         ),
       ),
+      FakeAccountAuthService(),
     );
 
     await controller.signInWithGoogle();
@@ -132,7 +157,11 @@ void main() {
 
   test('switches to a newly provisioned bot and persists its key', () async {
     final store = MemoryCredentialStore();
-    final controller = AuthController(store, FakeGoogleAuthService());
+    final controller = AuthController(
+      store,
+      FakeGoogleAuthService(),
+      FakeAccountAuthService(),
+    );
 
     await controller.useProvisionedBot(
       const ProvisionedBot(
@@ -145,5 +174,44 @@ void main() {
     expect(controller.state.apiKey, 'sk_second');
     expect(controller.state.tenant, 'second-bot');
     expect(store.value, 'sk_second');
+  });
+
+  test('account sign in stores tenant API key and user details', () async {
+    final store = MemoryCredentialStore();
+    final controller = AuthController(
+      store,
+      FakeGoogleAuthService(),
+      FakeAccountAuthService(
+        result: const AccountSignInResult(
+          apiKey: 'account-tenant-key',
+          tenant: 'school-b',
+          displayName: 'Teacher B',
+        ),
+      ),
+    );
+
+    await controller.signInWithEmailPassword('teacher@school.com', 'secret123');
+
+    expect(controller.state.apiKey, 'account-tenant-key');
+    expect(controller.state.tenant, 'school-b');
+    expect(controller.state.displayName, 'Teacher B');
+    expect(store.value, 'account-tenant-key');
+    expect(controller.state.errorMessage, isNull);
+  });
+
+  test('account sign in exposes a safe error and stays signed out', () async {
+    final controller = AuthController(
+      MemoryCredentialStore(),
+      FakeGoogleAuthService(),
+      FakeAccountAuthService(
+        error: const AccountAuthException('Email hoặc mật khẩu không đúng.'),
+      ),
+    );
+
+    await controller.signInWithEmailPassword('teacher@school.com', 'wrong');
+
+    expect(controller.state.isAuthenticated, isFalse);
+    expect(controller.state.isSubmitting, isFalse);
+    expect(controller.state.errorMessage, 'Email hoặc mật khẩu không đúng.');
   });
 }

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../features/calls/presentation/call_bar.dart';
+import '../../features/calls/presentation/incoming_call_overlay.dart';
 
 class AdaptiveShell extends ConsumerWidget {
   const AdaptiveShell({required this.shell, super.key});
@@ -44,71 +46,88 @@ class AdaptiveShell extends ConsumerWidget {
         context.l10n.tr('nav_loyalty'),
       ),
     ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 840;
-        if (!wide) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Schools AI'),
-              actions: [
-                const LanguageMenu(),
-                _LogoutButton(onPressed: () => _logout(ref)),
-              ],
-            ),
-            body: shell,
-            bottomNavigationBar: NavigationBar(
-              selectedIndex: shell.currentIndex,
-              destinations: destinations,
-              onDestinationSelected: _goBranch,
-            ),
-          );
-        }
-
-        return Scaffold(
-          body: Row(
-            children: [
-              SafeArea(
-                child: NavigationRail(
-                  extended: constraints.maxWidth >= 1120,
+    return Stack(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 840;
+            if (!wide) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text('Schools AI'),
+                  actions: [
+                    const LanguageMenu(),
+                    _LogoutButton(onPressed: () => _logout(ref)),
+                  ],
+                ),
+                body: Column(
+                  children: [
+                    const CallBar(),
+                    Expanded(child: shell),
+                  ],
+                ),
+                bottomNavigationBar: NavigationBar(
                   selectedIndex: shell.currentIndex,
+                  destinations: destinations,
                   onDestinationSelected: _goBranch,
-                  leading: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 18),
-                    child: Icon(Icons.auto_awesome_rounded, size: 32),
-                  ),
-                  trailing: Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const LanguageMenu(),
-                            _LogoutButton(onPressed: () => _logout(ref)),
-                          ],
+                ),
+              );
+            }
+
+            return Scaffold(
+              body: Row(
+                children: [
+                  SafeArea(
+                    child: NavigationRail(
+                      extended: constraints.maxWidth >= 1120,
+                      selectedIndex: shell.currentIndex,
+                      onDestinationSelected: _goBranch,
+                      leading: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Icon(Icons.auto_awesome_rounded, size: 32),
+                      ),
+                      trailing: Expanded(
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const LanguageMenu(),
+                                _LogoutButton(onPressed: () => _logout(ref)),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
+                      destinations: destinations
+                          .map(
+                            (item) => NavigationRailDestination(
+                              icon: item.icon,
+                              selectedIcon: item.selectedIcon,
+                              label: Text(item.label),
+                            ),
+                          )
+                          .toList(),
                     ),
                   ),
-                  destinations: destinations
-                      .map(
-                        (item) => NavigationRailDestination(
-                          icon: item.icon,
-                          selectedIcon: item.selectedIcon,
-                          label: Text(item.label),
-                        ),
-                      )
-                      .toList(),
-                ),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const CallBar(),
+                        Expanded(child: shell),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const VerticalDivider(width: 1),
-              Expanded(child: shell),
-            ],
-          ),
-        );
-      },
+            );
+          },
+        ),
+        const IncomingCallOverlay(),
+      ],
     );
   }
 

@@ -15,10 +15,14 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _controller = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   @override
   void dispose() {
     _controller.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -86,6 +90,65 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ],
                             ),
                     ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Expanded(child: Divider()),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Text(
+                            context.l10n.tr('or_divider'),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        const Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      key: const Key('account-email-field'),
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.tr('login_email_label'),
+                        prefixIcon: const Icon(Icons.mail_outline_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      key: const Key('account-password-field'),
+                      controller: _passwordController,
+                      obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.tr('login_password_label'),
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      ),
+                      onSubmitted: auth.isSubmitting
+                          ? null
+                          : (_) => _signInWithAccount(),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        key: const Key('account-sign-in-button'),
+                        onPressed: auth.isSubmitting
+                            ? null
+                            : _signInWithAccount,
+                        child: auth.isSubmitting
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(context.l10n.tr('sign_in_account_button')),
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     TextButton.icon(
                       key: const Key('register-account-button'),
@@ -152,6 +215,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _signInWithGoogle() =>
       ref.read(authControllerProvider.notifier).signInWithGoogle();
+
+  Future<void> _signInWithAccount() => ref
+      .read(authControllerProvider.notifier)
+      .signInWithEmailPassword(_emailController.text, _passwordController.text);
 
   Future<void> _showRegistration() async {
     final result = await showDialog<ProvisionedBot>(

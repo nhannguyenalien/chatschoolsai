@@ -136,6 +136,31 @@
             </div>
 
             <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-phone-call me-2"></i>Gọi thoại AI (STT/TTS)</h3></div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">Nhận diện giọng nói (STT)</label>
+                  <select id="cfg-stt-provider" class="form-select">
+                    <option value="">Cloudflare Whisper (mặc định)</option>
+                    <option value="deepgram">Deepgram Nova-2 — chính xác hơn cho tiếng Việt</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Đọc trả lời bằng giọng nói (TTS)</label>
+                  <select id="cfg-tts-provider" class="form-select">
+                    <option value="">OpenAI gpt-4o-mini-tts (mặc định, đọc được tiếng Việt)</option>
+                    <option value="deepgram">Deepgram Aura — <strong>chỉ tiếng Anh/Tây Ban Nha</strong>, không đọc được tiếng Việt</option>
+                  </select>
+                </div>
+                <div class="mb-0">
+                  <label class="form-label">DEEPGRAM_API_KEY</label>
+                  <input type="text" id="cfg-deepgram-key" class="form-control font-monospace" placeholder="Token Deepgram của bạn">
+                  <small class="form-hint">Chỉ cần điền nếu chọn Deepgram ở trên.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
               <div class="card-header"><h3 class="card-title"><i class="ti ti-key me-2"></i>Vận hành</h3></div>
               <div class="card-body">
                 <div class="mb-3">
@@ -273,6 +298,9 @@ async function loadConfig() {
         setVal('cfg-openai-embed-model', r.openai_embedding_model);
         setVal('cfg-admin-secret', r.admin_secret);
         setVal('cfg-dashboard-url', r.dashboard_url);
+        setVal('cfg-stt-provider', r.stt_provider);
+        setVal('cfg-tts-provider', r.tts_provider);
+        setVal('cfg-deepgram-key', r.deepgram_api_key);
     } catch (err) {
         // Chưa có record nào (lần đầu dùng trang này) — điền sẵn những giá trị tôi THỰC SỰ biết
         // (var thường/không phải secret, hoặc do chính tôi tạo trong phiên làm việc trước).
@@ -308,6 +336,9 @@ async function saveConfig() {
         openai_embedding_model: document.getElementById('cfg-openai-embed-model').value.trim(),
         admin_secret: document.getElementById('cfg-admin-secret').value.trim(),
         dashboard_url: document.getElementById('cfg-dashboard-url').value.trim(),
+        stt_provider: document.getElementById('cfg-stt-provider').value,
+        tts_provider: document.getElementById('cfg-tts-provider').value,
+        deepgram_api_key: document.getElementById('cfg-deepgram-key').value.trim(),
     };
     btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
     try {

@@ -44,6 +44,8 @@
             border-radius: 1rem; border-top-right-radius: 0.25rem;
             box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
         }
+        /* Tin nhắn đến từ cuộc gọi AI (STT/TTS) — viền trái tím nhạt để phân biệt với tin nhắn gõ tay */
+        .via-voice-bubble { border-left: 3px solid #ae3ec9; }
 
         /* Markdown Styles within Bubbles */
         .chat-bubble-ai p, .chat-bubble-user p { margin-bottom: 0.5rem; }
@@ -72,6 +74,58 @@
             display: flex; align-items: center; justify-content: center;
         }
         .hover-primary:hover { color: #206bc4 !important; }
+
+        /* Popup cuộc gọi đến */
+        #incoming-call-overlay {
+            position: fixed; inset: 0; z-index: 1060;
+            background: rgba(11,28,48,0.75); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        }
+        #incoming-call-avatar { width: 96px; height: 96px; font-size: 36px; }
+        .call-ring-pulse {
+            animation: call-ring-pulse 1.4s infinite;
+            box-shadow: 0 0 0 0 rgba(47,179,68,0.6);
+        }
+        @keyframes call-ring-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(47,179,68,0.6); }
+            70%  { box-shadow: 0 0 0 18px rgba(47,179,68,0); }
+            100% { box-shadow: 0 0 0 0 rgba(47,179,68,0); }
+        }
+
+        /* Overlay cuộc gọi AI (STT/TTS) toàn màn hình, kiểu gọi thoại Zalo/Messenger */
+        #ai-voice-call-overlay {
+            position: fixed; inset: 0; z-index: 1060;
+            background: rgba(11,28,48,0.75); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        /* To, dễ nhìn — nhất là trên điện thoại (chiếm gần hết chiều rộng màn hình) */
+        .ai-voice-card { width: 100%; max-width: 420px; border-radius: 24px; }
+        .ai-voice-avatar-icon { width: 120px; height: 120px; font-size: 52px; }
+        .ai-voice-title { font-size: 1.75rem; }
+        .ai-voice-status-text { font-size: 1.25rem; }
+        .ai-voice-timer-text { font-size: 1.5rem; }
+        .ai-voice-btn-secondary { width: 64px; height: 64px; font-size: 1.5rem; }
+        .ai-voice-btn-end { width: 76px; height: 76px; font-size: 2rem; }
+        @media (max-width: 480px) {
+            .ai-voice-avatar-icon { width: 96px; height: 96px; font-size: 42px; }
+            .ai-voice-title { font-size: 1.5rem; }
+            .ai-voice-status-text { font-size: 1.1rem; }
+        }
+        #ai-voice-avatar.ai-voice-listening {
+            box-shadow: 0 0 0 0 rgba(32,107,196,0.5);
+            animation: ai-voice-listen-pulse 1.5s infinite;
+        }
+        @keyframes ai-voice-listen-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(32,107,196,0.5); }
+            70%  { box-shadow: 0 0 0 16px rgba(32,107,196,0); }
+            100% { box-shadow: 0 0 0 0 rgba(32,107,196,0); }
+        }
+        #ai-voice-avatar.ai-voice-speaking { animation: ai-voice-speak-bounce 0.6s infinite; }
+        @keyframes ai-voice-speak-bounce {
+            0%, 100% { transform: scale(1); }
+            50%      { transform: scale(1.06); }
+        }
     </style>
 </head>
 <body class="d-flex align-items-center justify-content-center">
@@ -120,23 +174,45 @@
     <main class="d-flex flex-column flex-grow-1 min-vw-0 position-relative bg-light">
         
         <header class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-white flex-shrink-0" style="height: 64px; z-index: 10;">
-            <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-icon btn-ghost-secondary d-md-none" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
+            <div class="d-flex align-items-center gap-3" style="min-width: 0;">
+                <button class="btn btn-icon btn-ghost-secondary d-md-none flex-shrink-0" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
                     <i class="ti ti-menu-2"></i>
                 </button>
                 <div class="avatar bg-blue-lt rounded-circle fs-3 fw-bold flex-shrink-0" id="bot-avatar">🤖</div>
-                <div>
-                    <h1 class="m-0 fs-4 fw-bold text-body" id="bot-name">AI Assistant</h1>
+                <div style="min-width: 0;">
+                    <h1 class="m-0 fs-4 fw-bold text-body text-truncate" id="bot-name">AI Assistant</h1>
                     <div class="fs-6 text-success fw-medium d-flex align-items-center gap-1">
                         <span class="badge bg-success badge-blink" style="width:6px;height:6px;padding:0;"></span>
                         Online
                     </div>
                 </div>
             </div>
-            <div class="badge bg-light text-secondary fs-5 fw-semibold d-none d-sm-block py-2 px-3 border" id="uname-header">
-                👤 Tên
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <button class="btn btn-icon btn-ghost-secondary" id="btn-call" onclick="startAiVoiceCall()" title="Gọi AI hỗ trợ">
+                    <i class="ti ti-phone"></i>
+                </button>
+                <div class="badge bg-light text-secondary fs-5 fw-semibold d-none d-sm-block py-2 px-3 border" id="uname-header">
+                    👤 Tên
+                </div>
             </div>
         </header>
+
+        <div class="alert alert-info d-none m-3 mb-0 py-2 d-flex align-items-center justify-content-between gap-2" id="call-bar">
+            <div class="d-flex align-items-center gap-2 text-truncate">
+                <i class="ti ti-phone-outgoing fs-3 flex-shrink-0" id="call-bar-icon"></i>
+                <span class="text-truncate" id="call-bar-text">—</span>
+                <span class="text-secondary flex-shrink-0 d-none" id="call-timer">00:00</span>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <button class="btn btn-sm btn-icon btn-ghost-secondary d-none" id="call-btn-mute" onclick="toggleCallMute()" title="Tắt mic">
+                    <i class="ti ti-microphone"></i>
+                </button>
+                <button class="btn btn-sm btn-icon btn-danger" id="call-btn-end" onclick="endCall()" title="Kết thúc/từ chối">
+                    <i class="ti ti-phone-x"></i>
+                </button>
+            </div>
+        </div>
+        <audio id="call-remote-audio" autoplay></audio>
 
         <div class="flex-grow-1 overflow-auto p-3 p-md-4 d-flex flex-column gap-3" id="chat-history"></div>
 
@@ -215,6 +291,43 @@
     </div>
 </div>
 
+<div id="incoming-call-overlay" class="hidden">
+    <div class="card shadow-lg text-center" style="width: 100%; max-width: 340px; border-radius: 20px; margin: 0 16px;">
+        <div class="card-body p-4">
+            <div class="avatar avatar-xl rounded-circle bg-blue-lt mx-auto mb-3" id="incoming-call-avatar">🤖</div>
+            <h3 class="fs-2 fw-bold mb-1" id="incoming-call-name">Hỗ trợ viên</h3>
+            <p class="text-secondary mb-4">Đang gọi đến...</p>
+            <div class="d-flex justify-content-center gap-4">
+                <button class="btn btn-danger btn-icon rounded-circle" style="width:60px;height:60px;" onclick="declineIncomingCall()" title="Từ chối">
+                    <i class="ti ti-phone-x fs-1"></i>
+                </button>
+                <button class="btn btn-success btn-icon rounded-circle call-ring-pulse" style="width:60px;height:60px;" onclick="acceptIncomingCall()" title="Nghe">
+                    <i class="ti ti-phone fs-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ai-voice-call-overlay" class="hidden">
+    <div class="card shadow-lg text-center ai-voice-card">
+        <div class="card-body p-4">
+            <div class="rounded-circle bg-blue-lt mx-auto mb-3 d-flex align-items-center justify-content-center ai-voice-avatar-icon" id="ai-voice-avatar" style="transition: box-shadow 0.2s;">🤖</div>
+            <h3 class="fw-bold mb-2 ai-voice-title">AI hỗ trợ viên</h3>
+            <p class="text-secondary mb-1 ai-voice-status-text" id="ai-voice-status">Đang kết nối...</p>
+            <p class="text-secondary mb-4 fw-medium d-none ai-voice-timer-text" id="ai-voice-timer">00:00</p>
+            <div class="d-flex justify-content-center gap-4">
+                <button class="btn btn-icon rounded-circle btn-outline-secondary ai-voice-btn-secondary" id="ai-voice-mute-btn" onclick="toggleAiVoiceMute()" title="Tắt mic">
+                    <i class="ti ti-microphone"></i>
+                </button>
+                <button class="btn btn-danger btn-icon rounded-circle ai-voice-btn-end" onclick="endCall()" title="Kết thúc">
+                    <i class="ti ti-phone-x"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
 
 <script>
@@ -222,6 +335,7 @@
    1. CORE LOGIC & INITIALIZATION
 ========================================= */
 const pb = new PocketBase("https://nhannguyen123-chat.hf.space");
+const WORKER_URL = "https://knowledge-worker.toidayhoc.workers.dev";
 
 const rawTenant = new URLSearchParams(location.search).get("bot");
 const tenant = /^[a-z0-9_-]{1,40}$/i.test(rawTenant || "") ? rawTenant : "bds";
@@ -315,16 +429,20 @@ function appendMsg(r, scroll=true){
     }
 
     const bubbleClass = isUser ? 'chat-bubble-user py-2 px-3 fs-4' : 'chat-bubble-ai py-2 px-3 fs-4';
+    const voiceClass = r.via_voice ? ' via-voice-bubble' : '';
     const alignClass = isUser ? 'align-items-end' : 'align-items-start';
     const cleanHTML = DOMPurify.sanitize(marked.parse(r.text));
+    const voiceBadge = r.via_voice
+        ? `<span class="badge bg-purple-lt ms-1" title="Tin nhắn từ cuộc gọi AI"><i class="ti ti-microphone me-1"></i>Giọng nói</span>`
+        : '';
 
     msgDiv.innerHTML = `
         ${isUser ? '' : avatarHtml}
         <div class="d-flex flex-column ${alignClass}" style="max-width: 85%;">
-            <div class="${bubbleClass}">
+            <div class="${bubbleClass}${voiceClass}">
                 ${cleanHTML}
             </div>
-            <span class="text-secondary mt-1 px-1" style="font-size: 11px;">${time}</span>
+            <span class="text-secondary mt-1 px-1" style="font-size: 11px;">${time}${voiceBadge}</span>
         </div>
         ${isUser ? '' : ''}
     `;
@@ -540,7 +658,579 @@ pb.collection("messages").subscribe("*", e => {
     }
 });
 
-window.addEventListener("beforeunload", () => { pb.collection("messages").unsubscribe(); });
+/* =========================================
+   GỌI THOẠI (Cloudflare Realtime — SFU, xem worker /call/rtc/*)
+   Khách hàng ở trang này ghi thẳng vào PocketBase như mọi thao tác khác trong file này
+   (gửi tin nhắn, upload file...) — rule của collection "calls" mở giống "messages".
+   App Secret Cloudflare không chạy trong trình duyệt khách — chỉ worker giữ (xem /call/rtc/*).
+========================================= */
+let activeCallRecord = null;
+let incomingCall = null;
+let callPc = null;
+let callLocalStream = null;
+let callLocalSessionId = null;
+let callLocalTrackName = null;
+let callTimerHandle = null;
+let callStartedAt = null;
+let callMuted = false;
+
+// Nói chuyện bằng giọng nói với AI (STT -> AnythingLLM -> TTS qua worker /ai-voice/turn) —
+// KHÔNG phải cuộc gọi Cloudflare Realtime, chỉ là vòng ghi âm -> gửi lên -> phát lại audio trả lời.
+// Khi AI cần chuyển cho người thật (needsHuman), mới chuyển hẳn sang cuộc gọi thật (startCall()
+// bên dưới, dùng chung hạ tầng calls/Cloudflare Realtime đã có).
+let aiVoiceState = "idle"; // idle | connecting | listening | recording | thinking | speaking
+let aiVoiceStream = null;
+let aiVoiceRecorder = null;
+let aiVoiceChunks = [];
+let aiVoiceMuted = false;
+let aiVoiceRecordStartedAt = null;
+let aiVoiceCallStartedAt = null;
+let aiVoiceTimerHandle = null;
+
+let vadAudioCtx = null;
+let vadAnalyser = null;
+let vadSourceNode = null;
+let vadRafHandle = null;
+let vadSpeechStartedAt = null;
+let vadSilenceStart = null;
+
+let ringtoneCtx = null;
+let ringtoneHandle = null;
+function playRingtone() {
+    stopRingtone();
+    try {
+        ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const beep = () => {
+            if (!ringtoneCtx) return;
+            const osc = ringtoneCtx.createOscillator();
+            const gain = ringtoneCtx.createGain();
+            osc.frequency.value = 880;
+            osc.connect(gain);
+            gain.connect(ringtoneCtx.destination);
+            gain.gain.setValueAtTime(0.18, ringtoneCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ringtoneCtx.currentTime + 0.4);
+            osc.start();
+            osc.stop(ringtoneCtx.currentTime + 0.4);
+        };
+        beep();
+        ringtoneHandle = setInterval(beep, 1000);
+    } catch (err) { console.warn("Không phát được chuông:", err); }
+}
+function stopRingtone() {
+    if (ringtoneHandle) clearInterval(ringtoneHandle);
+    ringtoneHandle = null;
+    if (ringtoneCtx) { ringtoneCtx.close().catch(() => {}); ringtoneCtx = null; }
+}
+
+// Nhạc nền nhẹ trong lúc AI đang xử lý (giống nhạc chờ khi gọi điện thật) — tự tổng hợp bằng
+// Web Audio, không cần file nhạc rời, âm lượng rất nhỏ để không át giọng khi AI bắt đầu trả lời.
+let thinkingMusicCtx = null;
+let thinkingMusicHandle = null;
+function startThinkingMusic() {
+    stopThinkingMusic();
+    try {
+        thinkingMusicCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = [523.25, 659.25, 783.99, 659.25]; // C5 E5 G5 E5 — giai điệu ngắn lặp lại
+        let i = 0;
+        const playNote = () => {
+            if (!thinkingMusicCtx) return;
+            const osc = thinkingMusicCtx.createOscillator();
+            const gain = thinkingMusicCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = notes[i % notes.length];
+            osc.connect(gain);
+            gain.connect(thinkingMusicCtx.destination);
+            const now = thinkingMusicCtx.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.05, now + 0.08);
+            gain.gain.linearRampToValueAtTime(0, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+            i++;
+        };
+        playNote();
+        thinkingMusicHandle = setInterval(playNote, 550);
+    } catch (err) { console.warn("Không phát được nhạc nền:", err); }
+}
+function stopThinkingMusic() {
+    if (thinkingMusicHandle) clearInterval(thinkingMusicHandle);
+    thinkingMusicHandle = null;
+    if (thinkingMusicCtx) { thinkingMusicCtx.close().catch(() => {}); thinkingMusicCtx = null; }
+}
+
+function callRtc(path, body) {
+    return fetch(WORKER_URL + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {})
+    }).then(r => r.json());
+}
+
+async function createLocalCallLeg() {
+    const created = await callRtc("/call/rtc/session-new");
+    if (!created?.sessionId) throw new Error(created?.error || "Không tạo được phiên gọi");
+    callLocalSessionId = created.sessionId;
+
+    callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    callPc = new RTCPeerConnection();
+    callPc.ontrack = (e) => { document.getElementById("call-remote-audio").srcObject = e.streams[0]; };
+
+    const track = callLocalStream.getAudioTracks()[0];
+    const transceiver = callPc.addTransceiver(track, { direction: "sendonly" });
+    callLocalTrackName = "mic-" + Math.random().toString(36).slice(2, 10);
+
+    const offer = await callPc.createOffer();
+    await callPc.setLocalDescription(offer);
+
+    const pushed = await callRtc("/call/rtc/tracks-new", {
+        sessionId: callLocalSessionId,
+        payload: {
+            sessionDescription: { type: "offer", sdp: offer.sdp },
+            tracks: [{ location: "local", mid: transceiver.mid, trackName: callLocalTrackName }]
+        }
+    });
+    if (pushed?.sessionDescription) {
+        await callPc.setRemoteDescription(new RTCSessionDescription(pushed.sessionDescription));
+    }
+    return { sessionId: callLocalSessionId, trackName: callLocalTrackName };
+}
+
+async function pullRemoteCallLeg(remoteSessionId, remoteTrackName) {
+    const pulled = await callRtc("/call/rtc/tracks-new", {
+        sessionId: callLocalSessionId,
+        payload: { tracks: [{ location: "remote", sessionId: remoteSessionId, trackName: remoteTrackName }] }
+    });
+    if (pulled?.requiresImmediateRenegotiation) {
+        const offer = await callPc.createOffer();
+        await callPc.setLocalDescription(offer);
+        const reneg = await callRtc("/call/rtc/renegotiate", {
+            sessionId: callLocalSessionId,
+            payload: { sessionDescription: { type: "offer", sdp: offer.sdp } }
+        });
+        if (reneg?.sessionDescription) {
+            await callPc.setRemoteDescription(new RTCSessionDescription(reneg.sessionDescription));
+        }
+    }
+}
+
+function setCallBar({ visible, icon, text, showMute, timer }) {
+    document.getElementById("call-bar").classList.toggle("d-none", !visible);
+    if (icon) document.getElementById("call-bar-icon").className = `ti ${icon} fs-3 flex-shrink-0`;
+    if (text) document.getElementById("call-bar-text").textContent = text;
+    document.getElementById("call-btn-mute").classList.toggle("d-none", !showMute);
+    document.getElementById("call-timer").classList.toggle("d-none", !timer);
+}
+
+function showIncomingCallPopup(record) {
+    incomingCall = record;
+    document.getElementById("incoming-call-overlay").classList.remove("hidden");
+    playRingtone();
+}
+function hideIncomingCallPopup() {
+    incomingCall = null;
+    document.getElementById("incoming-call-overlay").classList.add("hidden");
+    stopRingtone();
+}
+
+function startCallTimer() {
+    callStartedAt = Date.now();
+    const timerEl = document.getElementById("call-timer");
+    timerEl.classList.remove("d-none");
+    callTimerHandle = setInterval(() => {
+        const secs = Math.floor((Date.now() - callStartedAt) / 1000);
+        timerEl.textContent = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+    }, 1000);
+}
+function stopCallTimer() {
+    if (callTimerHandle) clearInterval(callTimerHandle);
+    callTimerHandle = null;
+    document.getElementById("call-timer").classList.add("d-none");
+}
+
+async function startCall() {
+    if (activeCallRecord && activeCallRecord.status !== "ended") return;
+    setCallBar({ visible: true, icon: "ti-phone-outgoing", text: "Đang gọi hỗ trợ viên...", showMute: false, timer: false });
+    try {
+        const leg = await createLocalCallLeg();
+        activeCallRecord = await pb.collection("calls").create({
+            tenant, session: sessionId, status: "ringing", initiator: "customer",
+            customer_cf_session_id: leg.sessionId, customer_track_name: leg.trackName
+        });
+    } catch (err) {
+        console.error("Lỗi bắt đầu cuộc gọi:", err);
+        setCallBar({ visible: true, icon: "ti-phone-x", text: "Không thể gọi — thử lại sau", showMute: false, timer: false });
+        setTimeout(() => setCallBar({ visible: false }), 2500);
+        await teardownCallLocal();
+    }
+}
+
+async function acceptIncomingCall() {
+    const record = incomingCall;
+    if (!record) return;
+    hideIncomingCallPopup();
+    activeCallRecord = record;
+    setCallBar({ visible: true, icon: "ti-phone", text: "Đang kết nối...", showMute: false, timer: false });
+    try {
+        const leg = await createLocalCallLeg();
+        await pullRemoteCallLeg(record.admin_cf_session_id, record.admin_track_name);
+        activeCallRecord = await pb.collection("calls").update(record.id, {
+            customer_cf_session_id: leg.sessionId, customer_track_name: leg.trackName, status: "active"
+        });
+        setCallBar({ visible: true, icon: "ti-phone", text: "Đang gọi với hỗ trợ viên", showMute: true, timer: true });
+        startCallTimer();
+    } catch (err) {
+        console.error("Lỗi trả lời cuộc gọi:", err);
+        await endCall("error");
+    }
+}
+
+async function declineIncomingCall() {
+    const record = incomingCall;
+    hideIncomingCallPopup();
+    if (!record) return;
+    try {
+        await pb.collection("calls").update(record.id, { status: "ended", ended_reason: "declined" });
+    } catch (err) { console.error("Lỗi từ chối cuộc gọi:", err); }
+}
+
+// Nút "Kết thúc" trên call-bar dùng chung cho cả 2 chế độ (nói chuyện với AI / cuộc gọi thật) —
+// tách theo aiVoiceState để biết đang dọn dẹp cái nào.
+function endCall(reason) {
+    if (aiVoiceState !== "idle") {
+        endAiVoiceLocal();
+        return;
+    }
+    return endRealCall(reason);
+}
+
+async function endRealCall(reason) {
+    stopCallTimer();
+    setCallBar({ visible: false });
+    if (activeCallRecord && activeCallRecord.status !== "ended") {
+        const isDecline = activeCallRecord.status === "ringing" && activeCallRecord.initiator === "admin";
+        try {
+            await pb.collection("calls").update(activeCallRecord.id, {
+                status: "ended", ended_reason: reason || (isDecline ? "declined" : "hangup")
+            });
+        } catch (err) { console.error("Lỗi kết thúc cuộc gọi:", err); }
+    }
+    await teardownCallLocal();
+}
+
+/* =========================================
+   NÓI CHUYỆN BẰNG GIỌNG NÓI VỚI AI (tự động lắng nghe bằng VAD, xem worker /ai-voice/turn)
+   Không cần bấm nút mỗi lượt — cứ nói tự nhiên, im lặng ~1s là tự gửi, giống gọi điện thật.
+========================================= */
+const VAD_VOLUME_THRESHOLD = 0.02;
+const VAD_SILENCE_MS = 1000;
+const VAD_MIN_SPEECH_MS = 350;
+
+function setAiVoiceUI({ status, timer, listening, speaking }) {
+    if (status !== undefined) document.getElementById("ai-voice-status").textContent = status;
+    if (timer !== undefined) document.getElementById("ai-voice-timer").classList.toggle("d-none", !timer);
+    const avatar = document.getElementById("ai-voice-avatar");
+    avatar.classList.toggle("ai-voice-listening", !!listening);
+    avatar.classList.toggle("ai-voice-speaking", !!speaking);
+}
+
+function showAiVoiceOverlay() { document.getElementById("ai-voice-call-overlay").classList.remove("hidden"); }
+function hideAiVoiceOverlay() { document.getElementById("ai-voice-call-overlay").classList.add("hidden"); }
+
+function startAiVoiceTimer() {
+    aiVoiceCallStartedAt = Date.now();
+    const el = document.getElementById("ai-voice-timer");
+    el.classList.remove("d-none");
+    aiVoiceTimerHandle = setInterval(() => {
+        const secs = Math.floor((Date.now() - aiVoiceCallStartedAt) / 1000);
+        el.textContent = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+    }, 1000);
+}
+function stopAiVoiceTimer() {
+    if (aiVoiceTimerHandle) clearInterval(aiVoiceTimerHandle);
+    aiVoiceTimerHandle = null;
+}
+
+// "Unlock" phát audio trên trình duyệt di động (Chrome/Safari chặn autoplay nếu chưa có một
+// lượt play() nào chạy TRONG lúc còn user gesture) — phải gọi ngay dòng đầu tiên của hàm được
+// click trực tiếp, trước mọi await, nếu không audio trả lời của AI sẽ bị câm trên điện thoại.
+function unlockAudioPlayback() {
+    const audioEl = document.getElementById("call-remote-audio");
+    audioEl.muted = false;
+    audioEl.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+    audioEl.play().catch(() => {});
+}
+
+// Câu chào mở đầu — phát ngay khi vừa kết nối xong, để khách nghe thấy có tiếng ngay thay vì
+// im lặng tưởng bị lỗi. Không chặn cuộc gọi nếu lỗi (vẫn tiếp tục vào trạng thái nghe).
+async function playAiVoiceGreeting() {
+    try {
+        const res = await fetch(WORKER_URL + "/ai-voice/greeting", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenant, lang: navigator.language || "vi" })
+        });
+        const data = await res.json();
+        if (!data.audioBase64) return;
+        const audioEl = document.getElementById("call-remote-audio");
+        await new Promise((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            // Nếu khách bấm "Kết thúc" giữa lúc đang chào, endAiVoiceLocal() sẽ pause() audio
+            // chứ không kích hoạt "ended" — có timeout dự phòng để Promise không treo vĩnh viễn.
+            audioEl.onended = finish;
+            audioEl.onerror = finish;
+            audioEl.src = "data:audio/mpeg;base64," + data.audioBase64;
+            audioEl.play().catch(finish);
+            setTimeout(finish, 15000);
+        });
+    } catch (err) {
+        console.warn("Không phát được lời chào, tiếp tục cuộc gọi:", err);
+    }
+}
+
+async function startAiVoiceCall() {
+    if (aiVoiceState !== "idle") return;
+    if (activeCallRecord && activeCallRecord.status !== "ended") return; // đang trong cuộc gọi thật rồi
+    unlockAudioPlayback();
+    aiVoiceState = "connecting";
+    showAiVoiceOverlay();
+    setAiVoiceUI({ status: "Đang kết nối với AI hỗ trợ viên...", timer: false });
+    try {
+        aiVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        aiVoiceMuted = false;
+        document.getElementById("ai-voice-mute-btn").innerHTML = '<i class="ti ti-microphone"></i>';
+        startAiVoiceTimer();
+        setAiVoiceUI({ status: "Đang kết nối...", timer: true });
+
+        await playAiVoiceGreeting();
+
+        if (aiVoiceState === "idle") return; // khách đã bấm kết thúc trong lúc nghe lời chào
+        aiVoiceState = "listening";
+        setAiVoiceUI({ status: "Đang nghe, bạn cứ nói tự nhiên...", timer: true, listening: true });
+        startVadLoop();
+    } catch (err) {
+        console.error("Không xin được quyền micro:", err);
+        aiVoiceState = "idle";
+        setAiVoiceUI({ status: "Không truy cập được micro" });
+        setTimeout(hideAiVoiceOverlay, 2000);
+    }
+}
+
+// Voice Activity Detection — đo âm lượng liên tục qua AnalyserNode để tự biết khi nào khách
+// bắt đầu nói (tự bật ghi âm) và khi nào khách dừng nói (im lặng đủ lâu -> tự gửi lên AI).
+function startVadLoop() {
+    vadAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    vadSourceNode = vadAudioCtx.createMediaStreamSource(aiVoiceStream);
+    vadAnalyser = vadAudioCtx.createAnalyser();
+    vadAnalyser.fftSize = 2048;
+    vadSourceNode.connect(vadAnalyser);
+    const data = new Float32Array(vadAnalyser.fftSize);
+    vadSpeechStartedAt = null;
+    vadSilenceStart = null;
+
+    // Dùng setInterval (không phải requestAnimationFrame) — rAF bị trình duyệt tạm dừng khi tab/
+    // pane chạy nền (không hiển thị), sẽ làm "đứng hình" cuộc gọi nếu khách chuyển sang tab khác
+    // trong lúc nói chuyện với AI. setInterval vẫn chạy (dù bị giảm tần suất) ở tab nền.
+    function loop() {
+        if (aiVoiceState !== "listening" && aiVoiceState !== "recording") { clearInterval(vadRafHandle); vadRafHandle = null; return; }
+        vadAnalyser.getFloatTimeDomainData(data);
+        let sumSquares = 0;
+        for (let i = 0; i < data.length; i++) sumSquares += data[i] * data[i];
+        const rms = Math.sqrt(sumSquares / data.length);
+
+        if (!aiVoiceMuted && rms > VAD_VOLUME_THRESHOLD) {
+            if (!vadSpeechStartedAt) vadSpeechStartedAt = Date.now();
+            vadSilenceStart = null;
+            if (aiVoiceState === "listening" && Date.now() - vadSpeechStartedAt > 80) {
+                startAiRecording();
+            }
+        } else if (aiVoiceState === "recording") {
+            if (!vadSilenceStart) vadSilenceStart = Date.now();
+            if (Date.now() - vadSilenceStart > VAD_SILENCE_MS && vadSpeechStartedAt && (Date.now() - vadSpeechStartedAt) > VAD_MIN_SPEECH_MS) {
+                vadSpeechStartedAt = null;
+                stopAiRecording();
+            }
+        } else {
+            vadSpeechStartedAt = null;
+        }
+    }
+    vadRafHandle = setInterval(loop, 100);
+}
+
+function stopVadLoop() {
+    if (vadRafHandle) clearInterval(vadRafHandle);
+    vadRafHandle = null;
+    if (vadSourceNode) { try { vadSourceNode.disconnect(); } catch (e) {} }
+    if (vadAudioCtx) vadAudioCtx.close().catch(() => {});
+    vadAudioCtx = null; vadSourceNode = null; vadAnalyser = null;
+    vadSpeechStartedAt = null; vadSilenceStart = null;
+}
+
+function startAiRecording() {
+    if (!aiVoiceStream || aiVoiceState !== "listening") return;
+    aiVoiceChunks = [];
+    try {
+        aiVoiceRecorder = new MediaRecorder(aiVoiceStream);
+    } catch (err) {
+        console.error("Trình duyệt không hỗ trợ ghi âm:", err);
+        return;
+    }
+    aiVoiceRecorder.ondataavailable = (e) => { if (e.data.size > 0) aiVoiceChunks.push(e.data); };
+    aiVoiceRecorder.onstop = sendAiVoiceTurn;
+    aiVoiceRecordStartedAt = Date.now();
+    aiVoiceRecorder.start();
+    aiVoiceState = "recording";
+    setAiVoiceUI({ status: "Đang nghe bạn nói...", timer: true, listening: true });
+}
+
+function stopAiRecording() {
+    if (aiVoiceRecorder && aiVoiceRecorder.state !== "inactive") aiVoiceRecorder.stop();
+}
+
+async function sendAiVoiceTurn() {
+    const durationMs = aiVoiceRecordStartedAt ? (Date.now() - aiVoiceRecordStartedAt) : 0;
+    aiVoiceRecordStartedAt = null;
+    aiVoiceState = "thinking";
+    setAiVoiceUI({ status: "AI đang xử lý...", timer: true });
+    startThinkingMusic();
+
+    try {
+        const blob = new Blob(aiVoiceChunks, { type: "audio/webm" });
+        const form = new FormData();
+        form.append("audio", blob, "voice.webm");
+        form.append("tenant", tenant);
+        form.append("session", sessionId);
+        form.append("username", username);
+        form.append("duration_ms", String(durationMs));
+
+        const res = await fetch(WORKER_URL + "/ai-voice/turn", { method: "POST", body: form });
+        const data = await res.json();
+        stopThinkingMusic();
+        if (data.error) {
+            if (data.limitReached) {
+                setAiVoiceUI({ status: data.error, timer: true });
+                setTimeout(() => endAiVoiceLocal(), 3500);
+                return;
+            }
+            throw new Error(data.error);
+        }
+
+        aiVoiceState = "speaking";
+        setAiVoiceUI({ status: "AI đang trả lời...", timer: true, speaking: true });
+
+        const audioEl = document.getElementById("call-remote-audio");
+        if (data.audioBase64) {
+            audioEl.srcObject = null;
+            audioEl.src = "data:audio/mpeg;base64," + data.audioBase64;
+            audioEl.onended = () => afterAiReply(data.needsHuman);
+            await audioEl.play().catch(() => afterAiReply(data.needsHuman));
+        } else {
+            afterAiReply(data.needsHuman);
+        }
+    } catch (err) {
+        stopThinkingMusic();
+        console.error("Lỗi khi gửi giọng nói tới AI:", err);
+        setAiVoiceUI({ status: "Lỗi kết nối AI, đang thử lại...", timer: true });
+        setTimeout(() => { if (aiVoiceState !== "idle") backToListening(); }, 1500);
+    }
+}
+
+function afterAiReply(needsHuman) {
+    if (aiVoiceState === "idle") return; // khách đã bấm kết thúc trong lúc AI đang trả lời
+    if (needsHuman) escalateToHuman();
+    else backToListening();
+}
+
+function backToListening() {
+    aiVoiceState = "listening";
+    setAiVoiceUI({ status: "Đang nghe, bạn cứ nói tự nhiên...", timer: true, listening: true });
+    if (!vadRafHandle) startVadLoop();
+}
+
+async function escalateToHuman() {
+    setAiVoiceUI({ status: "Để mình chuyển bạn cho nhân viên hỗ trợ nhé...", timer: true });
+    endAiVoiceLocal();
+    await startCall();
+}
+
+function toggleAiVoiceMute() {
+    aiVoiceMuted = !aiVoiceMuted;
+    document.getElementById("ai-voice-mute-btn").innerHTML = aiVoiceMuted
+        ? '<i class="ti ti-microphone-off"></i>'
+        : '<i class="ti ti-microphone"></i>';
+    if (aiVoiceMuted && aiVoiceState === "recording") stopAiRecording();
+}
+
+function endAiVoiceLocal() {
+    stopVadLoop();
+    stopAiVoiceTimer();
+    stopThinkingMusic();
+    if (aiVoiceRecorder && aiVoiceRecorder.state !== "inactive") {
+        aiVoiceRecorder.onstop = null; // đang kết thúc thủ công, không cần gửi nốt đoạn dở
+        aiVoiceRecorder.stop();
+    }
+    if (aiVoiceStream) aiVoiceStream.getTracks().forEach((t) => t.stop());
+    aiVoiceStream = null;
+    aiVoiceRecorder = null;
+    aiVoiceState = "idle";
+    aiVoiceMuted = false;
+    const audioEl = document.getElementById("call-remote-audio");
+    if (audioEl) { audioEl.pause(); audioEl.removeAttribute("src"); }
+    hideAiVoiceOverlay();
+}
+
+async function teardownCallLocal() {
+    if (callLocalStream) callLocalStream.getTracks().forEach(t => t.stop());
+    if (callPc) callPc.close();
+    callPc = null;
+    callLocalStream = null;
+    if (callLocalSessionId) callRtc("/call/rtc/tracks-close", { sessionId: callLocalSessionId, payload: {} }).catch(() => {});
+    callLocalSessionId = null;
+    callLocalTrackName = null;
+    activeCallRecord = null;
+    callMuted = false;
+    const audioEl = document.getElementById("call-remote-audio");
+    if (audioEl) audioEl.srcObject = null;
+}
+
+function toggleCallMute() {
+    if (!callLocalStream) return;
+    callMuted = !callMuted;
+    callLocalStream.getAudioTracks().forEach(t => t.enabled = !callMuted);
+    document.getElementById("call-btn-mute").innerHTML = callMuted
+        ? '<i class="ti ti-microphone-off"></i>'
+        : '<i class="ti ti-microphone"></i>';
+}
+
+function handleCallRecord(record) {
+    if (!record || record.tenant !== tenant || record.session !== sessionId) return;
+
+    if (record.status === "ringing" && record.initiator === "admin") {
+        showIncomingCallPopup(record);
+        return;
+    }
+    if (incomingCall && incomingCall.id === record.id && record.status !== "ringing") {
+        hideIncomingCallPopup();
+    }
+    if (record.status === "active") {
+        activeCallRecord = record;
+        if (!callTimerHandle) startCallTimer();
+        setCallBar({ visible: true, icon: "ti-phone", text: "Đang gọi với hỗ trợ viên", showMute: true, timer: true });
+        return;
+    }
+    if (["ended", "declined", "missed"].includes(record.status) && activeCallRecord && activeCallRecord.id === record.id) {
+        stopCallTimer();
+        setCallBar({ visible: false });
+        teardownCallLocal();
+    }
+}
+
+pb.collection("calls").subscribe("*", e => handleCallRecord(e.record));
+
+window.addEventListener("beforeunload", () => {
+    pb.collection("messages").unsubscribe();
+    pb.collection("calls").unsubscribe();
+});
 
 (async () => {
     await loadConfig();

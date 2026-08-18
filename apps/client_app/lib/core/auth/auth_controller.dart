@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'account_auth_service.dart';
 import 'credential_store.dart';
 import 'google_auth_service.dart';
 import 'onboarding_service.dart';
@@ -45,12 +46,14 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._store, this._googleAuth) : super(const AuthState()) {
+  AuthController(this._store, this._googleAuth, this._accountAuth)
+    : super(const AuthState()) {
     initialize();
   }
 
   final CredentialStore _store;
   final GoogleAuthService _googleAuth;
+  final AccountAuthService _accountAuth;
 
   Future<void> initialize() async {
     final apiKey = await _store.readApiKey();
@@ -98,6 +101,27 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> signInWithEmailPassword(String email, String password) async {
+    state = state.copyWith(isSubmitting: true, clearError: true);
+    try {
+      final result = await _accountAuth.signInWithPassword(email, password);
+      await _store.saveApiKey(result.apiKey);
+      state = state.copyWith(
+        apiKey: result.apiKey,
+        tenant: result.tenant,
+        displayName: result.displayName,
+        isSubmitting: false,
+      );
+    } on AccountAuthException catch (error) {
+      state = state.copyWith(isSubmitting: false, errorMessage: error.message);
+    } catch (_) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: 'Đăng nhập không thành công. Vui lòng thử lại.',
+      );
+    }
+  }
+
   Future<void> useProvisionedBot(ProvisionedBot bot) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
@@ -133,6 +157,7 @@ final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
     return AuthController(
       ref.watch(credentialStoreProvider),
       ref.watch(googleAuthServiceProvider),
+      ref.watch(accountAuthServiceProvider),
     );
   },
 );

@@ -82,6 +82,68 @@
             }
             #ai-btn-close:hover { background: #eceef3; }
 
+            #ai-header-actions { display: flex; align-items: center; }
+            #ai-btn-call {
+                background: transparent; border: none; cursor: pointer;
+                width: 36px; height: 36px; border-radius: 50%;
+                display: flex; align-items: center; justify-content: center;
+                color: #5c5f61; transition: background 0.15s;
+            }
+            #ai-btn-call:hover { background: #eceef3; }
+            #ai-btn-call.ai-call-ringing { color: #10b981; animation: ai-bounce 0.9s infinite; }
+
+            #ai-call-bar {
+                display: none; align-items: center; justify-content: space-between; gap: 8px;
+                padding: 8px 16px; background: #eef4ff; border-bottom: 1px solid #dbe6ff;
+                font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: #0050cb;
+                flex-shrink: 0;
+            }
+            #ai-call-bar.ai-call-visible { display: flex; }
+            #ai-call-bar .ai-call-left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+            #ai-call-bar .ai-call-left span.material-symbols-outlined { font-size: 18px; }
+            #ai-call-bar .ai-call-left span.ai-call-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #ai-call-timer { color: #5c5f61; font-weight: 500; flex-shrink: 0; }
+            #ai-call-actions { display: flex; gap: 6px; flex-shrink: 0; }
+            #ai-call-actions button {
+                border: none; cursor: pointer; border-radius: 9999px; padding: 5px 10px;
+                font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;
+                font-family: 'Inter', sans-serif;
+            }
+            #ai-call-mute { background: #dae1ff; color: #001849; }
+            #ai-call-end { background: #ba1a1a; color: #fff; }
+
+            #ai-incoming-call-overlay {
+                position: absolute; inset: 0; z-index: 20;
+                background: rgba(11,28,48,0.85); backdrop-filter: blur(4px);
+                display: none; align-items: center; justify-content: center;
+                flex-direction: column; text-align: center; color: #fff;
+                font-family: 'Inter', sans-serif;
+            }
+            #ai-incoming-call-overlay.ai-call-visible { display: flex; }
+            #ai-incoming-call-overlay .ai-incoming-avatar {
+                width: 88px; height: 88px; border-radius: 50%;
+                background: #dae1ff; color: #001849;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 34px; margin-bottom: 16px;
+            }
+            #ai-incoming-call-overlay h3 { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
+            #ai-incoming-call-overlay p { font-size: 14px; opacity: 0.85; margin-bottom: 28px; }
+            #ai-incoming-call-actions { display: flex; gap: 32px; }
+            #ai-incoming-call-actions button {
+                width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
+            }
+            #ai-incoming-decline { background: #ba1a1a; color: #fff; }
+            #ai-incoming-accept {
+                background: #10b981; color: #fff;
+                animation: ai-call-pulse 1.4s infinite;
+            }
+            @keyframes ai-call-pulse {
+                0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+                70%  { box-shadow: 0 0 0 16px rgba(16,185,129,0); }
+                100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+            }
+
             #ai-chat-body {
                 flex: 1; overflow-y: auto;
                 padding: 16px;
@@ -209,10 +271,42 @@
                         <p>Hỗ trợ viên</p>
                     </div>
                 </div>
-                <button id="ai-btn-close" title="Đóng">
-                    <span class="material-symbols-outlined" style="font-size:20px;">close</span>
-                </button>
+                <div id="ai-header-actions">
+                    <button id="ai-btn-call" title="Gọi thoại cho hỗ trợ viên">
+                        <span class="material-symbols-outlined" style="font-size:20px;">call</span>
+                    </button>
+                    <button id="ai-btn-close" title="Đóng">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
             </div>
+            <div id="ai-call-bar">
+                <div class="ai-call-left">
+                    <span class="material-symbols-outlined" id="ai-call-bar-icon">call</span>
+                    <span class="ai-call-text" id="ai-call-bar-text">—</span>
+                    <span id="ai-call-timer" style="display:none;">00:00</span>
+                </div>
+                <div id="ai-call-actions">
+                    <button id="ai-call-mute" style="display:none;">Tắt mic</button>
+                    <button id="ai-call-end">Kết thúc</button>
+                </div>
+            </div>
+            <div id="ai-incoming-call-overlay">
+                <div class="ai-incoming-avatar">
+                    <span class="material-symbols-outlined" style="font-size:36px;">support_agent</span>
+                </div>
+                <h3>Hỗ trợ viên</h3>
+                <p>Đang gọi đến...</p>
+                <div id="ai-incoming-call-actions">
+                    <button id="ai-incoming-decline" title="Từ chối">
+                        <span class="material-symbols-outlined" style="font-size:26px;">call_end</span>
+                    </button>
+                    <button id="ai-incoming-accept" title="Nghe">
+                        <span class="material-symbols-outlined" style="font-size:26px;">call</span>
+                    </button>
+                </div>
+            </div>
+            <audio id="ai-call-remote-audio" autoplay></audio>
             <div id="ai-chat-body" class="ai-hide-scroll">
                 <div class="ai-timestamp"><span id="ai-timestamp-label"></span></div>
             </div>
@@ -345,7 +439,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         clientId: clientId,
-                        subscriptions: ["messages"]
+                        subscriptions: ["messages", "calls"]
                     })
                 })
                 .then(res => {
@@ -391,10 +485,277 @@
             }
         });
 
+        // Cuộc gọi (Cloudflare Realtime) — trạng thái ringing/active/ended từ collection "calls".
+        eventSource.addEventListener("calls", function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.record) handleCallRecord(data.record);
+            } catch (err) {
+                console.error("Lỗi parse gói tin calls:", err);
+            }
+        });
+
         eventSource.onerror = function() {
             console.log("🟡 Mất kết nối, đang thử lại...");
         };
     }
+
+    // ==========================================================
+    // GỌI THOẠI (Cloudflare Realtime — SFU, xem worker /call/rtc/* và /call/state)
+    // Widget không có phiên PocketBase riêng nên mọi thay đổi trạng thái cuộc gọi đi qua
+    // WORKER_URL/call/state (worker ghi hộ vào collection "calls" bằng token admin của nó).
+    // App Secret Cloudflare không bao giờ chạy trong trình duyệt khách — chỉ worker giữ nó.
+    // ==========================================================
+    const btnCall       = document.getElementById('ai-btn-call');
+    const callBar       = document.getElementById('ai-call-bar');
+    const callBarIcon   = document.getElementById('ai-call-bar-icon');
+    const callBarText   = document.getElementById('ai-call-bar-text');
+    const callTimerEl   = document.getElementById('ai-call-timer');
+    const callMuteBtn   = document.getElementById('ai-call-mute');
+    const callEndBtn    = document.getElementById('ai-call-end');
+    const callRemoteAudio = document.getElementById('ai-call-remote-audio');
+    const incomingOverlay = document.getElementById('ai-incoming-call-overlay');
+    const incomingAcceptBtn = document.getElementById('ai-incoming-accept');
+    const incomingDeclineBtn = document.getElementById('ai-incoming-decline');
+
+    let activeCallRecord = null;
+    let incomingCall = null;
+    let callPc = null;
+    let callLocalStream = null;
+    let callLocalSessionId = null;
+    let callLocalTrackName = null;
+    let callTimerHandle = null;
+    let callStartedAt = null;
+    let callMuted = false;
+
+    let ringtoneCtx = null;
+    let ringtoneHandle = null;
+    function playRingtone() {
+        stopRingtone();
+        try {
+            ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
+            var beep = function() {
+                if (!ringtoneCtx) return;
+                var osc = ringtoneCtx.createOscillator();
+                var gain = ringtoneCtx.createGain();
+                osc.frequency.value = 880;
+                osc.connect(gain);
+                gain.connect(ringtoneCtx.destination);
+                gain.gain.setValueAtTime(0.18, ringtoneCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ringtoneCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(ringtoneCtx.currentTime + 0.4);
+            };
+            beep();
+            ringtoneHandle = setInterval(beep, 1000);
+        } catch (err) { console.warn('Không phát được chuông:', err); }
+    }
+    function stopRingtone() {
+        if (ringtoneHandle) clearInterval(ringtoneHandle);
+        ringtoneHandle = null;
+        if (ringtoneCtx) { ringtoneCtx.close().catch(function() {}); ringtoneCtx = null; }
+    }
+
+    function callRtc(path, body) {
+        return fetch(WORKER_URL + path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {})
+        }).then(function(r) { return r.json(); });
+    }
+
+    function callState(action, extra) {
+        return callRtc('/call/state', Object.assign({ tenant: tenant, session: session, action: action }, extra || {}));
+    }
+
+    async function createLocalCallLeg() {
+        var created = await callRtc('/call/rtc/session-new');
+        if (!created || !created.sessionId) throw new Error((created && created.error) || 'Không tạo được phiên gọi');
+        callLocalSessionId = created.sessionId;
+
+        callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        callPc = new RTCPeerConnection();
+        callPc.ontrack = function(e) { callRemoteAudio.srcObject = e.streams[0]; };
+
+        var track = callLocalStream.getAudioTracks()[0];
+        var transceiver = callPc.addTransceiver(track, { direction: 'sendonly' });
+        callLocalTrackName = 'mic-' + Math.random().toString(36).slice(2, 10);
+
+        var offer = await callPc.createOffer();
+        await callPc.setLocalDescription(offer);
+
+        var pushed = await callRtc('/call/rtc/tracks-new', {
+            sessionId: callLocalSessionId,
+            payload: {
+                sessionDescription: { type: 'offer', sdp: offer.sdp },
+                tracks: [{ location: 'local', mid: transceiver.mid, trackName: callLocalTrackName }]
+            }
+        });
+        if (pushed && pushed.sessionDescription) {
+            await callPc.setRemoteDescription(new RTCSessionDescription(pushed.sessionDescription));
+        }
+        return { sessionId: callLocalSessionId, trackName: callLocalTrackName };
+    }
+
+    async function pullRemoteCallLeg(remoteSessionId, remoteTrackName) {
+        var pulled = await callRtc('/call/rtc/tracks-new', {
+            sessionId: callLocalSessionId,
+            payload: { tracks: [{ location: 'remote', sessionId: remoteSessionId, trackName: remoteTrackName }] }
+        });
+        if (pulled && pulled.requiresImmediateRenegotiation) {
+            var offer = await callPc.createOffer();
+            await callPc.setLocalDescription(offer);
+            var reneg = await callRtc('/call/rtc/renegotiate', {
+                sessionId: callLocalSessionId,
+                payload: { sessionDescription: { type: 'offer', sdp: offer.sdp } }
+            });
+            if (reneg && reneg.sessionDescription) {
+                await callPc.setRemoteDescription(new RTCSessionDescription(reneg.sessionDescription));
+            }
+        }
+    }
+
+    function setCallBar(opts) {
+        callBar.classList.toggle('ai-call-visible', !!opts.visible);
+        if (opts.icon) callBarIcon.textContent = opts.icon;
+        if (opts.text) callBarText.textContent = opts.text;
+        callMuteBtn.style.display = opts.showMute ? 'flex' : 'none';
+        callTimerEl.style.display = opts.timer ? 'inline' : 'none';
+    }
+
+    function showIncomingCallPopup(record) {
+        incomingCall = record;
+        incomingOverlay.classList.add('ai-call-visible');
+        btnCall.classList.add('ai-call-ringing');
+        if (!isChatOpen) toggleChat();
+        playRingtone();
+    }
+    function hideIncomingCallPopup() {
+        incomingCall = null;
+        incomingOverlay.classList.remove('ai-call-visible');
+        btnCall.classList.remove('ai-call-ringing');
+        stopRingtone();
+    }
+
+    function startCallTimer() {
+        callStartedAt = Date.now();
+        callTimerEl.style.display = 'inline';
+        callTimerHandle = setInterval(function() {
+            var secs = Math.floor((Date.now() - callStartedAt) / 1000);
+            var mm = String(Math.floor(secs / 60)).padStart(2, '0');
+            var ss = String(secs % 60).padStart(2, '0');
+            callTimerEl.textContent = mm + ':' + ss;
+        }, 1000);
+    }
+    function stopCallTimer() {
+        if (callTimerHandle) clearInterval(callTimerHandle);
+        callTimerHandle = null;
+        callTimerEl.style.display = 'none';
+    }
+
+    async function startCall() {
+        if (activeCallRecord && activeCallRecord.status !== 'ended') return;
+        if (!isChatOpen) toggleChat();
+        startRealtimeListener();
+        setCallBar({ visible: true, icon: 'call', text: 'Đang gọi hỗ trợ viên...', showMute: false, timer: false });
+        try {
+            var leg = await createLocalCallLeg();
+            var res = await callState('start', { cf_session_id: leg.sessionId, track_name: leg.trackName });
+            if (res.error) throw new Error(res.error);
+            activeCallRecord = res.call;
+        } catch (err) {
+            console.error('Lỗi bắt đầu cuộc gọi:', err);
+            setCallBar({ visible: true, icon: 'call_end', text: 'Không thể gọi — thử lại sau', showMute: false, timer: false });
+            setTimeout(function() { setCallBar({ visible: false }); }, 2500);
+            await teardownCallLocal();
+        }
+    }
+
+    async function acceptIncomingCall() {
+        var record = incomingCall;
+        if (!record) return;
+        hideIncomingCallPopup();
+        activeCallRecord = record;
+        setCallBar({ visible: true, icon: 'call', text: 'Đang kết nối...', showMute: false, timer: false });
+        try {
+            var leg = await createLocalCallLeg();
+            await pullRemoteCallLeg(record.admin_cf_session_id, record.admin_track_name);
+            var res = await callState('join', { cf_session_id: leg.sessionId, track_name: leg.trackName });
+            if (res.error) throw new Error(res.error);
+            activeCallRecord = res.call;
+            setCallBar({ visible: true, icon: 'call', text: 'Đang gọi với hỗ trợ viên', showMute: true, timer: true });
+            startCallTimer();
+        } catch (err) {
+            console.error('Lỗi trả lời cuộc gọi:', err);
+            await endCall('error');
+        }
+    }
+
+    function declineIncomingCall() {
+        var record = incomingCall;
+        hideIncomingCallPopup();
+        if (!record) return;
+        callState('end', { reason: 'declined' }).catch(function() {});
+    }
+
+    async function endCall(reason) {
+        stopCallTimer();
+        setCallBar({ visible: false });
+        if (activeCallRecord && activeCallRecord.status !== 'ended') {
+            var isDecline = activeCallRecord.status === 'ringing' && activeCallRecord.initiator === 'admin';
+            callState('end', { reason: reason || (isDecline ? 'declined' : 'hangup') }).catch(function() {});
+        }
+        await teardownCallLocal();
+    }
+
+    async function teardownCallLocal() {
+        if (callLocalStream) callLocalStream.getTracks().forEach(function(t) { t.stop(); });
+        if (callPc) callPc.close();
+        callPc = null;
+        callLocalStream = null;
+        if (callLocalSessionId) callRtc('/call/rtc/tracks-close', { sessionId: callLocalSessionId, payload: {} }).catch(function() {});
+        callLocalSessionId = null;
+        callLocalTrackName = null;
+        activeCallRecord = null;
+        callMuted = false;
+        callRemoteAudio.srcObject = null;
+    }
+
+    function toggleCallMute() {
+        if (!callLocalStream) return;
+        callMuted = !callMuted;
+        callLocalStream.getAudioTracks().forEach(function(t) { t.enabled = !callMuted; });
+        callMuteBtn.textContent = callMuted ? 'Bật mic' : 'Tắt mic';
+    }
+
+    function handleCallRecord(record) {
+        if (!record || record.tenant !== tenant || record.session !== session) return;
+
+        if (record.status === 'ringing' && record.initiator === 'admin') {
+            showIncomingCallPopup(record);
+            return;
+        }
+        if (incomingCall && incomingCall.id === record.id && record.status !== 'ringing') {
+            hideIncomingCallPopup();
+        }
+        if (record.status === 'active') {
+            activeCallRecord = record;
+            if (!callTimerHandle) startCallTimer();
+            setCallBar({ visible: true, icon: 'call', text: 'Đang gọi với hỗ trợ viên', showMute: true, timer: true });
+            return;
+        }
+        if (['ended', 'declined', 'missed'].includes(record.status) && activeCallRecord && activeCallRecord.id === record.id) {
+            stopCallTimer();
+            setCallBar({ visible: false });
+            teardownCallLocal();
+        }
+    }
+
+    btnCall.addEventListener('click', startCall);
+    incomingAcceptBtn.addEventListener('click', acceptIncomingCall);
+    incomingDeclineBtn.addEventListener('click', declineIncomingCall);
+    callMuteBtn.addEventListener('click', toggleCallMute);
+    callEndBtn.addEventListener('click', function() { endCall(); });
 
     function toggleChat() {
         isChatOpen = !isChatOpen;
