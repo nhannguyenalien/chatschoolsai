@@ -831,6 +831,7 @@
                 window.PB.authStore.clear();
                 throw new Error('Tài khoản chưa được cấp tenant.');
             }
+            localStorage.setItem('loginMethod', 'password');
             window.location.href = 'index.html';
         } catch (err) {
             errorEl.textContent = err?.status === 400

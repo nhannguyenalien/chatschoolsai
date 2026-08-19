@@ -55,15 +55,15 @@
                             <div class="card">
                                 <div class="card-header"><h3 class="card-title"><i class="ti ti-lock me-2 text-primary"></i>Tạo hoặc đổi mật khẩu</h3></div>
                                 <div class="card-body">
-                                    <div class="alert alert-info"><i class="ti ti-brand-google me-2"></i>Nếu bạn đăng nhập bằng Google, hãy tạo mật khẩu tại đây để lần sau có thể đăng nhập bằng email và mật khẩu.</div>
+                                    <div id="account-google-hint" class="alert alert-info d-none"><i class="ti ti-brand-google me-2"></i>Bạn đang đăng nhập bằng Google. Tạo mật khẩu tại đây để lần sau có thể đăng nhập bằng email và mật khẩu.</div>
                                     <div class="mb-3">
                                         <label class="form-label">Email đăng nhập</label>
                                         <input id="account-email" class="form-control bg-light" type="email" readonly>
                                     </div>
                                     <form id="account-password-form">
-                                        <div class="mb-3">
+                                        <div id="account-current-password-group" class="mb-3">
                                             <label class="form-label" for="account-current-password">Mật khẩu hiện tại</label>
-                                            <input id="account-current-password" class="form-control" type="password" autocomplete="current-password" placeholder="Để trống nếu đăng nhập bằng Google và chưa tạo mật khẩu">
+                                            <input id="account-current-password" class="form-control" type="password" autocomplete="current-password">
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label" for="account-new-password">Mật khẩu mới</label>
@@ -99,6 +99,20 @@
                 avatar.style.backgroundImage = `url('${PB.getFileUrl(user, user.avatar, { thumb: '160x160' })}')`;
                 avatar.innerHTML = '';
             }
+
+            const loginMethod = localStorage.getItem('loginMethod');
+            const currentPasswordGroup = document.getElementById('account-current-password-group');
+            const currentPasswordInput = document.getElementById('account-current-password');
+            const googleHint = document.getElementById('account-google-hint');
+            if (loginMethod === 'google') {
+                currentPasswordGroup.classList.add('d-none');
+                currentPasswordInput.value = '';
+                currentPasswordInput.required = false;
+                googleHint.classList.remove('d-none');
+            } else {
+                currentPasswordInput.required = true;
+                currentPasswordInput.placeholder = '';
+            }
         })();
 
         document.getElementById('account-password-form').addEventListener('submit', async (event) => {
@@ -109,6 +123,11 @@
             const errorEl = document.getElementById('account-password-error');
             const button = document.getElementById('account-password-submit');
             errorEl.classList.add('d-none');
+            if (localStorage.getItem('loginMethod') !== 'google' && !currentPassword) {
+                errorEl.textContent = 'Vui lòng nhập mật khẩu hiện tại.';
+                errorEl.classList.remove('d-none');
+                return;
+            }
             if (password.length < 8 || password !== confirmation) {
                 errorEl.textContent = password.length < 8 ? 'Mật khẩu phải có ít nhất 8 ký tự.' : 'Hai mật khẩu mới chưa khớp.';
                 errorEl.classList.remove('d-none');

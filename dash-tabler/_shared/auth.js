@@ -112,6 +112,7 @@ async function loginWithPassword(email, password) {
 
 function logout() {
   PB.authStore.clear();
+  localStorage.removeItem('loginMethod');
   redirectToLogin();
 }
 
