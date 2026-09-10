@@ -39,13 +39,17 @@
   // race-condition 2 request đổi điểm cùng lúc đọc trùng balance rồi cùng ghi đè (double-spend).
   // Xem class LoyaltyCustomerLock trong src/index.js. "migrations" bên dưới là bắt buộc — Cloudflare
   // cần biết đây là lần đầu class này được deploy (new_classes) để cấp phát namespace cho nó.
+  // RATE_LIMITER: bộ đếm request theo IP cho /api/onboarding/register và các route
+  // ADMIN_SECRET (chặn spam đăng ký / dò secret bằng brute-force). Xem class RateLimiter.
   "durable_objects": {
     "bindings": [
-      { "name": "LOYALTY_LOCKS", "class_name": "LoyaltyCustomerLock" }
+      { "name": "LOYALTY_LOCKS", "class_name": "LoyaltyCustomerLock" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
     ]
   },
   "migrations": [
-    { "tag": "v1-loyalty-locks", "new_classes": ["LoyaltyCustomerLock"] }
+    { "tag": "v1-loyalty-locks", "new_classes": ["LoyaltyCustomerLock"] },
+    { "tag": "v2-rate-limiter", "new_classes": ["RateLimiter"] }
   ],
   "triggers": {
     // 01:00 UTC = 08:00 giờ VN — báo cáo tổng hợp ngày hôm trước.

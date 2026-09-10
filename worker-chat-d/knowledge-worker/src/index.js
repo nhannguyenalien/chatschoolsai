@@ -51,6 +51,46 @@ class LoyaltyCustomerLock {
 }
 __name(LoyaltyCustomerLock, "LoyaltyCustomerLock");
 
+// Durable Object dùng làm bộ đếm rate-limit theo cửa sổ trượt (sliding window), 1 instance =
+// 1 "khoá" (vd IP + route). Cloudflare chạy fetch() của 1 instance tuần tự nên đếm không bị
+// race giữa các request đồng thời — dùng để chặn spam đăng ký tài khoản / dò ADMIN_SECRET.
+class RateLimiter {
+  constructor(state) {
+    this.state = state;
+  }
+  async fetch(request) {
+    const { limit, windowMs } = await request.json().catch(() => ({}));
+    const max = Number(limit) > 0 ? Number(limit) : 10;
+    const window = Number(windowMs) > 0 ? Number(windowMs) : 60000;
+    const now = Date.now();
+    const hits = ((await this.state.storage.get("hits")) || []).filter((t) => now - t < window);
+    if (hits.length >= max) {
+      return Response.json({ allowed: false }, { status: 429 });
+    }
+    hits.push(now);
+    await this.state.storage.put("hits", hits);
+    return Response.json({ allowed: true });
+  }
+}
+__name(RateLimiter, "RateLimiter");
+
+// Không có binding RATE_LIMITER (local dev/test) -> fail-open, chạy như trước, không chặn gì.
+async function checkRateLimit(env, key, { limit, windowMs } = {}) {
+  if (!env.RATE_LIMITER) return true;
+  try {
+    const id = env.RATE_LIMITER.idFromName(key);
+    const res = await env.RATE_LIMITER.get(id).fetch("https://rate-limiter/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limit, windowMs }),
+    });
+    return res.ok;
+  } catch {
+    return true;
+  }
+}
+__name(checkRateLimit, "checkRateLimit");
+
 // src/index.js
 var index_default = {
   async fetch(request, env, ctx) {
@@ -71,6 +111,10 @@ var index_default = {
       // Route dùng ANYTHINGLLM/TELEGRAM/OPENAI/ADMIN_SECRET -> nạp system_config trước, ghi đè lên env.
       const env2 = { ...env, ...await getSystemConfig(env) };
       if (url.pathname.startsWith("/api/v1/admin/reward-world/")) {
+        const adminClientIp = request.headers.get("cf-connecting-ip") || "unknown";
+        if (!(await checkRateLimit(env2, `admin-secret:${adminClientIp}`, { limit: 20, windowMs: 60 * 1000 }))) {
+          return new Response(JSON.stringify({ error: "Quá nhiều yêu cầu, vui lòng thử lại sau." }), { status: 429, headers: cors });
+        }
         const providedKey = request.headers.get("X-Admin-Secret") || "";
         if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         const pbToken = await getPbToken(env2);
@@ -94,6 +138,10 @@ var index_default = {
         if (request.method !== "POST") {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
         }
+        const adminClientIp = request.headers.get("cf-connecting-ip") || "unknown";
+        if (!(await checkRateLimit(env2, `admin-secret:${adminClientIp}`, { limit: 20, windowMs: 60 * 1000 }))) {
+          return new Response(JSON.stringify({ error: "Quá nhiều yêu cầu, vui lòng thử lại sau." }), { status: 429, headers: cors });
+        }
         const providedKey = request.headers.get("X-Admin-Secret") || url.searchParams.get("key");
         if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) {
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
@@ -113,6 +161,9 @@ var index_default = {
         return await handleTelegramWebhook(request, env2);
       }
       if (url.pathname === "/api/onboarding/register" && request.method === "POST") {
+        const clientIp = request.headers.get("cf-connecting-ip") || "unknown";
+        const allowed = await checkRateLimit(env2, `register:${clientIp}`, { limit: 5, windowMs: 10 * 60 * 1000 });
+        if (!allowed) return new Response(JSON.stringify({ error: "Quá nhiều yêu cầu đăng ký, vui lòng thử lại sau." }), { status: 429, headers: cors });
         return await handleAccountRegistration(request, env2, cors);
       }
       if (url.pathname.startsWith("/api/v1/")) {
@@ -4256,6 +4307,7 @@ __name(handleAgentRun, "handleAgentRun");
 export {
   index_default as default,
   LoyaltyCustomerLock,
+  RateLimiter,
   callInternalHandlerWithForcedTenant,
   handleApiGetConfig,
   handleApiUpdateConfig,
