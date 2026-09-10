@@ -394,7 +394,10 @@
     function appendUserMessage(text) {
         const div = document.createElement('div');
         div.className = 'ai-msg-user';
-        div.innerHTML = '<div class="ai-bubble">' + text + '</div>';
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        bubble.textContent = text; // tránh XSS: đây là text khách tự gõ, không phải markdown của bot
+        div.appendChild(bubble);
         chatBody.appendChild(div);
     }
     function appendBotMessage(text) {

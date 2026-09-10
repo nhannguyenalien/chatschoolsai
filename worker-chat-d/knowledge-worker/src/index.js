@@ -829,11 +829,32 @@ async function ensureWorkspaceExists(tenant, env) {
   }
 }
 __name(ensureWorkspaceExists, "ensureWorkspaceExists");
+// Xác thực token PocketBase của user gõ ở dashboard (đã gửi sẵn ở dash-tabler/knowledge.html
+// nhưng trước đây không hề được worker kiểm tra) — chặn bất kỳ ai không đăng nhập gọi thẳng
+// /embed hoặc /doc để nhồi/xoá tài liệu vào knowledge base của tenant bất kỳ.
+async function verifyTenantOwnerToken(env, authHeader, tenant) {
+  if (!authHeader) return false;
+  try {
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants/auth-refresh`, {
+      method: "POST",
+      headers: { Authorization: authHeader }
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data?.record && data.record.tenant === tenant;
+  } catch {
+    return false;
+  }
+}
+__name(verifyTenantOwnerToken, "verifyTenantOwnerToken");
+
 async function handleEmbed(request, env, cors) {
   const body = await request.json().catch(() => null);
   const validation = validateKnowledgePayload(body);
   if (validation.error) return new Response(JSON.stringify({ error: validation.error }), { status: 400, headers: cors });
   const { tenant, title, text } = validation.value;
+  const authorized = await verifyTenantOwnerToken(env, request.headers.get("Authorization"), tenant);
+  if (!authorized) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
   await ensureWorkspaceExists(tenant, env);
   const pbToken = await getPbToken(env);
   try {
@@ -916,6 +937,8 @@ __name(validateKnowledgePayload, "validateKnowledgePayload");
 async function handleDelete(request, env, cors) {
   const { doc_id, tenant } = await request.json();
   if (!doc_id || !tenant) return new Response(JSON.stringify({ error: "Thi\u1EBFu d\u1EEF li\u1EC7u" }), { status: 400, headers: cors });
+  const authorized = await verifyTenantOwnerToken(env, request.headers.get("Authorization"), tenant);
+  if (!authorized) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
   const pbToken = await getPbToken(env);
   try {
     const docRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/documents/records/${doc_id}`, {
@@ -1011,7 +1034,8 @@ async function handleTelegramWebhook(request, env) {
       });
       const searchData = await searchRes.json();
       if (searchData.items && searchData.items.length > 0) {
-        const recordId = searchData.items[0].id;
+        const record = searchData.items[0];
+        const recordId = record.id;
         await fetchWithTimeout(`${env.PB_URL}/api/collections/verifications/records/${recordId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", "Authorization": pbToken },
@@ -2003,6 +2027,37 @@ async function publishToInstagram(page, post, media) {
 }
 __name(publishToInstagram, "publishToInstagram");
 
+// Chặn SSRF: media.url do tenant tự nhập (image_url khi tạo post) và được chính worker fetch
+// trực tiếp (upload ảnh lên WordPress/Sanity) — phải chặn scheme lạ và các dải IP/host nội bộ
+// trước khi fetch, nếu không kẻ tấn công có thể dùng worker để dò/gọi vào mạng nội bộ Cloudflare.
+function assertSafeMediaUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("URL ảnh/video không hợp lệ");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("URL ảnh/video phải dùng http/https");
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const isPrivateOrLocal = host === "localhost"
+    || host === "0.0.0.0"
+    || host === "::1"
+    || host.endsWith(".local")
+    || host.endsWith(".internal")
+    || /^127\./.test(host)
+    || /^10\./.test(host)
+    || /^192\.168\./.test(host)
+    || /^169\.254\./.test(host)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+  if (isPrivateOrLocal) {
+    throw new Error("URL ảnh/video trỏ vào địa chỉ nội bộ, không được phép");
+  }
+  return parsed;
+}
+__name(assertSafeMediaUrl, "assertSafeMediaUrl");
+
 // ================= [ĐĂNG WORDPRESS] =================
 // page.page_id = site URL (vd https://example.com), page.access_token = "username:application_password"
 // (Application Password tạo trong WP Admin -> Users -> Profile -> Application Passwords).
@@ -2016,6 +2071,7 @@ async function publishToWordPress(page, post, media) {
   let featuredMediaId = null;
   if (media && media.url) {
     try {
+      assertSafeMediaUrl(media.url);
       const imgRes = await fetchWithTimeout(media.url, { timeout: 3e4 });
       const imgBuf = await imgRes.arrayBuffer();
       const uploadRes = await fetchWithTimeout(`${site}/wp-json/wp/v2/media`, {
@@ -2143,6 +2199,7 @@ async function publishToSanity(page, post, media) {
   let mainImage = null;
   if (media && media.url) {
     try {
+      assertSafeMediaUrl(media.url);
       const imgRes = await fetchWithTimeout(media.url, { timeout: 3e4 });
       const imgBuf = await imgRes.arrayBuffer();
       const assetRes = await fetchWithTimeout(`${baseUrl}/assets/images/${dataset}`, {

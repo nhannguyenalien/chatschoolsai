@@ -78,12 +78,39 @@ test("config patch rejects unsafe types and out-of-range model settings", () => 
   assert.match(validateConfigPatch({ system_prompt: { injected: true } }).error, /system_prompt/);
 });
 
+test("knowledge deletion rejects requests without a valid tenant session", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method || "GET" });
+    if (String(url).endsWith("/auth-refresh")) return new Response("invalid or expired token", { status: 401 });
+    throw new Error(`unexpected fetch ${url}`);
+  };
+  try {
+    const noAuth = await handleDelete(new Request("https://internal/doc", {
+      method: "DELETE", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ doc_id: "doc-b", tenant: "shop-a" }),
+    }), { PB_URL: "https://pb.test" }, cors);
+    assert.equal(noAuth.status, 401);
+
+    const badAuth = await handleDelete(new Request("https://internal/doc", {
+      method: "DELETE", headers: { "content-type": "application/json", authorization: "Bearer stale-token" },
+      body: JSON.stringify({ doc_id: "doc-b", tenant: "shop-a" }),
+    }), { PB_URL: "https://pb.test" }, cors);
+    assert.equal(badAuth.status, 401);
+    assert.equal(calls.some((call) => call.url.includes("documents/records")), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("knowledge deletion refuses a document owned by another tenant", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), method: options.method || "GET" });
     if (String(url).includes("auth-with-password")) return Response.json({ token: "pb-token" });
+    if (String(url).endsWith("/auth-refresh")) return Response.json({ record: { tenant: "shop-a" } });
     if (String(url).endsWith("/api/collections/documents/records/doc-b")) {
       return Response.json({ id: "doc-b", tenant: "shop-b", anything_path: "custom-documents/doc-b.json" });
     }
@@ -91,7 +118,7 @@ test("knowledge deletion refuses a document owned by another tenant", async () =
   };
   try {
     const response = await handleDelete(new Request("https://internal/doc", {
-      method: "DELETE", headers: { "content-type": "application/json" },
+      method: "DELETE", headers: { "content-type": "application/json", authorization: "Bearer shop-a-token" },
       body: JSON.stringify({ doc_id: "doc-b", tenant: "shop-a" }),
     }), { PB_URL: "https://pb.test", PB_ADMIN_EMAIL: "admin", PB_ADMIN_PASS: "pass" }, cors);
     assert.equal(response.status, 403);
@@ -108,6 +135,7 @@ test("knowledge deletion keeps metadata when embedding removal fails", async () 
     const call = { url: String(url), method: options.method || "GET" };
     calls.push(call);
     if (call.url.includes("auth-with-password")) return Response.json({ token: "pb-token" });
+    if (call.url.endsWith("/auth-refresh")) return Response.json({ record: { tenant: "shop-a" } });
     if (call.url.endsWith("/api/collections/documents/records/doc-a") && call.method === "GET") {
       return Response.json({ id: "doc-a", tenant: "shop-a", anything_path: "custom-documents/doc-a.json" });
     }
@@ -116,7 +144,7 @@ test("knowledge deletion keeps metadata when embedding removal fails", async () 
   };
   try {
     const response = await handleDelete(new Request("https://internal/doc", {
-      method: "DELETE", headers: { "content-type": "application/json" },
+      method: "DELETE", headers: { "content-type": "application/json", authorization: "Bearer shop-a-token" },
       body: JSON.stringify({ doc_id: "doc-a", tenant: "shop-a" }),
     }), {
       PB_URL: "https://pb.test", PB_ADMIN_EMAIL: "admin", PB_ADMIN_PASS: "pass",
@@ -161,6 +189,36 @@ test("training handler rejects malformed data before external dependencies", asy
     }), {}, cors);
     assert.equal(response.status, 400);
     assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("training handler rejects requests without a valid tenant session", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    const authHeader = options.headers?.Authorization || options.headers?.authorization;
+    calls.push({ url: String(url), method: options.method || "GET" });
+    if (String(url).endsWith("/auth-refresh")) {
+      if (authHeader === "Bearer other-tenant-token") return Response.json({ record: { tenant: "school-b" } });
+      return new Response("invalid or expired token", { status: 401 });
+    }
+    throw new Error(`unexpected fetch ${url}`);
+  };
+  try {
+    const noAuth = await handleEmbed(new Request("https://internal/embed", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tenant: "school-a", title: "T", text: "valid text" }),
+    }), { PB_URL: "https://pb.test" }, cors);
+    assert.equal(noAuth.status, 401);
+
+    const wrongTenant = await handleEmbed(new Request("https://internal/embed", {
+      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer other-tenant-token" },
+      body: JSON.stringify({ tenant: "school-a", title: "T", text: "valid text" }),
+    }), { PB_URL: "https://pb.test" }, cors);
+    assert.equal(wrongTenant.status, 401);
+    assert.equal(calls.some((call) => call.url.includes("workspace")), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

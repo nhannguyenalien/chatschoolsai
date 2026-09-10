@@ -311,17 +311,22 @@ async function loadConfig() {
         setVal('cfg-openai-base', 'https://v98store.com/v1');
         setVal('cfg-openai-chat-model', 'gpt-4o-mini');
         setVal('cfg-openai-embed-model', 'text-embedding-3-small');
-        setVal('cfg-admin-secret', 'baa8bb99ccfb0540d51bf6fdc83cc75f89260af9a42d7184');
+        // Không hardcode 1 secret cố định ở đây (mọi người mở trang này qua view-source đều đọc
+        // được) — sinh ngẫu nhiên mỗi lần load để người dùng tự bấm Lưu cấu hình nếu muốn dùng luôn.
+        setVal('cfg-admin-secret', randomAdminSecretHex());
         setVal('cfg-dashboard-url', '');
     }
 }
 
 function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; }
 
-function generateAdminSecret() {
+function randomAdminSecretHex() {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
-    const hex = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
-    document.getElementById('cfg-admin-secret').value = hex;
+    return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function generateAdminSecret() {
+    document.getElementById('cfg-admin-secret').value = randomAdminSecretHex();
 }
 
 async function saveConfig() {
