@@ -18,7 +18,11 @@ function positivePage(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
 }
 
-export function createLoyaltyApi({ repository, fulfillmentService }) {
+// redeemPoints is injectable so the caller can route it through a Durable Object that
+// serializes redemptions per (tenant, customer_ref) — see LoyaltyCustomerLock in index.js.
+// Without that, two redemption requests racing for the same customer can both read the same
+// balance before either writes its ledger entry and both succeed, over-redeeming the account.
+export function createLoyaltyApi({ repository, fulfillmentService, redeemPoints = redeemLoyaltyPoints }) {
   if (!repository) throw new Error("Loyalty API requires a repository.");
   return async function handleLoyalty(request, context) {
     const tenant = context?.tenant;
@@ -38,7 +42,7 @@ export function createLoyaltyApi({ repository, fulfillmentService }) {
         return json(result.replayed ? 200 : 201, result, responseHeaders);
       }
       if (request.method === "POST" && path === "/api/v1/loyalty/redemptions") {
-        const result = await redeemLoyaltyPoints({ repository, tenant, input: await readJson(request) });
+        const result = await redeemPoints({ repository, tenant, input: await readJson(request) });
         return json(result.replayed ? 200 : 201, result, responseHeaders);
       }
       if (request.method === "GET" && path === "/api/v1/loyalty/account") {

@@ -15,9 +15,41 @@ import { createRewardWorldAdminApi } from "./api/rewardWorldAdmin.js";
 import { createReloadlyRewardProvider } from "./adapters/rewards/reloadly.js";
 import { createPosRewardProvider } from "./adapters/rewards/pos.js";
 import { fulfillClaim } from "./workflows/loyalty/rewardCatalog.js";
+import { redeemLoyaltyPoints } from "./workflows/loyalty/redeemPoints.js";
+import { LoyaltyConflictError, LoyaltyNotFoundError, LoyaltyValidationError } from "./domain/loyalty/errors.js";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+
+// Durable Object: 1 instance = 1 (tenant, customer_ref) — Cloudflare chạy fetch() của MỘT
+// instance DO tuần tự (single-threaded), nên 2 request redeem cùng lúc cho cùng khách hàng sẽ
+// tự xếp hàng ở đây thay vì cùng đọc balance cũ rồi cùng ghi đè (double-spend). Chỉ cần bật
+// binding LOYALTY_LOCKS trong wrangler.jsonc (xem comment ở handleApiV1) là toàn bộ endpoint
+// /api/v1/loyalty/redemptions tự động đi qua đường này; nếu chưa bật, code rơi về gọi thẳng
+// redeemLoyaltyPoints như trước (không chặn race, nhưng vẫn chạy được ở local dev/test).
+class LoyaltyCustomerLock {
+  constructor(state, env) {
+    this.env = env;
+  }
+  async fetch(request) {
+    let tenant, input;
+    try {
+      ({ tenant, input } = await request.json());
+    } catch {
+      return Response.json({ error: "Payload không hợp lệ", errorName: "LoyaltyValidationError" }, { status: 400 });
+    }
+    try {
+      const pbToken = await getPbToken(this.env);
+      const client = createPocketBaseClient({ baseUrl: this.env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+      const repository = createLoyaltyRepository(client);
+      const result = await redeemLoyaltyPoints({ repository, tenant, input });
+      return Response.json({ result });
+    } catch (err) {
+      return Response.json({ error: err.message, errorName: err.name }, { status: 409 });
+    }
+  }
+}
+__name(LoyaltyCustomerLock, "LoyaltyCustomerLock");
 
 // src/index.js
 var index_default = {
@@ -3838,10 +3870,31 @@ async function handleApiV1(request, url, env, cors, ctx) {
     const client = createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
     const repository = createLoyaltyRepository(client);
     const providers = createRewardProviders(env);
+    // Nếu wrangler.jsonc đã khai báo Durable Object binding "LOYALTY_LOCKS" (xem
+    // LoyaltyCustomerLock ở trên), route redeem qua đó để chặn race-condition đổi điểm 2 lần
+    // cùng lúc cho cùng 1 khách. Chưa bật binding thì vẫn chạy được như cũ (gọi thẳng, không
+    // atomic) — để local dev/test không bắt buộc phải có Durable Object.
+    const redeemPoints = env.LOYALTY_LOCKS
+      ? async ({ tenant: redeemTenant, input }) => {
+          const id = env.LOYALTY_LOCKS.idFromName(`${redeemTenant}:${String(input?.customer_ref || "")}`);
+          const stub = env.LOYALTY_LOCKS.get(id);
+          const doRes = await stub.fetch("https://loyalty-lock/redeem", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenant: redeemTenant, input }),
+          });
+          const payload = await doRes.json();
+          if (!doRes.ok) {
+            const ErrorClass = { LoyaltyConflictError, LoyaltyNotFoundError, LoyaltyValidationError }[payload.errorName] || Error;
+            throw new ErrorClass(payload.error);
+          }
+          return payload.result;
+        }
+      : undefined;
     // Always run the fulfillment boundary. Legacy prizes without catalog_item_id
     // remain unchanged; catalog-backed prizes must fail explicitly when their
     // provider is not configured instead of being marked claimed silently.
-    const response = await createLoyaltyApi({ repository, fulfillmentService: (args) => fulfillClaim({ ...args, providers }) })(request, { tenant: cfg.tenant, responseHeaders: cors });
+    const response = await createLoyaltyApi({ repository, fulfillmentService: (args) => fulfillClaim({ ...args, providers }), redeemPoints })(request, { tenant: cfg.tenant, responseHeaders: cors });
     if (response) return response;
   }
 
@@ -4202,6 +4255,7 @@ __name(handleAgentRun, "handleAgentRun");
 
 export {
   index_default as default,
+  LoyaltyCustomerLock,
   callInternalHandlerWithForcedTenant,
   handleApiGetConfig,
   handleApiUpdateConfig,

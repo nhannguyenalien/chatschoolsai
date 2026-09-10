@@ -35,6 +35,18 @@
   "ai": {
     "binding": "AI"
   },
+  // Durable Object dùng để khoá theo (tenant, customer_ref) khi redeem điểm loyalty — chặn
+  // race-condition 2 request đổi điểm cùng lúc đọc trùng balance rồi cùng ghi đè (double-spend).
+  // Xem class LoyaltyCustomerLock trong src/index.js. "migrations" bên dưới là bắt buộc — Cloudflare
+  // cần biết đây là lần đầu class này được deploy (new_classes) để cấp phát namespace cho nó.
+  "durable_objects": {
+    "bindings": [
+      { "name": "LOYALTY_LOCKS", "class_name": "LoyaltyCustomerLock" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-loyalty-locks", "new_classes": ["LoyaltyCustomerLock"] }
+  ],
   "triggers": {
     // 01:00 UTC = 08:00 giờ VN — báo cáo tổng hợp ngày hôm trước.
     // 00:30 UTC = 07:30 giờ VN — crawl RSS + AI viết bài nháp (post_targets status=pending, chờ duyệt).
