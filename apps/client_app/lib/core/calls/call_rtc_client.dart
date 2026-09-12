@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../config/app_config.dart';
+import '../auth/auth_controller.dart';
 
 class CallRtcException implements Exception {
   const CallRtcException(this.message);
@@ -22,7 +23,7 @@ class LocalCallLeg {
 
 /// Dart port of the WebRTC signaling flow the web dashboard uses
 /// (`dash-tabler/messages.html`: createLocalCallLeg/pullRemoteCallLeg/teardownCallLocal),
-/// talking to the same unauthenticated worker proxy (`/call/rtc/*`) that holds the Cloudflare
+/// talking to the authenticated worker proxy (`/call/rtc/*`) that holds the Cloudflare
 /// Realtime app secret — one instance per call.
 class CallRtcClient {
   CallRtcClient(this._dio);
@@ -169,15 +170,25 @@ class CallRtcClient {
   }
 }
 
-/// Plain (unauthenticated) Dio pointed at the worker — `/call/rtc/*` mirrors the web dashboard's
-/// direct `fetch(WORKER_URL + path)` calls and does not need the tenant Bearer apiKey.
 final callRtcDioProvider = Provider<Dio>((ref) {
   final config = ref.watch(appConfigProvider);
-  return Dio(
+  final dio = Dio(
     BaseOptions(
       baseUrl: config.apiBaseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
     ),
   );
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final apiKey = ref.read(authControllerProvider).apiKey;
+        if (apiKey != null && apiKey.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $apiKey';
+        }
+        handler.next(options);
+      },
+    ),
+  );
+  return dio;
 });

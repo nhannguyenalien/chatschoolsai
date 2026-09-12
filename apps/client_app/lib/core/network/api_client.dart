@@ -39,6 +39,22 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path, {
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      final response = await _dio.put<Map<String, dynamic>>(
+        path,
+        data: body,
+        options: Options(headers: _headers()),
+      );
+      return response.data ?? const {};
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<Map<String, dynamic>> patchJson(
     String path, {
     required Map<String, dynamic> body,

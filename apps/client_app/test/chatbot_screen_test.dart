@@ -50,6 +50,22 @@ class WidgetChatbotRepository implements ChatbotRepository {
 }
 
 void main() {
+  testWidgets('tenant account cannot see create tenant action', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          chatbotRepositoryProvider.overrideWithValue(
+            WidgetChatbotRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ChatbotScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('create-bot-button')), findsNothing);
+  });
+
   testWidgets('training deletion requires explicit confirmation', (
     tester,
   ) async {

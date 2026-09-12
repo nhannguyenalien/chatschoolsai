@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/auth/auth_controller.dart';
-import '../../../core/auth/onboarding_service.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../data/bot_config.dart';
 import 'chatbot_controller.dart';
@@ -32,14 +30,6 @@ class ChatbotScreen extends ConsumerWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-                FilledButton.tonalIcon(
-                  key: const Key('create-bot-button'),
-                  onPressed: state.isSaving
-                      ? null
-                      : () => _createBot(context, ref),
-                  icon: const Icon(Icons.add_rounded),
-                  label: Text(context.l10n.tr('new_bot')),
                 ),
               ],
             ),
@@ -74,108 +64,6 @@ class ChatbotScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _createBot(BuildContext context, WidgetRef ref) async {
-    final tenant = TextEditingController();
-    final name = TextEditingController();
-    String? error;
-    var busy = false;
-    final result = await showDialog<ProvisionedBot>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(context.l10n.tr('new_bot')),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: tenant,
-                  decoration: InputDecoration(
-                    labelText: context.l10n.tr('bot_id_label'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: name,
-                  decoration: InputDecoration(
-                    labelText: context.l10n.tr('bot_name'),
-                  ),
-                ),
-                if (error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(
-                      error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: busy ? null : () => Navigator.pop(context),
-              child: Text(context.l10n.tr('cancel')),
-            ),
-            FilledButton(
-              onPressed: busy
-                  ? null
-                  : () async {
-                      if (tenant.text.trim().isEmpty ||
-                          name.text.trim().isEmpty) {
-                        setState(
-                          () => error = context.l10n.tr('complete_bot_fields'),
-                        );
-                        return;
-                      }
-                      setState(() {
-                        busy = true;
-                        error = null;
-                      });
-                      try {
-                        final bot = await ref
-                            .read(onboardingServiceProvider)
-                            .createBot(tenant: tenant.text, botName: name.text);
-                        if (context.mounted) Navigator.pop(context, bot);
-                      } on OnboardingException catch (exception) {
-                        if (context.mounted) {
-                          setState(() {
-                            busy = false;
-                            error = exception.message;
-                          });
-                        }
-                      }
-                    },
-              child: Text(
-                busy
-                    ? context.l10n.tr('creating')
-                    : context.l10n.tr('create_bot'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    tenant.dispose();
-    name.dispose();
-    if (result == null || !context.mounted) return;
-    await ref.read(authControllerProvider.notifier).useProvisionedBot(result);
-    ref.invalidate(chatbotControllerProvider);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${context.l10n.tr('bot_created')} “${result.botName}”.',
-          ),
-        ),
-      );
-    }
   }
 }
 

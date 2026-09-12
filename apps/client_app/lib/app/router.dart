@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/agent_chat/presentation/agent_chat_screen.dart';
+import '../features/billing/presentation/billing_screen.dart';
 import '../features/chatbot/presentation/chatbot_screen.dart';
 import '../features/content_center/presentation/content_center_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
@@ -13,6 +14,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: '/dashboard',
     routes: [
+      GoRoute(path: '/billing', builder: (_, _) => const BillingScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AdaptiveShell(shell: shell),
         branches: [

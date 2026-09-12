@@ -56,6 +56,7 @@ class AdaptiveShell extends ConsumerWidget {
                 appBar: AppBar(
                   title: const Text('Schools AI'),
                   actions: [
+                    _BillingButton(onPressed: () => context.push('/billing')),
                     const LanguageMenu(),
                     _LogoutButton(onPressed: () => _logout(ref)),
                   ],
@@ -94,6 +95,9 @@ class AdaptiveShell extends ConsumerWidget {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                _BillingButton(
+                                  onPressed: () => context.push('/billing'),
+                                ),
                                 const LanguageMenu(),
                                 _LogoutButton(onPressed: () => _logout(ref)),
                               ],
@@ -145,6 +149,18 @@ class AdaptiveShell extends ConsumerWidget {
     icon: Icon(icon),
     selectedIcon: Icon(selectedIcon),
     label: label,
+  );
+}
+
+class _BillingButton extends StatelessWidget {
+  const _BillingButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: context.l10n.tr('billing_title'),
+    onPressed: onPressed,
+    icon: const Icon(Icons.receipt_long_rounded),
   );
 }
 
