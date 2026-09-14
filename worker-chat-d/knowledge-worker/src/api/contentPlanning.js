@@ -41,7 +41,7 @@ export class ContentPlanningRequestError extends Error {
   }
 }
 
-export function createContentPlanningApi({ repository, legacyHistoryAdapter, blogWriter, imageGenerator, translator }) {
+export function createContentPlanningApi({ repository, legacyHistoryAdapter, blogWriter, imageGenerator, translator, googleAnalytics, facebookInsights }) {
   if (!repository) throw new Error("Content Planning API requires a repository.");
 
   return async function handleContentPlanning(request, context) {
@@ -107,6 +107,51 @@ export function createContentPlanningApi({ repository, legacyHistoryAdapter, blo
       if (request.method === "GET" && path === "/api/v1/content-planning/analytics/insights") {
         const result = await getPerformanceInsights({ repository, tenant, siteId: url.searchParams.get("siteId") || "", source: url.searchParams.get("source") || "" });
         return json(200, result, responseHeaders);
+      }
+
+      if (path === "/api/v1/content-planning/analytics/google/status" && request.method === "GET") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        return json(200, await googleAnalytics.status({ tenant, siteId: url.searchParams.get("siteId") || "" }), responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/configure" && request.method === "POST") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        const body = await readJson(request);
+        await googleAnalytics.configure({ tenant, siteId: body.siteId || "", clientId: body.clientId || "", clientSecret: body.clientSecret || "" });
+        return json(200, { success: true }, responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/start" && request.method === "POST") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        const body = await readJson(request); return json(200, await googleAnalytics.start({ tenant, siteId: body.siteId || "" }), responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/complete" && request.method === "POST") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        const body = await readJson(request); return json(200, await googleAnalytics.complete({ tenant, code: body.code || "", state: body.state || "" }), responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/properties" && request.method === "GET") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        return json(200, await googleAnalytics.properties({ tenant, siteId: url.searchParams.get("siteId") || "" }), responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/select" && request.method === "POST") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        const body = await readJson(request); await googleAnalytics.select({ tenant, siteId: body.siteId || "", ga4Property: body.ga4Property, searchConsoleSite: body.searchConsoleSite }); return json(200, { success: true }, responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/sync" && request.method === "POST") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        const body = await readJson(request); return json(200, await googleAnalytics.sync({ tenant, siteId: body.siteId || "", startDate: body.startDate, endDate: body.endDate }), responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/google/research" && request.method === "GET") {
+        if (!googleAnalytics) return json(503, { error: "Google Analytics integration is unavailable." }, responseHeaders);
+        return json(200, await googleAnalytics.research({
+          tenant, siteId: url.searchParams.get("siteId") || "", startDate: url.searchParams.get("startDate") || "",
+          endDate: url.searchParams.get("endDate") || "", limit: url.searchParams.get("limit") || 100,
+        }), responseHeaders);
+      }
+      if (path === "/api/v1/content-planning/analytics/facebook/research" && request.method === "GET") {
+        if (!facebookInsights) return json(503, { error: "Facebook Insights integration is unavailable." }, responseHeaders);
+        return json(200, await facebookInsights.research({
+          tenant, since: url.searchParams.get("since") || "", until: url.searchParams.get("until") || "",
+          limit: url.searchParams.get("limit") || 25,
+        }), responseHeaders);
       }
 
       if (request.method === "POST" && path === "/api/v1/content-planning/analytics/import") {

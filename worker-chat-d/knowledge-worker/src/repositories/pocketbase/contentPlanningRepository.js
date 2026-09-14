@@ -10,6 +10,7 @@ const COLLECTIONS = {
   generationClaims: "generation_claims",
   translationJobs: "translation_jobs",
   performanceSnapshots: "content_performance_snapshots",
+  analyticsConnections: "analytics_connections",
 };
 
 export class SiteOwnershipError extends Error {
@@ -28,6 +29,18 @@ function scope(tenant, siteId) {
 
 export function createContentPlanningRepository(client) {
   return {
+    async listFacebookPages(tenant) {
+      const result = await client.list("pages_config", {
+        filter: `tenant='${escapePocketBaseFilter(tenant)}' && platform='facebook' && is_active=true`, perPage: 100,
+      });
+      return result.items || [];
+    },
+    async findAnalyticsConnection(tenant, siteId) {
+      const result = await client.list(COLLECTIONS.analyticsConnections, { filter: `${scope(tenant, siteId)} && provider='google'`, perPage: 1 });
+      return result.items?.[0] || null;
+    },
+    createAnalyticsConnection(value) { return client.create(COLLECTIONS.analyticsConnections, value); },
+    updateAnalyticsConnection(id, patch) { return client.update(COLLECTIONS.analyticsConnections, id, patch); },
     async findBotConfigByOwnerChat(chatId) {
       const result = await client.list("bot_configs", {
         filter: `owner_telegram_chat_id='${escapePocketBaseFilter(chatId)}'`, perPage: 2,

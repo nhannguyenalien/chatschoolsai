@@ -9,9 +9,23 @@ import {
   validateAgentChatMessages,
   validateConfigPatch,
   validateKnowledgePayload,
+  validatePublicChatRequest,
 } from "../src/index.js";
 
 const cors = { "Content-Type": "application/json" };
+
+test("public chat rejects non-JSON and oversized request bodies", async () => {
+  const wrongType = await validatePublicChatRequest(new Request("https://example.test/chat", {
+    method: "POST", headers: { "content-type": "text/plain" }, body: "hello",
+  }));
+  assert.equal(wrongType.status, 415);
+
+  const oversized = await validatePublicChatRequest(new Request("https://example.test/chat", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question: "x".repeat(17 * 1024) }),
+  }));
+  assert.equal(oversized.status, 413);
+});
 
 test("chat rejects blank and oversized input before calling dependencies", async () => {
   const originalFetch = globalThis.fetch;

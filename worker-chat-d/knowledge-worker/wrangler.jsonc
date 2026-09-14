@@ -1,8 +1,8 @@
 {
   "name": "knowledge-worker",
   "main": "src/index.js",
-  "workers_dev": true,
-  "preview_urls": true,
+  "workers_dev": false,
+  "preview_urls": false,
   "compatibility_date": "2024-01-01",
   "routes": [
     {
@@ -18,14 +18,37 @@
   // `wrangler secret put CF_CALLS_APP_SECRET`. Khi chạy `wrangler dev` cục bộ, đọc từ .dev.vars
   // (đã gitignore, không commit).
   "vars": {
-    "OPENAI_BASE_URL": "https://v98store.com/v1",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
     "OPENAI_CHAT_MODEL": "gpt-4o-mini",
+    "OPENAI_IMAGE_MODEL": "gpt-image-1",
     "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
+    "GEMINI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "PIXVERSE_BASE_URL": "https://app-api.pixverse.ai/openapi/v2",
+    "PIXVERSE_VIDEO_MODEL": "v6",
     "PB_URL": "https://nhannguyen123-chat.hf.space",
+    "ALLOWED_ORIGINS": "https://schoolsai.work,https://www.schoolsai.work,https://chat.schoolsai.work",
     // Điền domain dashboard thật (vd: "https://dash.yourdomain.com") để link cảnh báo Telegram
     // trỏ thẳng vào messages.html?bot=...&session=... — để trống nếu chưa deploy dashboard.
-    "DASHBOARD_URL": ""
+    "DASHBOARD_URL": "https://schoolsai.work"
   },
+  "ratelimits": [
+    {
+      "name": "CHAT_GLOBAL_IP_RATE_LIMITER",
+      "namespace_id": "42003",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "CHAT_IP_RATE_LIMITER",
+      "namespace_id": "42001",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "CHAT_TENANT_RATE_LIMITER",
+      "namespace_id": "42002",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   "vectorize": [
     {
       "binding": "VECTORIZE",
@@ -40,6 +63,8 @@
     // 00:30 UTC = 07:30 giờ VN — crawl RSS + AI viết bài nháp (post_targets status=pending, chờ duyệt).
     // Mỗi 15 phút — đăng thật các bài đã duyệt (status=approved) hoặc tới giờ hẹn (scheduled).
     // Đầu mỗi giờ — agent tự xem tình trạng từng tenant và quyết định hành động (xem AGENT_TOOLS).
+    // Free plan giới hạn 5 cron/tài khoản nên KHÔNG thêm cron riêng — ping AnythingLLM/PocketBase
+    // (giữ HF Space luôn sống) được lồng vào cron */15 phút bên dưới, tự lọc còn */30 phút.
     "crons": ["0 1 * * *", "30 0 * * *", "*/15 * * * *", "0 * * * *"]
   }
 }
