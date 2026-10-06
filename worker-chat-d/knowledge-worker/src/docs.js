@@ -372,6 +372,8 @@ export const API_DOCS_HTML = String.raw`
 
     <div class="group-title" data-i18n="nav_g_chat">Chat &amp; khách hàng</div>
     <li><a href="#post-chat"><span class="m badge POST">POST</span> /chat</a></li>
+    <li><a href="#post-ai-voice-turn"><span class="m badge POST">POST</span> /ai-voice/turn</a></li>
+    <li><a href="#post-ai-voice-greeting"><span class="m badge POST">POST</span> /ai-voice/greeting</a></li>
     <li><a href="#post-chat-link"><span class="m badge POST">POST</span> /chat-link</a></li>
     <li><a href="#put-customer-context"><span class="m badge PUT">PUT</span> /customer-context</a></li>
     <li><a href="#get-messages"><span class="m badge GET">GET</span> /messages</a></li>
@@ -406,6 +408,17 @@ export const API_DOCS_HTML = String.raw`
     <li><a href="#post-agent-tools"><span class="m badge POST">POST</span> /agent-tools</a></li>
     <li><a href="#delete-agent-tools"><span class="m badge DELETE">DEL</span> /agent-tools/:id</a></li>
     <li><a href="#post-marketplace-chat"><span class="m badge POST">POST</span> /marketplace-chat</a></li>
+
+    <div class="group-title" data-i18n="nav_g_operator">AI Agent nội bộ (tool ghi + xác nhận)</div>
+    <li><a href="#post-operator-chat"><span class="m badge POST">POST</span> /operator-chat</a></li>
+    <li><a href="#get-agent-tool-proposals"><span class="m badge GET">GET</span> /agent-tool-proposals</a></li>
+    <li><a href="#post-proposal-confirm"><span class="m badge POST">POST</span> /agent-tool-proposals/:id/confirm</a></li>
+    <li><a href="#post-proposal-reject"><span class="m badge POST">POST</span> /agent-tool-proposals/:id/reject</a></li>
+
+    <div class="group-title" data-i18n="nav_g_platform">Nền tảng nhiều tenant (Platform)</div>
+    <li><a href="#get-account-workspaces"><span class="m badge GET">GET</span> /account/workspaces</a></li>
+    <li><a href="#post-account-workspaces"><span class="m badge POST">POST</span> /account/workspaces</a></li>
+    <li><a href="#delete-account-workspaces"><span class="m badge DELETE">DEL</span> /account/workspaces/:tenant</a></li>
 
     <div class="group-title" data-i18n="nav_g_schedules">Lịch đăng tự động</div>
     <li><a href="#get-schedules"><span class="m badge GET">GET</span> /schedules</a></li>
@@ -584,12 +597,13 @@ export const API_DOCS_HTML = String.raw`
       <table class="field-table">
         <tr><th data-i18n="fh_field">Trường</th><th data-i18n="fh_type">Kiểu</th><th data-i18n="fh_required">Bắt buộc</th><th data-i18n="fh_note">Ghi chú</th></tr>
         <tr><td class="name">session</td><td>string</td><td class="req" data-i18n="common_yes">có</td><td data-i18n-html="ep_post_messages_n1">≤ 200 ký tự — phải là session đã có ít nhất 1 tin nhắn (tạo qua <code>/chat-link</code> hoặc khách đã chat 1 lần)</td></tr>
-        <tr><td class="name">text</td><td>string</td><td class="req" data-i18n="common_yes">có</td><td data-i18n="ep_post_messages_n2">≤ 10.000 ký tự</td></tr>
+        <tr><td class="name">text</td><td>string</td><td>không*</td><td>≤ 10.000 ký tự</td></tr>
+        <tr><td class="name">media</td><td>array</td><td>không*</td><td>Tối đa 10 phần tử <code>{type: image|video|audio|file, url: HTTPS, caption?, filename?}</code>. Phải có ít nhất <code>text</code> hoặc <code>media</code>. Với session Facebook, Instagram, WhatsApp hoặc Zalo, server gửi media qua API của nền tảng.</td></tr>
       </table>
       <pre><code>curl -X POST https://apic.schoolsai.work/api/v1/messages \
   -H "Authorization: Bearer sk_xxx" \
   -H "Content-Type: application/json" \
-  -d '{"session":"a1b2c3d4-...","text":"Đơn hàng của bạn đã xong, mời bạn ghé lấy nhé!"}'</code></pre>
+  -d '{"session":"a1b2c3d4-...","text":"Đơn hàng đã xong!","media":[{"type":"video","url":"https://cdn.example.com/demo.mp4","caption":"Video hướng dẫn"}]}'</code></pre>
       <pre><code>// 200
 { "success": true, ... }
 // 404 — session chưa từng có tin nhắn nào
@@ -601,6 +615,45 @@ export const API_DOCS_HTML = String.raw`
   </section>
 
   <!-- ===================== CALLS ===================== -->
+  <section class="resource" id="ai-voice">
+    <h2>Gọi thoại với AI workspace</h2>
+    <p class="desc">Client ghi một lượt âm thanh rồi gửi đến SchoolsAI. Worker xác thực API key, ép workspace theo tenant của key, chạy STT → AI workspace → TTS và trả lại transcript, câu trả lời cùng audio. Đây là API hội thoại theo lượt, không phải WebRTC streaming.</p>
+
+    <div class="endpoint" id="post-ai-voice-greeting">
+      <div class="sig"><span class="badge POST">POST</span><span class="path">/api/v1/ai-voice/greeting</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
+      <p class="summary">Tạo câu chào đầu cuộc gọi theo tên và ngôn ngữ cấu hình của workspace.</p>
+      <pre><code>curl -X POST https://apic.schoolsai.work/api/v1/ai-voice/greeting \
+  -H "Authorization: Bearer sk_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"lang":"vi"}'
+
+# 200
+{ "success": true, "text": "Xin chào...", "audioBase64": "..." }</code></pre>
+    </div>
+
+    <div class="endpoint" id="post-ai-voice-turn">
+      <div class="sig"><span class="badge POST">POST</span><span class="path">/api/v1/ai-voice/turn</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
+      <p class="summary">Gửi một lượt nói của khách đến đúng AI workspace gắn với API key.</p>
+      <table class="field-table">
+        <tr><th data-i18n="fh_field">Trường form</th><th data-i18n="fh_required">Bắt buộc</th><th data-i18n="fh_note">Ghi chú</th></tr>
+        <tr><td class="name">audio</td><td class="req">có</td><td>File âm thanh, ví dụ audio/webm</td></tr>
+        <tr><td class="name">session</td><td class="req">có</td><td>Giữ nguyên giữa các lượt để AI workspace nhớ hội thoại</td></tr>
+        <tr><td class="name">username</td><td class="opt">không</td><td>Tên hiển thị của người gọi</td></tr>
+        <tr><td class="name">duration_ms</td><td class="opt">không</td><td>Thời lượng audio để tính quota voice</td></tr>
+      </table>
+      <pre><code>curl -X POST https://apic.schoolsai.work/api/v1/ai-voice/turn \
+  -H "Authorization: Bearer sk_xxx" \
+  -F "audio=@voice.webm;type=audio/webm" \
+  -F "session=customer-call-123" \
+  -F "username=Nguyen Van A" \
+  -F "duration_ms=4200"
+
+# 200
+{ "success": true, "transcript": "...", "reply": "...", "audioBase64": "...", "needsHuman": false }</code></pre>
+      <p class="note">Không gửi <code>tenant</code>; server luôn lấy workspace từ API key. Khi <code>needsHuman=true</code>, client có thể chuyển sang luồng cuộc gọi nhân viên qua Cloudflare Realtime.</p>
+    </div>
+  </section>
+
   <section class="resource" id="calls">
     <h2 data-i18n="nav_g_calls">Gọi thoại (voice)</h2>
     <p class="desc" data-i18n-html="sec_calls_desc">Quản lý cuộc gọi thoại admin ↔ khách qua Cloudflare Realtime (SFU). Trạng thái ringing/active/ended được đồng bộ realtime cho cả 2 phía qua PocketBase, giống cơ chế của <code>messages</code>.</p>
@@ -838,6 +891,123 @@ export const API_DOCS_HTML = String.raw`
     </div>
   </section>
 
+  <!-- ===================== OPERATOR CHAT (WRITE TOOL + CONFIRM) ===================== -->
+  <section class="resource" id="operator-chat">
+    <h2>AI Agent nội bộ (orchestration-only)</h2>
+    <p class="desc">SchoolsAI chỉ suy luận và trả <code>answer</code> hoặc một tool directive. Client đã xác thực chịu trách nhiệm kiểm tra phạm vi dữ liệu, thực thi tool và xin xác nhận trước mọi thao tác ghi. Endpoint này không gọi URL của tool.</p>
+
+    <div class="callout">
+      <h3>Xác nhận và thực thi thuộc CameraAIWork</h3>
+      <span><code>operator-chat</code> không tự thực thi tool. Với tool ghi, CameraAIWork nhận directive, kiểm tra lại account/site/camera, hiển thị xác nhận cho người dùng rồi mới gọi hệ thống camera.</span>
+    </div>
+
+    <div class="endpoint" id="post-operator-chat">
+      <div class="sig"><span class="badge POST">POST</span><span class="path">/api/v1/operator-chat</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
+      <p class="summary">Chat cho người vận hành nội bộ theo contract orchestration-only. Response luôn echo nguyên vẹn <code>request_id</code>.</p>
+      <table class="field-table">
+        <tr><th data-i18n="fh_field">Trường</th><th data-i18n="fh_type">Kiểu</th><th data-i18n="fh_required">Bắt buộc</th><th data-i18n="fh_note">Ghi chú</th></tr>
+        <tr><td class="name">request_id</td><td>UUID</td><td class="req">có</td><td>Duy nhất cho mỗi lượt; dùng làm idempotency key</td></tr>
+        <tr><td class="name">session</td><td>string</td><td class="req">có</td><td>Không dùng chung cho các request đồng thời</td></tr>
+        <tr><td class="name">messages</td><td>array</td><td class="req">có</td><td>Tối đa 20 message; content tối đa 8.000 ký tự</td></tr>
+      </table>
+      <div class="tryit" data-method="POST" data-path="/api/v1/operator-chat"
+        data-body='{"request_id":"6ba7b810-9dad-41d1-80b4-00c04fd430c8","session":"cameraai-operator-opaque-request","messages":[{"role":"user","content":"Liệt kê camera"}]}'></div>
+      <p class="note">Response thành công: <code>{ "request_id", "type":"answer", "answer", "finish_reason":"stop" }</code> hoặc <code>{ "request_id", "type":"tool", "tool_call_id", "name", "args" }</code>. Gửi kết quả tool ở lượt tiếp theo với cùng request/session và giữ nguyên tool_call_id. Tối đa 6 vòng tool.</p>
+    </div>
+
+    <div class="endpoint" id="get-agent-tool-proposals">
+      <div class="sig"><span class="badge GET">GET</span><span class="path">/api/v1/agent-tool-proposals</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
+      <p class="summary" data-i18n-html="ep_get_proposals_summary">Liệt kê tối đa 50 đề xuất gần nhất, mới nhất trước. Lọc theo trạng thái bằng query <code>status</code>.</p>
+      <table class="field-table">
+        <tr><th data-i18n="fh_field">Trường</th><th data-i18n="fh_type">Kiểu</th><th data-i18n="fh_required">Bắt buộc</th><th data-i18n="fh_note">Ghi chú</th></tr>
+        <tr><td class="name">status</td><td>string</td><td class="opt" data-i18n="common_no">không</td><td data-i18n="ep_proposals_n1">pending / confirmed / rejected — bỏ trống để lấy tất cả</td></tr>
+      </table>
+      <div class="tryit" data-method="GET" data-path="/api/v1/agent-tool-proposals" data-query="status=pending"></div>
+    </div>
+
+    <div class="endpoint" id="post-proposal-confirm">
+      <div class="sig"><span class="badge POST">POST</span><span class="path">/api/v1/agent-tool-proposals/:id/confirm</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
+      <p class="summary" data-i18n-html="ep_post_proposal_confirm_summary">Thực thi thật đề xuất đang <code>pending</code> — gọi tool với đúng tham số model đã chọn lúc đề xuất, ghi lại kết quả.</p>
+      <div class="tryit" data-method="POST" data-path="/api/v1/agent-tool-proposals/:id/confirm"></div>
+      <p class="note" data-i18n-html="ep_post_proposal_note">Lỗi <code>409</code> nếu đề xuất không còn ở trạng thái <code>pending</code> (đã xác nhận/từ chối trước đó — không xác nhận/từ chối lại được).</p>
+    </div>
+
+    <div class="endpoint" id="post-proposal-reject">
+      <div class="sig"><span class="badge POST">POST</span><span class="path">/api/v1/agent-tool-proposals/:id/reject</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
+      <p class="summary" data-i18n-html="ep_post_proposal_reject_summary">Huỷ 1 đề xuất đang <code>pending</code> — không có gì được thực thi.</p>
+      <div class="tryit" data-method="POST" data-path="/api/v1/agent-tool-proposals/:id/reject"></div>
+    </div>
+  </section>
+
+  <!-- ===================== PLATFORM / MULTI-TENANT ===================== -->
+  <section class="resource" id="platform">
+    <h2 data-i18n="nav_g_platform">Nền tảng nhiều tenant (Platform → Store)</h2>
+    <p class="desc" data-i18n-html="sec_platform_desc">Dành cho 1 <strong>nền tảng</strong> (marketplace, SaaS...) muốn tự cấp phát và quản lý nhiều bot con cho khách hàng/store của chính họ — vd 1 sàn bất động sản cấp 1 bot riêng cho từng agency. Mỗi store là 1 workspace tách biệt hoàn toàn về dữ liệu (knowledge base, agent tools riêng), nhưng dùng chung 1 tài khoản Schoolsai và 1 gói cước — không phải mở tài khoản/hợp đồng riêng cho từng store.</p>
+
+    <div class="callout">
+      <h3 data-i18n="pf_arch_title">Kiến trúc 2 tầng</h3>
+      <span data-i18n-html="pf_arch_body"><strong>Tầng 1 — Platform:</strong> 1 tài khoản Schoolsai (đăng ký/được cấp lúc onboard). Workspace mặc định của tài khoản này (tạo lúc đăng ký) đóng vai bot chung của platform — tư vấn chung, marketing, FAQ toàn nền tảng. <strong>Tầng 2 — Store:</strong> mỗi khách hàng/agency/store bên trong platform là 1 <em>workspace phụ</em>, tạo qua <a href="#post-account-workspaces">POST /api/account/workspaces</a> bên dưới — có <code>tenant</code> slug + <code>api_key</code> riêng, dữ liệu cô lập hoàn toàn với store khác, nhưng quota tin nhắn tính chung vào 1 pool của platform.</span>
+    </div>
+
+    <div class="callout">
+      <h3 data-i18n="pf_auth_title">Auth khác với các endpoint khác trên trang này</h3>
+      <span data-i18n-html="pf_auth_body">2 endpoint dưới đây xác thực bằng <strong>token đăng nhập của tài khoản platform</strong> (PocketBase auth token), KHÔNG phải <code>api_key</code> của 1 bot cụ thể — nên ô "API key" ở đầu trang này không dùng được ở đây, không có nút "Thử API" tương tác, dùng curl. Lấy token: <code>POST /api/collections/tenants/auth-with-password</code> với <code>{"identity": "email@platform.com", "password": "..."}</code>; refresh khi hết hạn qua <code>POST /api/collections/tenants/auth-refresh</code> kèm token cũ. Giữ credential này ở backend của platform (không phải ở client/app), coi như 1 secret dùng để tự động hoá tạo store.</span>
+    </div>
+
+    <div class="endpoint" id="get-account-workspaces">
+      <div class="sig"><span class="badge GET">GET</span><span class="path">/api/account/workspaces</span><span class="badge auth" data-i18n="badge_auth_account">cần token account</span></div>
+      <p class="summary" data-i18n-html="ep_get_account_workspaces_summary">Liệt kê toàn bộ store (workspace) của platform, kèm gói cước hiện tại và số lượng đã dùng/giới hạn.</p>
+      <pre><code>curl https://apic.schoolsai.work/api/account/workspaces \
+  -H "Authorization: Bearer &lt;account_token&gt;"
+# -&gt; { "success": true, "plan": "pro", "limit": 10, "used": 3,
+#      "workspaces": ["platform-default", "agency-x", "agency-y"] }</code></pre>
+    </div>
+
+    <div class="endpoint" id="post-account-workspaces">
+      <div class="sig"><span class="badge POST">POST</span><span class="path">/api/account/workspaces</span><span class="badge auth" data-i18n="badge_auth_account">cần token account</span></div>
+      <p class="summary" data-i18n-html="ep_post_account_workspaces_summary">Tạo 1 store mới (workspace phụ) cho platform. Giới hạn <strong>10 lần gọi/giờ</strong> để chống tạo tràn lan.</p>
+      <table class="field-table">
+        <tr><th data-i18n="fh_field">Trường</th><th data-i18n="fh_type">Kiểu</th><th data-i18n="fh_required">Bắt buộc</th><th data-i18n="fh_note">Ghi chú</th></tr>
+        <tr><td class="name">tenant</td><td>string</td><td class="req" data-i18n="common_yes">có</td><td data-i18n="ep_account_workspaces_n1">3-40 ký tự, chữ thường/số/gạch ngang/gạch dưới — nên dùng slug ổn định theo id nội bộ của store, vd agency-1024</td></tr>
+        <tr><td class="name">bot_name</td><td>string</td><td class="req" data-i18n="common_yes">có</td><td>2-80 ký tự</td></tr>
+        <tr><td class="name">greeting</td><td>string</td><td class="opt" data-i18n="common_no">không</td><td>&nbsp;</td></tr>
+        <tr><td class="name">system_prompt</td><td>string</td><td class="opt" data-i18n="common_no">không</td><td data-i18n="ep_account_workspaces_n2">dùng cho thông tin tĩnh, nhỏ của store (giới thiệu, chính sách, giờ mở cửa) — xem khối "Chọn đúng cách nạp dữ liệu" bên dưới</td></tr>
+      </table>
+      <pre><code>curl -X POST https://apic.schoolsai.work/api/account/workspaces \
+  -H "Authorization: Bearer &lt;account_token&gt;" -H "Content-Type: application/json" \
+  -d '{"tenant":"agency-1024","bot_name":"Agency 1024 Assistant"}'
+# -&gt; 201 { "success": true, "tenant": "agency-1024", "bot_name": "...",
+#          "api_key": "sk_xxx", "plan": "pro", "used": 4, "limit": 10 }
+# LƯU NGAY "api_key" trả về — đây là api_key RIÊNG của store này, dùng cho
+# mọi endpoint khác trên trang (agent-tools, marketplace-chat, config, knowledge...).</code></pre>
+      <p class="note" data-i18n-html="ep_post_account_workspaces_note">Lỗi <code>409</code> nếu <code>tenant</code> đã tồn tại (chọn slug khác). Lỗi <code>403</code> nếu platform đã đạt giới hạn số store của gói hiện tại (mặc định free 3 / pro 10) — liên hệ Schoolsai để nâng nếu platform cần nhiều store hơn, đây là giới hạn có thể nới riêng theo từng platform, không cố định.</p>
+    </div>
+
+    <div class="endpoint" id="delete-account-workspaces">
+      <div class="sig"><span class="badge DELETE">DELETE</span><span class="path">/api/account/workspaces/:tenant</span><span class="badge auth" data-i18n="badge_auth_account">cần token account</span></div>
+      <p class="summary" data-i18n-html="ep_delete_account_workspaces_summary">Xoá 1 store (workspace phụ) — xoá luôn bot và toàn bộ dữ liệu riêng của store đó (knowledge base, agent tools...), giải phóng 1 chỗ trong giới hạn số workspace. Không thể xoá workspace mặc định của tài khoản qua endpoint này.</p>
+      <pre><code>curl -X DELETE https://apic.schoolsai.work/api/account/workspaces/agency-1024 \
+  -H "Authorization: Bearer &lt;account_token&gt;"
+# -&gt; 200 { "success": true, "tenant": "agency-1024" }</code></pre>
+      <p class="note" data-i18n-html="ep_delete_account_workspaces_note">Lỗi <code>404</code> nếu <code>tenant</code> không tồn tại hoặc không thuộc tài khoản của bạn. Lỗi <code>403</code> nếu cố xoá workspace mặc định của tài khoản (workspace gắn liền với chính account, không phải store tự tạo). Hành động này <strong>không thể hoàn tác</strong> — <code>api_key</code> của store đó ngừng hoạt động ngay lập tức.</p>
+    </div>
+
+    <div class="callout">
+      <h3 data-i18n="pf_data_title">Chọn đúng cách nạp dữ liệu cho mỗi store</h3>
+      <span data-i18n-html="pf_data_body">Không phải cứ nhiều store là phải dùng Knowledge base (RAG/embedding). Chọn theo tính chất dữ liệu của từng store: <strong>(1) Thông tin tĩnh, nhỏ</strong> (giới thiệu, FAQ, chính sách, giờ mở cửa) — nhét thẳng vào <code>system_prompt</code> lúc tạo workspace hoặc qua <a href="#patch-config">PATCH /config</a> sau đó, không cần gì thêm. <strong>(2) Dữ liệu động/hay đổi</strong> (danh sách tin đăng, catalog sản phẩm, lịch sử đơn hàng) — đăng ký <a href="#post-agent-tools">tool GET trỏ vào API thật của store</a>, để model tự gọi khi cần — không nhét vào prompt (sẽ tràn context khi data lớn dần) và cũng không cần embedding (dữ liệu luôn mới, không phải đồng bộ lại). <strong>(3) Tài liệu dài, ít đổi, không có API sẵn</strong> (hướng dẫn sử dụng, chính sách chi tiết) — mới dùng đến <a href="#knowledge">Knowledge base</a> thật sự.</span>
+    </div>
+
+    <div class="callout">
+      <h3 data-i18n="pf_tool_wording_title">Model có thể từ chối gọi tool khi đối tượng được hỏi trùng thực thể nó "biết sẵn" — không liên quan cách viết mô tả</h3>
+      <span data-i18n-html="pf_tool_wording_body">Model đôi khi <strong>từ chối gọi 1 tool đã đăng ký đúng</strong> khi giá trị tham số trùng với 1 đối tượng nó có sẵn kiến thức nền rộng (thương hiệu lớn, dự án nổi tiếng...) — model tự áp phản xạ "tôi không có quyền truy cập dữ liệu real-time của X" thay vì tin tưởng gọi tool, dù tool chạy bình thường và trả đúng dữ liệu nếu được gọi. Đã kiểm chứng kỹ, KHÔNG khắc phục được bằng: đổi wording của <code>description</code>, đổi tên tham số, đổi loại dữ liệu hỏi (số liệu vs mô tả), ra lệnh mạnh trong system prompt ("luôn gọi tool, không dùng kiến thức có sẵn"), lẫn đổi model trong cùng họ OpenAI (đã test <code>gpt-4o-mini</code>, <code>gpt-4o</code>, <code>gpt-4.1</code> — cả 3 từ chối giống hệt nhau với cùng câu hỏi). Đây là hành vi alignment ở tầng huấn luyện của <strong>toàn bộ họ model GPT</strong> khi câu hỏi thuộc dạng "số liệu công khai của 1 tài nguyên internet có thể kiểm chứng" (vd lượt sao GitHub) — không phải bug hệ thống, và không sửa được từ phía cấu hình/prompt/model OpenAI. Chỉ ảnh hưởng nhóm câu hỏi kiểu này; dữ liệu nghiệp vụ nội bộ của store (tin đăng, catalog, hồ sơ khách...) không gặp vấn đề tương tự. Muốn loại bỏ hoàn toàn rủi ro này cần đổi sang nhà cung cấp model khác ngoài họ GPT (vd Gemini) — đây là thay đổi lớn hơn (khác định dạng API tool-calling), chưa được tích hợp cho kênh này.</span>
+    </div>
+
+    <div class="callout">
+      <h3 data-i18n="pf_checklist_title">Checklist tích hợp cho platform</h3>
+      <span data-i18n-html="pf_checklist_body">1) Backend của platform giữ 1 cặp email/password Schoolsai (được cấp lúc onboard), login 1 lần lấy token, tự refresh khi hết hạn.<br>2) Khi có store/khách hàng mới đăng ký trên platform: gọi <a href="#post-account-workspaces">POST /api/account/workspaces</a>, lưu <code>api_key</code> trả về vào DB của platform, khoá theo id store nội bộ.<br>3) Với mỗi store: nạp dữ liệu theo đúng loại (xem khối phía trên), dùng <code>api_key</code> riêng của store đó cho mọi API tiếp theo.<br>4) Nhúng widget <a href="#post-chat">/chat</a> hoặc gọi <a href="#post-marketplace-chat">/marketplace-chat</a> bằng đúng <code>api_key</code> của store cho khách hàng cuối của store đó — không dùng chung 1 api_key cho nhiều store.<br>5) Theo dõi <code>used</code>/<code>limit</code> qua <a href="#get-account-workspaces">GET /api/account/workspaces</a> định kỳ — quota tin nhắn tính chung cho cả platform, không tách theo từng store.</span>
+    </div>
+  </section>
+
   <!-- ===================== SCHEDULES ===================== -->
   <section class="resource" id="schedules">
     <h2 data-i18n="nav_g_schedules">Lịch đăng tự động</h2>
@@ -958,7 +1128,7 @@ curl -X POST https://apic.schoolsai.work/api/v1/messages \
 var I18N_DICT = {
   vi: {
     kb_label: "API key", kb_hint: 'Chỉ lưu trong trình duyệt của bạn (localStorage) — dùng cho mọi nút "Gửi request" trên trang này.', kb_toggle_title: "Hiện/ẩn key",
-    nav_intro: "Giới thiệu & Auth", nav_g_botconfig: "Bot & cấu hình", nav_g_chat: "Chat & khách hàng", nav_g_calls: "Gọi thoại (voice)", nav_g_content: "Nội dung & đăng bài", nav_g_knowledge: "Knowledge base", nav_g_lessons: "Bài học (Lessons)", nav_g_marketplace: "Marketplace / API ngoài", nav_g_schedules: "Lịch đăng tự động", nav_g_loyalty: "Loyalty & Content Planning", nav_g_other: "Khác", nav_errors: "Mã lỗi chung", nav_quickstart: "Ví dụ: gửi tin nhắn cho khách",
+    nav_intro: "Giới thiệu & Auth", nav_g_botconfig: "Bot & cấu hình", nav_g_chat: "Chat & khách hàng", nav_g_calls: "Gọi thoại (voice)", nav_g_content: "Nội dung & đăng bài", nav_g_knowledge: "Knowledge base", nav_g_lessons: "Bài học (Lessons)", nav_g_marketplace: "Marketplace / API ngoài", nav_g_operator: "AI Agent nội bộ (tool ghi + xác nhận)", nav_g_platform: "Nền tảng nhiều tenant (Platform)", nav_g_schedules: "Lịch đăng tự động", nav_g_loyalty: "Loyalty & Content Planning", nav_g_other: "Khác", nav_errors: "Mã lỗi chung", nav_quickstart: "Ví dụ: gửi tin nhắn cho khách",
     main_lede: 'Tài liệu tham khảo cho toàn bộ API công khai (<code>/api/v1/*</code>) của Knowledge Worker — dùng khi hệ thống ngoài (POS, CRM, tổng đài...) muốn tích hợp chatbot, gọi thoại, loyalty và quản lý nội dung theo từng tenant. Mỗi endpoint chính có nút <strong>"Thử API"</strong> để gọi thật ngay trên trang, không cần Postman.',
     intro_h2: "Base URL & Xác thực", intro_th_format: "Format", intro_callout_title: "Lấy API key ở đâu?",
     intro_callout_body: 'Mỗi tenant có 1 <code>api_key</code> riêng (sinh khi tạo bot qua <code>/api/onboarding/register</code> hoặc <code>POST /api/v1/bots</code>), xem lại trong trang cấu hình (config.html) của dashboard. Dán key vào ô "API key" ở đầu trang này để dùng các nút "Thử API" bên dưới.',
@@ -1038,6 +1208,35 @@ var I18N_DICT = {
     mp_detail_title: "Tư vấn theo đúng 1 mục đang xem (vd trang chi tiết 1 tin)",
     mp_detail_body: 'Khi khách đang ở trang chi tiết 1 tin/mục cụ thể — giống hệt trường hợp học viên đang mở 1 lesson (xem <a href="#lessons">Bài học (Lessons)</a>) — không cần "tìm kiếm" gì cả vì đã biết chính xác id. Có 2 cách: (1) nếu hệ thống gọi API này (backend của bạn) đã có sẵn nội dung mục đó, gửi thẳng qua <code>item_context</code> — nhanh nhất, không cần đăng ký tool, bạn tự kiểm soát nội dung gửi; (2) nếu không có sẵn, đăng ký 1 tool GET tên đúng <code>get_item_detail</code> (nhận tham số <code>id</code>) trỏ vào API xem chi tiết của bạn, rồi gửi kèm <code>item_id</code> — server tự gọi tool đó lấy dữ liệu. Gửi cả 2 thì <code>item_context</code> được ưu tiên dùng.',
     ep_post_marketplace_chat_item_context_note: '≤ 20.000 ký tự — nếu hệ thống gọi API này (backend của bạn) đã có sẵn nội dung mục đang xem, gửi thẳng text đã làm sạch qua đây thay vì dùng <code>item_id</code>; ưu tiên hơn <code>item_id</code> nếu cả 2 cùng được gửi, tránh phải gọi ngược lại API của bạn',
+    sec_operator_desc: 'Dành cho <strong>người vận hành đã xác thực</strong> của 1 store (nhân viên, app nội bộ) — khác <a href="#marketplace">marketplace-chat</a> (khách ẩn danh, chỉ GET). Cho phép gọi tool tenant tự đăng ký với BẤT KỲ method nào (GET/POST/PUT/PATCH/DELETE). Tool đánh dấu <code>requires_confirmation</code> sẽ KHÔNG thực thi ngay — tạo 1 đề xuất chờ người dùng bấm xác nhận, đúng luồng "đề xuất trước, xác nhận mới thực thi" cho các thao tác nhạy cảm (đổi tên, xoá, điều khiển thiết bị...).',
+    op_flag_title: "Đăng ký tool cần xác nhận",
+    op_flag_body: 'Thêm <code>"requires_confirmation": true</code> khi gọi <a href="#post-agent-tools">POST /api/v1/agent-tools</a> — chỉ tool này mới đi qua luồng đề xuất/xác nhận; tool không đánh dấu (mặc định false) thực thi ngay như bình thường, kể cả trong kênh operator-chat.',
+    ep_post_operator_chat_summary: 'Chat cho người vận hành nội bộ — AI tự gọi tool phù hợp (mọi method). Nếu tool có <code>requires_confirmation=true</code>, response trả kèm <code>pending_action</code> thay vì thực thi ngay.',
+    ep_post_operator_chat_note: 'Response khi có đề xuất chờ xác nhận: <code>{ "success": true, "reply": "...", "pending_action": { "id", "tool_name", "args", "description" } }</code> — <code>pending_action</code> là <code>null</code> nếu không có gì cần xác nhận. UI nên hiện nút Xác nhận/Từ chối dựa vào <code>pending_action.id</code>.',
+    ep_get_proposals_summary: "Liệt kê tối đa 50 đề xuất gần nhất, mới nhất trước. Lọc theo trạng thái bằng query status.",
+    ep_proposals_n1: "pending / confirmed / rejected — bỏ trống để lấy tất cả",
+    ep_post_proposal_confirm_summary: "Thực thi thật đề xuất đang pending — gọi tool với đúng tham số model đã chọn lúc đề xuất, ghi lại kết quả.",
+    ep_post_proposal_note: 'Lỗi <code>409</code> nếu đề xuất không còn ở trạng thái <code>pending</code> (đã xác nhận/từ chối trước đó — không xác nhận/từ chối lại được).',
+    ep_post_proposal_reject_summary: "Huỷ 1 đề xuất đang pending — không có gì được thực thi.",
+    sec_platform_desc: 'Dành cho 1 <strong>nền tảng</strong> (marketplace, SaaS...) muốn tự cấp phát và quản lý nhiều bot con cho khách hàng/store của chính họ — vd 1 sàn bất động sản cấp 1 bot riêng cho từng agency. Mỗi store là 1 workspace tách biệt hoàn toàn về dữ liệu (knowledge base, agent tools riêng), nhưng dùng chung 1 tài khoản Schoolsai và 1 gói cước — không phải mở tài khoản/hợp đồng riêng cho từng store.',
+    pf_arch_title: "Kiến trúc 2 tầng",
+    pf_arch_body: '<strong>Tầng 1 — Platform:</strong> 1 tài khoản Schoolsai (đăng ký/được cấp lúc onboard). Workspace mặc định của tài khoản này (tạo lúc đăng ký) đóng vai bot chung của platform — tư vấn chung, marketing, FAQ toàn nền tảng. <strong>Tầng 2 — Store:</strong> mỗi khách hàng/agency/store bên trong platform là 1 <em>workspace phụ</em>, tạo qua <a href="#post-account-workspaces">POST /api/account/workspaces</a> bên dưới — có <code>tenant</code> slug + <code>api_key</code> riêng, dữ liệu cô lập hoàn toàn với store khác, nhưng quota tin nhắn tính chung vào 1 pool của platform.',
+    pf_auth_title: "Auth khác với các endpoint khác trên trang này",
+    pf_auth_body: '2 endpoint dưới đây xác thực bằng <strong>token đăng nhập của tài khoản platform</strong> (PocketBase auth token), KHÔNG phải <code>api_key</code> của 1 bot cụ thể — nên ô "API key" ở đầu trang này không dùng được ở đây, không có nút "Thử API" tương tác, dùng curl. Lấy token: <code>POST /api/collections/tenants/auth-with-password</code> với <code>{"identity": "email@platform.com", "password": "..."}</code>; refresh khi hết hạn qua <code>POST /api/collections/tenants/auth-refresh</code> kèm token cũ. Giữ credential này ở backend của platform (không phải ở client/app), coi như 1 secret dùng để tự động hoá tạo store.',
+    badge_auth_account: "cần token account",
+    ep_get_account_workspaces_summary: "Liệt kê toàn bộ store (workspace) của platform, kèm gói cước hiện tại và số lượng đã dùng/giới hạn.",
+    ep_post_account_workspaces_summary: 'Tạo 1 store mới (workspace phụ) cho platform. Giới hạn <strong>10 lần gọi/giờ</strong> để chống tạo tràn lan.',
+    ep_account_workspaces_n1: "3-40 ký tự, chữ thường/số/gạch ngang/gạch dưới — nên dùng slug ổn định theo id nội bộ của store, vd agency-1024",
+    ep_account_workspaces_n2: 'dùng cho thông tin tĩnh, nhỏ của store (giới thiệu, chính sách, giờ mở cửa) — xem khối "Chọn đúng cách nạp dữ liệu" bên dưới',
+    ep_post_account_workspaces_note: 'Lỗi <code>409</code> nếu <code>tenant</code> đã tồn tại (chọn slug khác). Lỗi <code>403</code> nếu platform đã đạt giới hạn số store của gói hiện tại (mặc định free 3 / pro 10) — liên hệ Schoolsai để nâng nếu platform cần nhiều store hơn, đây là giới hạn có thể nới riêng theo từng platform, không cố định.',
+    pf_data_title: "Chọn đúng cách nạp dữ liệu cho mỗi store",
+    pf_data_body: 'Không phải cứ nhiều store là phải dùng Knowledge base (RAG/embedding). Chọn theo tính chất dữ liệu của từng store: <strong>(1) Thông tin tĩnh, nhỏ</strong> (giới thiệu, FAQ, chính sách, giờ mở cửa) — nhét thẳng vào <code>system_prompt</code> lúc tạo workspace hoặc qua <a href="#patch-config">PATCH /config</a> sau đó, không cần gì thêm. <strong>(2) Dữ liệu động/hay đổi</strong> (danh sách tin đăng, catalog sản phẩm, lịch sử đơn hàng) — đăng ký <a href="#post-agent-tools">tool GET trỏ vào API thật của store</a>, để model tự gọi khi cần — không nhét vào prompt (sẽ tràn context khi data lớn dần) và cũng không cần embedding (dữ liệu luôn mới, không phải đồng bộ lại). <strong>(3) Tài liệu dài, ít đổi, không có API sẵn</strong> (hướng dẫn sử dụng, chính sách chi tiết) — mới dùng đến <a href="#knowledge">Knowledge base</a> thật sự.',
+    pf_checklist_title: "Checklist tích hợp cho platform",
+    pf_checklist_body: '1) Backend của platform giữ 1 cặp email/password Schoolsai (được cấp lúc onboard), login 1 lần lấy token, tự refresh khi hết hạn.<br>2) Khi có store/khách hàng mới đăng ký trên platform: gọi <a href="#post-account-workspaces">POST /api/account/workspaces</a>, lưu <code>api_key</code> trả về vào DB của platform, khoá theo id store nội bộ.<br>3) Với mỗi store: nạp dữ liệu theo đúng loại (xem khối phía trên), dùng <code>api_key</code> riêng của store đó cho mọi API tiếp theo.<br>4) Nhúng widget <a href="#post-chat">/chat</a> hoặc gọi <a href="#post-marketplace-chat">/marketplace-chat</a> bằng đúng <code>api_key</code> của store cho khách hàng cuối của store đó — không dùng chung 1 api_key cho nhiều store.<br>5) Theo dõi <code>used</code>/<code>limit</code> qua <a href="#get-account-workspaces">GET /api/account/workspaces</a> định kỳ — quota tin nhắn tính chung cho cả platform, không tách theo từng store.<br>6) Khi store ngừng hợp tác với platform: gọi <a href="#delete-account-workspaces">DELETE /api/account/workspaces/:tenant</a> để dọn dữ liệu và giải phóng chỗ.',
+    ep_delete_account_workspaces_summary: "Xoá 1 store (workspace phụ) — xoá luôn bot và toàn bộ dữ liệu riêng của store đó (knowledge base, agent tools...), giải phóng 1 chỗ trong giới hạn số workspace. Không thể xoá workspace mặc định của tài khoản qua endpoint này.",
+    ep_delete_account_workspaces_note: 'Lỗi <code>404</code> nếu <code>tenant</code> không tồn tại hoặc không thuộc tài khoản của bạn. Lỗi <code>403</code> nếu cố xoá workspace mặc định của tài khoản (workspace gắn liền với chính account, không phải store tự tạo). Hành động này <strong>không thể hoàn tác</strong> — <code>api_key</code> của store đó ngừng hoạt động ngay lập tức.',
+    pf_tool_wording_title: "Mô tả tool sai cách khiến model từ chối gọi, dù tool hoạt động bình thường",
+    pf_tool_wording_body: 'Model đôi khi <strong>từ chối gọi 1 tool đã đăng ký đúng</strong> nếu câu hỏi/mô tả tool nghe giống đang xin quyền "truy cập internet real-time" (vd hỏi thẳng "hiện tại/real-time có bao nhiêu...") — phản xạ huấn luyện sẵn của model trả lời kiểu "tôi không có khả năng truy cập dữ liệu trực tiếp", dù tool gọi bình thường và trả dữ liệu đúng nếu được gọi. Để tránh: (1) viết <code>description</code> của tool theo hướng "tra cứu dữ liệu trong hệ thống/kho dữ liệu nội bộ của bạn", không dùng từ như "internet", "real-time", "trực tuyến"; (2) hướng dẫn khách hàng cuối hỏi tự nhiên kiểu "tra cứu giúp tôi..., cho tôi xem chi tiết..." thay vì nhấn mạnh "ngay bây giờ/hiện tại có...". Đây là đặc điểm của model, không phải lỗi hệ thống — đổi cách diễn đạt thường khắc phục được ngay.',
     sec_schedules_desc: "Đặt luật lên lịch đăng bài tự động theo ngày trong tuần + khung giờ, cho nội dung blog hoặc social.",
     ep_post_schedules_n1: 'mảng "HH:MM", 1 giờ = 1 bài/ngày áp dụng', ep_post_schedules_n2: "mon..sun; rỗng/bỏ qua = áp dụng hàng ngày",
     ep_patch_schedules_summary: "Cập nhật 1 phần (cùng field như tạo mới, tất cả optional).",
@@ -1057,7 +1256,7 @@ var I18N_DICT = {
   },
   en: {
     kb_label: "API key", kb_hint: 'Only stored in your browser (localStorage) — used by every "Send request" button on this page.', kb_toggle_title: "Show/hide key",
-    nav_intro: "Introduction & Auth", nav_g_botconfig: "Bot & config", nav_g_chat: "Chat & customers", nav_g_calls: "Voice calls", nav_g_content: "Content & posting", nav_g_knowledge: "Knowledge base", nav_g_lessons: "Lessons", nav_g_marketplace: "Marketplace / External APIs", nav_g_schedules: "Publish schedules", nav_g_loyalty: "Loyalty & Content Planning", nav_g_other: "Other", nav_errors: "Common error codes", nav_quickstart: "Example: proactively message a customer",
+    nav_intro: "Introduction & Auth", nav_g_botconfig: "Bot & config", nav_g_chat: "Chat & customers", nav_g_calls: "Voice calls", nav_g_content: "Content & posting", nav_g_knowledge: "Knowledge base", nav_g_lessons: "Lessons", nav_g_marketplace: "Marketplace / External APIs", nav_g_operator: "Internal AI Agent (write tools + confirm)", nav_g_platform: "Multi-tenant platforms", nav_g_schedules: "Publish schedules", nav_g_loyalty: "Loyalty & Content Planning", nav_g_other: "Other", nav_errors: "Common error codes", nav_quickstart: "Example: proactively message a customer",
     main_lede: 'Reference for the full public API (<code>/api/v1/*</code>) of Knowledge Worker — for external systems (POS, CRM, call center...) integrating chatbot, voice calls, loyalty, and content management per tenant. Every main endpoint has a <strong>"Try it"</strong> button to call it live on the page, no Postman needed.',
     intro_h2: "Base URL & Authentication", intro_th_format: "Format", intro_callout_title: "Where do I get an API key?",
     intro_callout_body: 'Each tenant has its own <code>api_key</code> (generated when creating a bot via <code>/api/onboarding/register</code> or <code>POST /api/v1/bots</code>), viewable again on the dashboard\'s config page (config.html). Paste it into the "API key" field at the top of this page to use the "Try it" buttons below.',
@@ -1137,6 +1336,35 @@ var I18N_DICT = {
     mp_detail_title: "Advice scoped to the item currently being viewed (e.g. a listing detail page)",
     mp_detail_body: 'When a customer is on a specific item\'s detail page — the same situation as a student having a lesson open (see <a href="#lessons">Lessons</a>) — no "search" is needed since the id is already known. Two options: (1) if the system calling this API (your backend) already has the item\'s content on hand, send it directly via <code>item_context</code> — fastest, no tool registration needed, you control exactly what\'s sent; (2) otherwise, register one GET tool named exactly <code>get_item_detail</code> (taking an <code>id</code> parameter) pointing to your detail-lookup API, then pass <code>item_id</code> — the server calls that tool to fetch the data. If both are sent, <code>item_context</code> takes priority.',
     ep_post_marketplace_chat_item_context_note: '≤ 20,000 chars — if the system calling this API (your backend) already has the content of the item being viewed, send the cleaned-up text directly here instead of using <code>item_id</code>; takes priority over <code>item_id</code> if both are sent, avoiding a call back to your own API',
+    sec_operator_desc: 'For an <strong>authenticated operator</strong> of a store (staff, an internal app) — unlike <a href="#marketplace">marketplace-chat</a> (anonymous customers, GET only). Lets the model call tenant-registered tools with ANY method (GET/POST/PUT/PATCH/DELETE). A tool flagged <code>requires_confirmation</code> is NOT executed immediately — it creates a proposal that waits for a human to confirm, matching the "propose first, execute only after confirmation" flow needed for sensitive actions (renaming, deleting, controlling a device...).',
+    op_flag_title: "Registering a tool that needs confirmation",
+    op_flag_body: 'Add <code>"requires_confirmation": true</code> when calling <a href="#post-agent-tools">POST /api/v1/agent-tools</a> — only that tool goes through the propose/confirm flow; tools without the flag (default false) execute immediately as usual, even through the operator-chat channel.',
+    ep_post_operator_chat_summary: 'Chat for an authenticated internal operator — the AI calls the right tool (any method). If the tool has <code>requires_confirmation=true</code>, the response includes a <code>pending_action</code> instead of executing right away.',
+    ep_post_operator_chat_note: 'Response when a proposal is pending: <code>{ "success": true, "reply": "...", "pending_action": { "id", "tool_name", "args", "description" } }</code> — <code>pending_action</code> is <code>null</code> when nothing needs confirming. The UI should show Confirm/Reject buttons based on <code>pending_action.id</code>.',
+    ep_get_proposals_summary: "Lists up to the 50 most recent proposals, newest first. Filter by status with the status query param.",
+    ep_proposals_n1: "pending / confirmed / rejected — leave empty to get all",
+    ep_post_proposal_confirm_summary: "Actually executes a pending proposal — calls the tool with the exact arguments the model chose when proposing it, and records the result.",
+    ep_post_proposal_note: 'Returns <code>409</code> if the proposal is no longer <code>pending</code> (already confirmed/rejected — cannot confirm or reject it again).',
+    ep_post_proposal_reject_summary: "Cancels a pending proposal — nothing gets executed.",
+    sec_platform_desc: 'For a <strong>platform</strong> (marketplace, SaaS...) that wants to self-provision and manage many child bots for its own customers/stores — e.g. a real-estate marketplace giving each agency its own bot. Each store is a fully data-isolated workspace (its own knowledge base, its own agent tools), but they all share one Schoolsai account and one billing plan — no need to open a separate account/contract per store.',
+    pf_arch_title: "Two-tier architecture",
+    pf_arch_body: '<strong>Tier 1 — Platform:</strong> one Schoolsai account (signed up, or provisioned during onboarding). That account\'s default workspace (created at signup) acts as the platform-wide bot — general advice, marketing, platform-wide FAQ. <strong>Tier 2 — Store:</strong> each customer/agency/store inside the platform is a <em>secondary workspace</em>, created via <a href="#post-account-workspaces">POST /api/account/workspaces</a> below — with its own <code>tenant</code> slug + <code>api_key</code>, fully isolated data from other stores, but message quota is pooled across the whole platform account.',
+    pf_auth_title: "Auth differs from every other endpoint on this page",
+    pf_auth_body: 'The two endpoints below authenticate with the <strong>platform account\'s login token</strong> (a PocketBase auth token), NOT a single bot\'s <code>api_key</code> — so the "API key" box at the top of this page won\'t work here, and there\'s no interactive "Try it" button; use curl instead. Get a token: <code>POST /api/collections/tenants/auth-with-password</code> with <code>{"identity": "email@platform.com", "password": "..."}</code>; refresh it before it expires via <code>POST /api/collections/tenants/auth-refresh</code> with the old token. Keep this credential in the platform\'s backend (never in a client/app), treat it as a secret used to automate store provisioning.',
+    badge_auth_account: "needs account token",
+    ep_get_account_workspaces_summary: "Lists every store (workspace) under the platform, plus the current plan and how many are used vs. the limit.",
+    ep_post_account_workspaces_summary: 'Creates a new store (secondary workspace) for the platform. Limited to <strong>10 calls/hour</strong> to prevent runaway creation.',
+    ep_account_workspaces_n1: "3-40 chars, lowercase letters/digits/hyphen/underscore — use a stable slug tied to your own internal store id, e.g. agency-1024",
+    ep_account_workspaces_n2: 'for small, static store info (intro, policies, opening hours) — see the "Choosing how to feed data" box below',
+    ep_post_account_workspaces_note: '<code>409</code> if <code>tenant</code> already exists (pick another slug). <code>403</code> if the platform has hit its current plan\'s store limit (default free 3 / pro 10) — contact Schoolsai to raise it if the platform needs more stores; this limit can be adjusted per platform, it is not fixed.',
+    pf_data_title: "Choosing how to feed data into each store",
+    pf_data_body: 'More stores doesn\'t automatically mean you need a Knowledge base (RAG/embedding). Pick based on each store\'s data: <strong>(1) Small, static info</strong> (intro, FAQ, policies, opening hours) — put it directly in <code>system_prompt</code> when creating the workspace, or later via <a href="#patch-config">PATCH /config</a>, nothing else needed. <strong>(2) Dynamic/frequently-changing data</strong> (listings, product catalog, order history) — register a <a href="#post-agent-tools">GET tool pointing at the store\'s real API</a> and let the model call it on demand — don\'t stuff it into the prompt (it will overflow the context window as data grows) and you don\'t need embedding either (data stays live, no re-sync needed). <strong>(3) Long, rarely-changing documents with no existing API</strong> (user manuals, detailed policies) — that\'s when a real <a href="#knowledge">Knowledge base</a> is worth it.',
+    pf_checklist_title: "Integration checklist for platforms",
+    pf_checklist_body: '1) The platform\'s backend holds one Schoolsai email/password pair (issued during onboarding), logs in once for a token, and refreshes it before expiry.<br>2) When a new store/customer signs up on the platform: call <a href="#post-account-workspaces">POST /api/account/workspaces</a>, save the returned <code>api_key</code> in the platform\'s own DB, keyed by the internal store id.<br>3) For each store: feed it data the right way (see the box above), using that store\'s own <code>api_key</code> for every subsequent call.<br>4) Embed the <a href="#post-chat">/chat</a> widget or call <a href="#post-marketplace-chat">/marketplace-chat</a> with that store\'s own <code>api_key</code> for that store\'s end customers — never share one api_key across multiple stores.<br>5) Poll <code>used</code>/<code>limit</code> via <a href="#get-account-workspaces">GET /api/account/workspaces</a> periodically — message quota is pooled for the whole platform, not split per store.<br>6) When a store stops working with the platform: call <a href="#delete-account-workspaces">DELETE /api/account/workspaces/:tenant</a> to clean up its data and free the slot.',
+    ep_delete_account_workspaces_summary: "Deletes a store (secondary workspace) — also deletes its bot and all of that store's own data (knowledge base, agent tools...), freeing up one slot in the workspace limit. The account's default workspace cannot be deleted through this endpoint.",
+    ep_delete_account_workspaces_note: 'Returns <code>404</code> if <code>tenant</code> doesn\'t exist or doesn\'t belong to your account. Returns <code>403</code> if you try to delete the account\'s default workspace (the one tied to the account itself, not a self-created store). This action <strong>cannot be undone</strong> — that store\'s <code>api_key</code> stops working immediately.',
+    pf_tool_wording_title: "The model can refuse to call a tool when the queried entity is something it already \"knows\" — unrelated to how the tool is described",
+    pf_tool_wording_body: 'The model sometimes <strong>refuses to call a correctly-registered tool</strong> when a parameter value matches something it has broad background knowledge about (a major brand, a famous project...) — it applies a trained reflex of "I don\'t have real-time access to X" instead of trusting the tool, even though the tool works fine and returns correct data when actually called. Thoroughly tested and NOT fixed by: rewording the <code>description</code>, renaming parameters, asking for descriptive content instead of a metric, a strong system-prompt instruction ("always call the tool, never use your own knowledge"), or switching models within the OpenAI family (tested <code>gpt-4o-mini</code>, <code>gpt-4o</code>, and <code>gpt-4.1</code> — all three refused identically on the same question). This is an alignment-level training behavior across <strong>the entire GPT model family</strong> for questions shaped like "a verifiable public statistic about an internet resource" (e.g. a GitHub star count) — not a system bug, and not fixable through config/prompt/model choice within OpenAI. It only affects this narrow class of question; a store\'s own business data (listings, catalog, customer records...) is not affected. Fully eliminating this would require a non-GPT model provider (e.g. Gemini) — a bigger change (different tool-calling API format) not yet wired up for this channel.',
     sec_schedules_desc: "Sets rules for automatically publishing content on given weekdays + time slots, for blog or social content.",
     ep_post_schedules_n1: 'array of "HH:MM", each time = one post/day at that slot', ep_post_schedules_n2: "mon..sun; empty/omitted = every day",
     ep_patch_schedules_summary: "Partially updates a schedule (same fields as creation, all optional).",

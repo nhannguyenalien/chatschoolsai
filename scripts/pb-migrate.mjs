@@ -14,24 +14,33 @@
  *   node scripts/pb-migrate.mjs
  */
 
-const PB_URL = process.env.PB_URL;
-const PB_ADMIN_EMAIL = process.env.PB_ADMIN_EMAIL;
-const PB_ADMIN_PASS = process.env.PB_ADMIN_PASS;
+let PB_URL = "";
+let PB_ADMIN_EMAIL = "";
+let PB_ADMIN_PASS = "";
 
-if (!PB_URL || !PB_ADMIN_EMAIL || !PB_ADMIN_PASS) {
-  console.error("Thiếu env: cần PB_URL, PB_ADMIN_EMAIL, PB_ADMIN_PASS. Xem hướng dẫn ở đầu file.");
-  process.exit(1);
-}
+const TENANT_RULES = {
+  listRule: '@request.auth.id != "" && tenant = @request.auth.tenant',
+  viewRule: '@request.auth.id != "" && tenant = @request.auth.tenant',
+  // Validate the resulting record for both create and update. This syntax works
+  // across the PocketBase rule-engine versions used by this project and also
+  // prevents moving an existing record to another tenant.
+  createRule: '@request.auth.id != "" && tenant = @request.auth.tenant',
+  updateRule: '@request.auth.id != "" && tenant = @request.auth.tenant',
+  deleteRule: '@request.auth.id != "" && tenant = @request.auth.tenant',
+};
 
 async function getAdminToken() {
-  const res = await fetch(`${PB_URL}/api/admins/auth-with-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identity: PB_ADMIN_EMAIL, password: PB_ADMIN_PASS }),
-  });
-  const data = await res.json();
-  if (!data.token) throw new Error("Đăng nhập admin thất bại: " + JSON.stringify(data));
-  return `Admin ${data.token}`;
+  for (const path of ["/api/collections/_superusers/auth-with-password", "/api/admins/auth-with-password"]) {
+    const res = await fetch(`${PB_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identity: PB_ADMIN_EMAIL, password: PB_ADMIN_PASS }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.token) return data.token;
+    if (res.status !== 404) throw new Error(`Đăng nhập admin thất bại (${res.status}).`);
+  }
+  throw new Error("Đăng nhập admin thất bại.");
 }
 
 async function getCollectionByName(token, name) {
@@ -101,32 +110,72 @@ async function migratePagesConfig(token) {
   let schema = col.schema;
   schema = ensureSelectValues(schema, "platform", ["facebook", "instagram", "whatsapp", "zalo", "wordpress", "sanity", "other"]);
   schema = ensureField(schema, { name: "extra_config", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
-  await patchCollection(token, col.id, { schema });
+  await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }
 
 async function migrateMessages(token) {
-  console.log("\n[messages] — thêm needs_human + escalation_resolved (dùng cho handoff trong messages.html)");
+  console.log("\n[messages] — đồng bộ metadata chat, voice và handoff");
   const col = await getCollectionByName(token, "messages");
   if (!col) { console.log("  ! collection không tồn tại, bỏ qua"); return; }
   let schema = col.schema;
+  // Worker luôn gửi hai field này khi tạo message. Database cũ thiếu một trong hai
+  // field sẽ trả PocketBase 400 "Failed to create record".
+  schema = ensureField(schema, { name: "client_meta", type: "json", required: false, options: { maxSize: 2000000 } });
+  schema = ensureField(schema, { name: "via_voice", type: "bool", required: false, options: {} });
   schema = ensureField(schema, { name: "needs_human", type: "bool", required: false, options: {} });
   schema = ensureField(schema, { name: "escalation_resolved", type: "bool", required: false, options: {} });
+  // This is a field migration. Preserve the live permissions, including active
+  // workspace memberships installed by pb-messages-read-access.mjs.
   await patchCollection(token, col.id, { schema });
 }
 
 async function migrateBotConfigs(token) {
-  console.log("\n[bot_configs] — thêm owner_telegram_chat_id + Cloudinary/logo (dùng cho Telegram, digest, chèn logo)");
+  console.log("\n[bot_configs] — thêm greeting + owner_telegram_chat_id + Cloudinary/logo (dùng cho chat, Telegram, digest, chèn logo)");
   const col = await getCollectionByName(token, "bot_configs");
   if (!col) { console.log("  ! collection không tồn tại, bỏ qua"); return; }
   let schema = col.schema;
+  schema = ensureField(schema, { name: "greeting", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "owner_telegram_chat_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "cloudinary_cloud_name", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "cloudinary_api_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "cloudinary_api_secret", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "pixverse_api_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_logo_url", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_logo_public_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_logo_cached_url", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "api_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  await patchCollection(token, col.id, { schema, ...TENANT_RULES });
+}
+
+async function migrateTenants(token) {
+  console.log("\n[tenants] — thêm workspace_limit (Number, optional): cho phép admin override số lượng workspace");
+  console.log("  phụ (/api/account/workspaces) riêng theo từng platform, thay vì luôn dùng mặc định free 3/pro 10.");
+  const col = await getCollectionByName(token, "tenants");
+  if (!col) { console.log("  ! collection không tồn tại — kiểm tra lại tên, bỏ qua"); return; }
+  let schema = ensureField(col.schema, {
+    name: "workspace_limit",
+    type: "number",
+    required: false,
+    options: { min: 0, max: null, noDecimal: true },
+  });
+  // Dung lượng media (byte): storage_used do Worker ghi; storage_limit_bytes (optional) override
+  // mặc định theo gói (free 100 MB, pro 2 GB).
+  schema = ensureField(schema, { name: "storage_used", type: "number", required: false, options: { min: 0, max: null, noDecimal: true } });
+  schema = ensureField(schema, { name: "storage_limit_bytes", type: "number", required: false, options: { min: 0, max: null, noDecimal: true } });
+  // CHỈ patch "schema" — "tenants" là auth collection (đăng nhập bằng email/password của
+  // account), có listRule/viewRule/... riêng để bảo vệ tài khoản khách, KHÁC hẳn các collection
+  // "base" phía trên dùng chung TENANT_RULES. Không spread rule nào vào đây để tránh ghi đè
+  // nhầm quyền đăng nhập/truy cập tài khoản của khách hàng.
+  await patchCollection(token, col.id, { schema });
+}
+
+async function migrateMediaLibrary(token) {
+  console.log("\n[media_library] — thêm size_bytes + r2_key (tính dung lượng và xoá object R2)");
+  const col = await getCollectionByName(token, "media_library");
+  if (!col) { console.log("  ! collection không tồn tại, bỏ qua"); return; }
+  let schema = col.schema;
+  schema = ensureField(schema, { name: "size_bytes", type: "number", required: false, options: { min: 0, max: null, noDecimal: true } });
+  schema = ensureField(schema, { name: "r2_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   await patchCollection(token, col.id, { schema });
 }
 
@@ -136,7 +185,7 @@ async function migrateSessionSummaries(token) {
   if (!col) { console.log("  ! collection không tồn tại — kiểm tra lại tên, bỏ qua"); return; }
   let schema = col.schema;
   schema = ensureField(schema, { name: "date", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
-  await patchCollection(token, col.id, { schema });
+  await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }
 
 async function migratePosts(token) {
@@ -150,7 +199,7 @@ async function migratePosts(token) {
   schema = ensureField(schema, { name: "meta_title", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "meta_description", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "focus_keyword", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
-  await patchCollection(token, col.id, { schema });
+  await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }
 
 async function migratePostTargets(token) {
@@ -160,7 +209,8 @@ async function migratePostTargets(token) {
   let schema = col.schema;
   schema = ensureSelectValues(schema, "status", ["pending", "approved", "scheduled", "publishing", "published", "error"]);
   schema = ensureSelectValues(schema, "platform", ["facebook", "instagram", "linkedin", "wordpress", "sanity"]);
-  await patchCollection(token, col.id, { schema });
+  schema = ensureField(schema, { name: "attempts", type: "number", required: false, options: { min: 0, max: null, noDecimal: true } });
+  await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }
 
 async function migrateSystemConfig(token) {
@@ -193,7 +243,7 @@ async function migrateSystemConfig(token) {
 async function migrateAgentLogs(token) {
   console.log("\n[agent_logs] — collection MỚI, lưu lại quyết định của AI Agent để hiện trong config.html");
   const existing = await getCollectionByName(token, "agent_logs");
-  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  if (existing) { console.log("  - collection đã tồn tại, cập nhật tenant rules"); await patchCollection(token, existing.id, TENANT_RULES); return; }
   console.log("  + tạo collection mới");
   await createCollection(token, {
     name: "agent_logs",
@@ -204,18 +254,19 @@ async function migrateAgentLogs(token) {
       { name: "tool_args", type: "text", required: false, options: {} },
       { name: "tool_result", type: "text", required: false, options: {} },
     ],
-    listRule: '@request.auth.id != ""',
-    viewRule: '@request.auth.id != ""',
-    createRule: '@request.auth.id != ""',
-    updateRule: '@request.auth.id != ""',
-    deleteRule: '@request.auth.id != ""',
+    ...TENANT_RULES,
   });
 }
 
 async function migrateAgentTools(token) {
   console.log("\n[agent_tools] — collection MỚI, khách tự khai báo tool JSON cho Agent gọi (không cần code)");
   const existing = await getCollectionByName(token, "agent_tools");
-  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  if (existing) {
+    console.log("  - collection đã tồn tại, cập nhật tenant rules + thêm requires_confirmation nếu chưa có");
+    const schema = ensureField(existing.schema, { name: "requires_confirmation", type: "bool", required: false, options: {} });
+    await patchCollection(token, existing.id, { schema, ...TENANT_RULES });
+    return;
+  }
   console.log("  + tạo collection mới");
   await createCollection(token, {
     name: "agent_tools",
@@ -230,19 +281,51 @@ async function migrateAgentTools(token) {
       { name: "headers_template", type: "text", required: false, options: {} },
       { name: "result_path", type: "text", required: false, options: {} },
       { name: "is_active", type: "bool", required: false, options: {} },
+      { name: "requires_confirmation", type: "bool", required: false, options: {} },
     ],
-    listRule: '@request.auth.id != ""',
-    viewRule: '@request.auth.id != ""',
-    createRule: '@request.auth.id != ""',
-    updateRule: '@request.auth.id != ""',
-    deleteRule: '@request.auth.id != ""',
+    ...TENANT_RULES,
+  });
+}
+
+async function migrateAgentToolProposals(token) {
+  console.log("\n[agent_tool_proposals] — collection MỚI, lưu đề xuất gọi tool ghi dữ liệu chờ người dùng xác nhận");
+  console.log("  trước khi thực thi thật (dùng bởi /api/v1/operator-chat + /agent-tool-proposals/:id/confirm|reject)");
+  const existing = await getCollectionByName(token, "agent_tool_proposals");
+  if (existing) {
+    console.log("  - collection đã tồn tại, kiểm tra lại field/values (phòng trường hợp lần tạo trước bị thiếu)");
+    let schema = existing.schema;
+    schema = ensureField(schema, { name: "tenant", type: "text", required: true, options: {} });
+    schema = ensureField(schema, { name: "session", type: "text", required: false, options: {} });
+    schema = ensureField(schema, { name: "tool_name", type: "text", required: true, options: {} });
+    schema = ensureField(schema, { name: "args", type: "text", required: false, options: {} });
+    schema = ensureField(schema, { name: "description", type: "text", required: false, options: {} });
+    schema = ensureField(schema, { name: "status", type: "select", required: true, options: { maxSelect: 1, values: ["pending", "confirmed", "rejected"] } });
+    schema = ensureField(schema, { name: "result", type: "text", required: false, options: {} });
+    schema = ensureSelectValues(schema, "status", ["pending", "confirmed", "rejected"]);
+    await patchCollection(token, existing.id, { schema, ...TENANT_RULES });
+    return;
+  }
+  console.log("  + tạo collection mới");
+  await createCollection(token, {
+    name: "agent_tool_proposals",
+    type: "base",
+    schema: [
+      { name: "tenant", type: "text", required: true, options: {} },
+      { name: "session", type: "text", required: false, options: {} },
+      { name: "tool_name", type: "text", required: true, options: {} },
+      { name: "args", type: "text", required: false, options: {} },
+      { name: "description", type: "text", required: false, options: {} },
+      { name: "status", type: "select", required: true, options: { maxSelect: 1, values: ["pending", "confirmed", "rejected"] } },
+      { name: "result", type: "text", required: false, options: {} },
+    ],
+    ...TENANT_RULES,
   });
 }
 
 async function migrateAgentChatMessages(token) {
   console.log("\n[agent_chat_messages] — collection MỚI, lưu lịch sử chat với Trợ lý cấu hình (agent-chat.html)");
   const existing = await getCollectionByName(token, "agent_chat_messages");
-  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  if (existing) { console.log("  - collection đã tồn tại, cập nhật tenant rules"); await patchCollection(token, existing.id, TENANT_RULES); return; }
   console.log("  + tạo collection mới");
   await createCollection(token, {
     name: "agent_chat_messages",
@@ -252,18 +335,19 @@ async function migrateAgentChatMessages(token) {
       { name: "role", type: "select", required: true, options: { maxSelect: 1, values: ["user", "assistant"] } },
       { name: "content", type: "text", required: false, options: {} },
     ],
-    listRule: '@request.auth.id != ""',
-    viewRule: '@request.auth.id != ""',
-    createRule: '@request.auth.id != ""',
-    updateRule: '@request.auth.id != ""',
-    deleteRule: '@request.auth.id != ""',
+    ...TENANT_RULES,
   });
 }
 
 async function migratePublishSchedules(token) {
   console.log("\n[publish_schedules] — collection MỚI, luật lên lịch tự động theo ngày/giờ cho từng loại nội dung");
   const existing = await getCollectionByName(token, "publish_schedules");
-  if (existing) { console.log("  - collection đã tồn tại, bỏ qua tạo mới"); return; }
+  if (existing) {
+    console.log("  - collection đã tồn tại, cập nhật tenant rules + field page_id (luật lịch riêng cho từng page)");
+    const schema = ensureField(existing.schema, { name: "page_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+    await patchCollection(token, existing.id, { schema, ...TENANT_RULES });
+    return;
+  }
   console.log("  + tạo collection mới");
   await createCollection(token, {
     name: "publish_schedules",
@@ -274,32 +358,45 @@ async function migratePublishSchedules(token) {
       { name: "days", type: "text", required: false, options: {} },
       { name: "times", type: "text", required: false, options: {} },
       { name: "is_active", type: "bool", required: false, options: {} },
+      { name: "page_id", type: "text", required: false, options: {} },
     ],
-    listRule: '@request.auth.id != ""',
-    viewRule: '@request.auth.id != ""',
-    createRule: '@request.auth.id != ""',
-    updateRule: '@request.auth.id != ""',
-    deleteRule: '@request.auth.id != ""',
+    ...TENANT_RULES,
   });
 }
 
-(async () => {
+export async function runPocketBaseMigration({ pbUrl, adminEmail, adminPass }) {
+  PB_URL = pbUrl;
+  PB_ADMIN_EMAIL = adminEmail;
+  PB_ADMIN_PASS = adminPass;
+  if (!PB_URL || !PB_ADMIN_EMAIL || !PB_ADMIN_PASS) throw new Error("Thiếu cấu hình PocketBase admin.");
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
   await migratePagesConfig(token);
   await migrateMessages(token);
   await migrateBotConfigs(token);
+  await migrateTenants(token);
+  await migrateMediaLibrary(token);
   await migrateSessionSummaries(token);
   await migratePosts(token);
   await migratePostTargets(token);
   await migrateSystemConfig(token);
   await migrateAgentLogs(token);
   await migrateAgentTools(token);
+  await migrateAgentToolProposals(token);
   await migrateAgentChatMessages(token);
   await migratePublishSchedules(token);
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
-})().catch((err) => {
-  console.error("\n❌ Lỗi:", err.message);
-  process.exit(1);
-});
+  return { ok: true };
+}
+
+if (typeof process !== "undefined" && import.meta.url === `file://${process.argv[1]}`) {
+  runPocketBaseMigration({
+    pbUrl: process.env.PB_URL,
+    adminEmail: process.env.PB_ADMIN_EMAIL,
+    adminPass: process.env.PB_ADMIN_PASS,
+  }).catch((err) => {
+    console.error("\n❌ Lỗi:", err.message);
+    process.exit(1);
+  });
+}

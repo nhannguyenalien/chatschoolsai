@@ -252,6 +252,11 @@
                                                     <option value="social">Social (Facebook/Instagram/LinkedIn)</option>
                                                 </select>
                                             </div>
+                                            <div class="mb-3 d-none" id="sched-page-wrap">
+                                                <label class="form-label">Áp dụng cho kênh</label>
+                                                <select id="sched-page" class="form-select"><option value="">Tất cả kênh (chung)</option></select>
+                                                <small class="form-hint mt-1">Chọn 1 Page để đặt giờ đăng riêng cho Page đó (chỉ áp dụng cho Social). Bài của Page có luật riêng sẽ không bị luật chung lấy mất.</small>
+                                            </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Ngày áp dụng</label>
                                                 <div class="d-flex flex-wrap gap-2">
@@ -566,6 +571,9 @@
     // ═══════════════════════════════════════
     const DAY_LABEL = { mon:'T2', tue:'T3', wed:'T4', thu:'T5', fri:'T6', sat:'T7', sun:'CN' };
     const CONTENT_TYPE_LABEL = { blog: 'Blog', social: 'Social' };
+    document.addEventListener('change', e => {
+        if (e.target?.id === 'sched-content-type') document.getElementById('sched-page-wrap').classList.toggle('d-none', e.target.value !== 'social');
+    });
     let scheduleTimeChips = [];
     let schedulesCache = [];
 
@@ -599,10 +607,12 @@
         }
         const contentType = document.getElementById('sched-content-type').value;
         const days = [...document.querySelectorAll('.sched-day:checked')].map(el => el.value);
+        const pageId = contentType === 'social' ? document.getElementById('sched-page').value : '';
         try {
             await PB.collection('publish_schedules').create({
                 tenant: window.TENANT,
                 content_type: contentType,
+                page_id: pageId,
                 days: JSON.stringify(days),
                 times: JSON.stringify(scheduleTimeChips),
                 is_active: true
@@ -652,11 +662,13 @@
                 try { days = JSON.parse(s.days || '[]'); } catch {}
                 try { times = JSON.parse(s.times || '[]'); } catch {}
                 const daysText = days.length ? days.map(d => DAY_LABEL[d] || d).join(', ') : 'Hàng ngày';
+                const pageRow = s.page_id ? pagesConfigCache.find(pc => pc.page_id === s.page_id) : null;
+                const pageText = s.page_id ? (pageRow ? `${pageRow.label || pageRow.page_id} (${pageRow.platform})` : s.page_id) : '';
                 return `
                 <div class="border rounded p-2 d-flex align-items-start gap-2">
                     <i class="ti ${s.is_active ? 'ti-calendar-time text-success' : 'ti-calendar-off text-secondary'} fs-3 mt-1"></i>
                     <div class="flex-fill">
-                        <div class="fw-medium">${CONTENT_TYPE_LABEL[s.content_type] || s.content_type} <span class="badge bg-secondary-lt ms-1">${escHtml(daysText)}</span></div>
+                        <div class="fw-medium">${CONTENT_TYPE_LABEL[s.content_type] || s.content_type} <span class="badge bg-secondary-lt ms-1">${escHtml(daysText)}</span>${pageText ? `<span class="badge bg-azure-lt ms-1">${escHtml(pageText)}</span>` : ''}</div>
                         <div class="text-secondary fs-6">Giờ đăng: ${times.map(t => escHtml(t)).join(', ')}</div>
                     </div>
                     <div class="d-flex gap-1">
@@ -672,12 +684,21 @@
         }
     }
 
+    function populateSchedulePageSelect() {
+        const sel = document.getElementById('sched-page');
+        if (!sel) return;
+        const socials = pagesConfigCache.filter(pc => ['facebook', 'instagram', 'linkedin'].includes(pc.platform));
+        sel.innerHTML = '<option value="">Tất cả kênh (chung)</option>' + socials.map(pc =>
+            `<option value="${escHtml(pc.page_id)}">${escHtml(pc.label || pc.page_id)} (${escHtml(pc.platform)}${pc.default_language ? ' · ' + escHtml(pc.default_language) : ''})</option>`).join('');
+    }
+
     async function loadPagesConfigForTargets() {
         try {
             pagesConfigCache = await PB.collection('pages_config').getFullList({
                 sort: 'platform',
                 filter: `tenant = "${window.TENANT}" && is_active = true`
             });
+            populateSchedulePageSelect();
         } catch (err) {
             pagesConfigCache = [];
             showToast('Chưa cấu hình kênh đăng — vào "Quản lý kênh đăng" để thêm Page/Account', 'error');
@@ -746,15 +767,29 @@
     // CONTENT PLANNING REVIEW
     // ═══════════════════════════════════════
     let contentPlanningApiKey = '';
+    let contentPlanningApiKeyPromise = null;
     let contentPlanningSnapshot = { plans: [], topics: [], items: [] };
     let contentPlanningOverview = { plans: [] };
 
+    // loadContentPlanningReview() gọi contentPlanningFetch() 2 lần song song qua Promise.all —
+    // nếu chỉ cache GIÁ TRỊ cuối (chuỗi rỗng lúc đầu), cả 2 lượt gọi đầu tiên đều thấy cache
+    // rỗng và cùng bắn 2 request PB.collection('bot_configs').getList() y hệt nhau cùng lúc.
+    // PocketBase SDK tự huỷ request trùng (auto-cancellation) -> 1 trong 2 luôn bị abort, làm
+    // Promise.all reject ngay ở lần tải đầu tiên mỗi khi mở trang. Cache chung 1 PROMISE đang
+    // chạy (giống loyalty.html) để 2 lượt gọi dùng lại đúng 1 request thay vì bắn trùng.
     async function getContentPlanningApiKey() {
         if (contentPlanningApiKey) return contentPlanningApiKey;
-        const configs = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
-        if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
-        contentPlanningApiKey = configs.items[0].api_key;
-        return contentPlanningApiKey;
+        if (!contentPlanningApiKeyPromise) {
+            contentPlanningApiKeyPromise = PB.collection('bot_configs')
+                .getList(1, 2, { filter: `tenant = "${window.TENANT}"` })
+                .then(configs => {
+                    if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+                    contentPlanningApiKey = configs.items[0].api_key;
+                    return contentPlanningApiKey;
+                })
+                .catch(error => { contentPlanningApiKeyPromise = null; throw error; });
+        }
+        return contentPlanningApiKeyPromise;
     }
 
     async function contentPlanningFetch(path, options = {}) {
@@ -1379,7 +1414,10 @@
             col.querySelector('.delete-media-btn').addEventListener('click', async () => {
                 if (!confirm('Xóa media này khỏi thư viện?')) return;
                 try {
-                    await PB.collection('media_library').delete(m.id);
+                    const res = await fetch(`${WORKER_URL}/api/account/media/${encodeURIComponent(m.id)}`, {
+                        method: 'DELETE', headers: { Authorization: PB.authStore.token }
+                    });
+                    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.status);
                     showToast('Đã xóa', 'success');
                     loadMediaLibrary();
                 } catch (err) {
@@ -1413,7 +1451,10 @@
 
         btnLoading('save-upload-media-btn', 'Đang upload...');
         try {
-            await PB.collection('media_library').create(formData);
+            const res = await fetch(`${WORKER_URL}/api/account/media`, {
+                method: 'POST', headers: { Authorization: PB.authStore.token }, body: formData
+            });
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.status);
             bootstrap.Modal.getInstance(document.getElementById('upload-media-modal')).hide();
             showToast('Đã upload media', 'success');
             loadMediaLibrary();

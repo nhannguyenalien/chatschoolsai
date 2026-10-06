@@ -32,6 +32,12 @@
     // trỏ thẳng vào messages.html?bot=...&session=... — để trống nếu chưa deploy dashboard.
     "DASHBOARD_URL": "https://schoolsai.work"
   },
+  // Lưu trữ media (ảnh/video): bỏ comment sau khi tạo bucket (`wrangler r2 bucket create dashpoc-media`).
+  // Chưa bật thì file tạm lưu trong PocketBase, hạn mức dung lượng (free 100 MB, pro 2 GB) vẫn áp dụng.
+  // MEDIA_PUBLIC_URL (var, tuỳ chọn): domain công khai của bucket; bỏ trống thì phục vụ qua /media/*.
+  // "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "dashpoc-media" }],
+  "durable_objects": { "bindings": [{ "name": "ACCOUNT_QUOTA", "class_name": "AccountQuota" }] },
+  "migrations": [{ "tag": "account-quota-v1", "new_sqlite_classes": ["AccountQuota"] }],
   "ratelimits": [
     {
       "name": "CHAT_GLOBAL_IP_RATE_LIMITER",
