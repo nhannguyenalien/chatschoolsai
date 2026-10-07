@@ -71,7 +71,7 @@
                             <span class="text-primary fw-medium">Agent tổng</span>
                         </div>
                         <h2 class="page-title fs-1">Agent tổng — mọi tenant</h2>
-                        <div class="text-secondary mt-1 fs-3">Tổng hợp chat hôm nay của tất cả workspace bạn sở hữu và hỏi đáp trực tiếp tại đây.</div>
+                        <div class="text-secondary mt-1 fs-3">Tổng hợp chat, kết nối mạng xã hội, lịch và bài đăng hôm nay của tất cả workspace bạn sở hữu — hỏi đáp trực tiếp tại đây.</div>
                     </div>
 
                     <div id="tele-status" class="alert alert-info d-none" role="alert"></div>
@@ -85,7 +85,7 @@
                                 <div class="card-footer">
                                     <div class="chat-suggestions d-flex flex-wrap gap-2 mb-2" id="chat-suggestions"></div>
                                     <div class="input-group input-group-flat">
-                                        <input type="text" class="form-control" id="chat-input" autocomplete="off" placeholder="Hỏi về chat hôm nay... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendMasterChat();">
+                                        <input type="text" class="form-control" id="chat-input" autocomplete="off" placeholder="Hỏi về chat, kết nối, lịch, bài đăng... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendMasterChat();">
                                         <span class="input-group-text p-0">
                                             <button class="btn btn-primary m-1" id="chat-send-btn" onclick="sendMasterChat()"><i class="ti ti-send"></i></button>
                                         </span>
@@ -113,12 +113,22 @@
         "Tổng hợp chat hôm nay của tất cả tenant",
         "Khách nào đang phàn nàn hoặc cần hỗ trợ?",
         "Tenant nào có nhiều tin nhắn nhất hôm nay?",
-        "Có cơ hội bán hàng nào cần chốt không?"
+        "Có cơ hội bán hàng nào cần chốt không?",
+        "Kết nối Facebook/Instagram nào đang hỏng?",
+        "Hôm nay mỗi nền tảng đăng những bài gì, có bài nào lỗi?",
+        "Lịch đăng bài sắp tới của các tenant"
     ];
     let history = [];
     let isSending = false;
 
     function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+    function connBadges(list) {
+        if (!list || !list.length) return '<span class="badge bg-secondary-lt">Chưa kết nối mạng xã hội</span>';
+        return list.map((c) => {
+            const ok = c.is_active && c.has_access_token;
+            return `<span class="badge ${ok ? "bg-green-lt" : "bg-red-lt"} me-1" title="${ok ? "Đang hoạt động" : (!c.has_access_token ? "Thiếu token" : "Đang tắt")}">${esc(c.platform)}${c.label ? " · " + esc(c.label) : ""}</span>`;
+        }).join("");
+    }
     function authHeaders() { return { "Content-Type": "application/json", Authorization: PB.authStore.token }; }
 
     function render() {
@@ -171,7 +181,9 @@
             document.getElementById("tenants-title").textContent = `Các tenant (${data.tenants.length}) — hôm nay ${data.date}`;
             document.getElementById("tenant-list").innerHTML = data.tenants.map((t) => `
                 <div class="list-group-item"><div class="fw-bold">${esc(t.bot_name)} <span class="text-secondary fw-normal">(${esc(t.tenant)})</span></div>
-                <div class="text-secondary fs-5">${t.customer_messages} tin khách · ${t.chat_sessions} phiên · ${t.unresolved_escalations_total} tồn đọng</div></div>`).join("") || '<div class="list-group-item text-secondary">Chưa có tenant nào.</div>';
+                <div class="text-secondary fs-5">${t.customer_messages} tin khách · ${t.chat_sessions} phiên · ${t.unresolved_escalations_total} tồn đọng</div>
+                <div class="text-secondary fs-5">${connBadges(t.connections)}</div>
+                <div class="text-secondary fs-5">Bài: ${t.posts_summary.published_in_range} đã đăng · ${t.posts_summary.scheduled} hẹn giờ · ${t.posts_summary.pending_approval} chờ duyệt${t.posts_summary.errors_in_range ? ` · <span class="text-danger">${t.posts_summary.errors_in_range} lỗi</span>` : ""}</div></div>`).join("") || '<div class="list-group-item text-secondary">Chưa có tenant nào.</div>';
             const missing = data.telegram.filter((t) => !t.connected);
             const box = document.getElementById("tele-status");
             box.classList.remove("d-none");
