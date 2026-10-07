@@ -513,8 +513,8 @@
         }
 
         await loadConfig();
-        await loadAgentLogs();
         loadAdsConnections();
+        await loadAgentLogs();
         renderToolTemplatePicker();
         await loadCustomTools();
     })();
@@ -649,33 +649,47 @@
         if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
         return data;
     }
+    const ADS_ACCOUNT_STATUS = { 1: ["Đang hoạt động", "bg-green-lt"], 2: ["Bị vô hiệu hóa", "bg-red-lt"], 3: ["Chưa thanh toán", "bg-orange-lt"], 7: ["Đang xét duyệt", "bg-yellow-lt"], 9: ["Ân hạn thanh toán", "bg-orange-lt"], 101: ["Đã đóng", "bg-secondary-lt"] };
+    const ADS_SEVERITY = { ok: ["Ổn định", "bg-green-lt"], warning: ["Cần chú ý", "bg-yellow-lt"], critical: ["Bất thường", "bg-red-lt"] };
+    function adsEl(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function adsBadge(pair, fallback) { const [label, cls] = pair || [fallback, "bg-secondary-lt"]; return adsEl("span", `badge ${cls}`, label); }
+    function renderAdsConnections(connections, reports) {
+        const el = document.getElementById("ads-conn-list");
+        el.replaceChildren();
+        if (!connections.length) { el.append(adsEl("div", "text-secondary fs-5", "Chưa kết nối tài khoản quảng cáo nào. Dán token ở bên dưới để bắt đầu.")); return; }
+        for (const c of connections) {
+            const box = adsEl("div", "border rounded p-2");
+            const head = adsEl("div", "d-flex align-items-center gap-2 mb-1");
+            head.append(adsEl("i", "ti ti-brand-facebook text-primary fs-3"), adsEl("div", "fw-medium flex-fill", c.label || "Meta Ads"));
+            const del = adsEl("button", "btn btn-outline-danger btn-sm", "Gỡ");
+            del.onclick = () => removeAds(c.id);
+            head.append(del);
+            box.append(head);
+            for (const a of c.accounts) {
+                const row = adsEl("div", "d-flex flex-wrap align-items-center gap-2 ps-4 py-1 border-top");
+                row.append(adsEl("span", "fw-medium", a.name || a.id), adsEl("span", "text-secondary fs-6 font-monospace", a.id), adsEl("span", "text-secondary fs-6", a.currency || ""), adsBadge(ADS_ACCOUNT_STATUS[a.status], "Không rõ"));
+                box.append(row);
+            }
+            if (!c.accounts.length) box.append(adsEl("div", "text-secondary fs-6 ps-4", "Token này chưa truy cập được ad account nào."));
+            if (c.last_error) box.append(adsEl("div", "text-danger fs-6 ps-4 mt-1", c.last_error));
+            el.append(box);
+        }
+        const latest = reports[0];
+        const rep = adsEl("div", "border rounded p-2 bg-secondary-lt");
+        const head = adsEl("div", "d-flex align-items-center gap-2 mb-1");
+        head.append(adsEl("span", "fw-medium", "Báo cáo gần nhất"));
+        if (latest) { head.append(adsBadge(ADS_SEVERITY[latest.severity], latest.severity), adsEl("span", "text-secondary fs-6", new Date(latest.created).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))); }
+        rep.append(head, adsEl("div", "fs-6", latest ? "" : "Chưa có báo cáo — bấm \"Chạy báo cáo ngay\" hoặc chờ 07:00 sáng mai."));
+        if (latest) { const pre = adsEl("pre", "mb-0 fs-6", latest.summary); pre.style.whiteSpace = "pre-wrap"; rep.lastChild.replaceWith(pre); }
+        el.append(rep);
+    }
     async function loadAdsConnections() {
         const el = document.getElementById("ads-conn-list");
-        if (!adsKey()) { el.innerHTML = '<div class="text-secondary fs-5">Chưa có API key.</div>'; return; }
+        if (!adsKey()) { el.textContent = "Chưa có API key — bấm 'Tạo / Đổi mới' ở card API bên trên."; return; }
         try {
-            const { connections } = await adsApi("/api/v1/ads/connections");
-            el.replaceChildren();
-            if (!connections.length) { el.innerHTML = '<div class="text-secondary fs-5">Chưa kết nối tài khoản quảng cáo nào.</div>'; return; }
-            for (const c of connections) {
-                const row = document.createElement("div");
-                row.className = "border rounded p-2 d-flex align-items-center gap-2";
-                const info = document.createElement("div");
-                info.className = "flex-fill";
-                const title = document.createElement("div");
-                title.className = "fw-medium";
-                title.textContent = c.label || "Meta Ads";
-                const sub = document.createElement("div");
-                sub.className = "text-secondary fs-6";
-                sub.textContent = c.accounts.map(a => a.name || a.id).join(", ") || "—";
-                info.append(title, sub);
-                const del = document.createElement("button");
-                del.className = "btn btn-outline-danger btn-sm";
-                del.textContent = "Gỡ";
-                del.onclick = () => removeAds(c.id);
-                row.append(info, del);
-                el.append(row);
-            }
-        } catch (err) { el.innerHTML = ""; const d = document.createElement("div"); d.className = "text-danger fs-5"; d.textContent = err.message; el.append(d); }
+            const [{ connections }, { reports }] = await Promise.all([adsApi("/api/v1/ads/connections"), adsApi("/api/v1/ads/reports")]);
+            renderAdsConnections(connections, reports || []);
+        } catch (err) { el.replaceChildren(adsEl("div", "text-danger fs-5", err.message)); }
     }
     async function connectAds() {
         const token = document.getElementById("ads-token").value.trim();
@@ -703,6 +717,7 @@
             const data = await adsApi("/api/v1/trigger/ads", { method: "POST" });
             out.classList.remove("d-none");
             out.textContent = data.skipped ? "Chưa có tài khoản quảng cáo nào được kết nối." : data.report;
+            loadAdsConnections();
         } catch (err) { showToast("Lỗi chạy báo cáo: " + err.message, "error"); }
         finally { btn.disabled = false; }
     }
