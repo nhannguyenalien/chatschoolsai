@@ -66,6 +66,7 @@
   "triggers": {
     // 01:00 UTC = 08:00 giờ VN — báo cáo tổng hợp ngày hôm trước.
     // 00:30 UTC = 07:30 giờ VN — crawl RSS + AI viết bài nháp (post_targets status=pending, chờ duyệt).
+    // 01:30 UTC = 08:30 giờ VN — Agent tổng gửi bản tin gộp mọi tenant (chạy trong tick */15 đó, không có cron riêng vì giới hạn 5 cron).
     // Mỗi 15 phút — đăng thật các bài đã duyệt (status=approved) hoặc tới giờ hẹn (scheduled).
     // Đầu mỗi giờ — agent tự xem tình trạng từng tenant và quyết định hành động (xem AGENT_TOOLS).
     // Free plan giới hạn 5 cron/tài khoản nên KHÔNG thêm cron riêng — ping AnythingLLM/PocketBase

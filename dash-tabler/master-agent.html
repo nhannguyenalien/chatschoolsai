@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Agent tổng - Customer AI Hub</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js?v=20260814-1"></script>
+    <script src="_shared/sidebar.js"></script>
+
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root {
+            --tblr-font-sans-serif: 'Inter', -apple-system, blinkmacsystemfont, san francisco, segoe ui, roboto, helvetica neue, sans-serif;
+        }
+        body { font-family: var(--tblr-font-sans-serif); }
+
+        .toast-msg {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex; align-items: center; gap: 10px; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .toast-msg.show { transform: translateY(0); opacity: 1; }
+        .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+        .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+
+        .chat-card { height: calc(100vh - 220px); min-height: 480px; }
+        .chat-suggestions button { white-space: normal; text-align: left; }
+    </style>
+</head>
+<body class="layout-fluid">
+
+    <div class="toast-msg" id="toast"></div>
+
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none d-print-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
+                        <span class="avatar avatar-sm bg-primary text-white"><i class="ti ti-robot"></i></span>
+                        <span class="ms-2 fw-bold text-primary">AI Admin</span>
+                    </div>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item d-flex align-items-center">
+                            <span class="avatar avatar-sm rounded-circle" id="user-avatar-mobile" style="background-image: url('')"></span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-body mt-4">
+                <div class="container-xl">
+
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2 d-flex align-items-center gap-1 fs-5 text-uppercase tracking-wide">
+                            <a href="index.html" class="text-reset text-decoration-none">Overview</a>
+                            <i class="ti ti-chevron-right fs-6"></i>
+                            <span class="text-primary fw-medium">Agent tổng</span>
+                        </div>
+                        <h2 class="page-title fs-1">Agent tổng — mọi tenant</h2>
+                        <div class="text-secondary mt-1 fs-3">Tổng hợp chat hôm nay của tất cả workspace bạn sở hữu và hỏi đáp trực tiếp tại đây.</div>
+                    </div>
+
+                    <div id="tele-status" class="alert alert-info d-none" role="alert"></div>
+
+                    <div class="row row-cards">
+                        <div class="col-lg-8">
+                            <div class="card chat-card d-flex flex-column">
+                                <div class="card-body scrollable flex-fill" id="chat-messages">
+                                    <div class="chat"><div class="chat-bubbles" id="chat-bubbles-list"></div></div>
+                                </div>
+                                <div class="card-footer">
+                                    <div class="chat-suggestions d-flex flex-wrap gap-2 mb-2" id="chat-suggestions"></div>
+                                    <div class="input-group input-group-flat">
+                                        <input type="text" class="form-control" id="chat-input" autocomplete="off" placeholder="Hỏi về chat hôm nay... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendMasterChat();">
+                                        <span class="input-group-text p-0">
+                                            <button class="btn btn-primary m-1" id="chat-send-btn" onclick="sendMasterChat()"><i class="ti ti-send"></i></button>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header"><h3 class="card-title" id="tenants-title">Các tenant</h3></div>
+                                <div class="list-group list-group-flush" id="tenant-list"><div class="list-group-item text-secondary">Đang tải...</div></div>
+                                <div class="card-footer text-secondary fs-6">Agent tổng chỉ đọc dữ liệu, không đổi được cấu hình. Muốn cấu hình, dùng "Chat với Agent" của từng tenant.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script>
+    const SUGGESTIONS = [
+        "Tổng hợp chat hôm nay của tất cả tenant",
+        "Khách nào đang phàn nàn hoặc cần hỗ trợ?",
+        "Tenant nào có nhiều tin nhắn nhất hôm nay?",
+        "Có cơ hội bán hàng nào cần chốt không?"
+    ];
+    let history = [];
+    let isSending = false;
+
+    function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+    function authHeaders() { return { "Content-Type": "application/json", Authorization: PB.authStore.token }; }
+
+    function render() {
+        const list = document.getElementById("chat-bubbles-list");
+        if (!history.length) {
+            list.innerHTML = '<div class="text-secondary fs-5">Hỏi Agent tổng về tình hình chat hôm nay, hoặc chọn một gợi ý bên dưới.</div>';
+        } else {
+            list.innerHTML = history.map((m) => {
+                const me = m.role === "user";
+                return `<div class="chat-item"><div class="row align-items-end justify-content-${me ? "end" : "start"}"><div class="col col-lg-10"><div class="chat-bubble ${me ? "chat-bubble-me" : ""}"><div class="chat-bubble-body"><p style="white-space:pre-wrap" class="${m.error ? "text-danger" : ""}">${esc(m.content)}</p></div></div></div></div></div>`;
+            }).join("") + (isSending ? '<div class="text-secondary fs-5 mt-2">Đang tổng hợp...</div>' : "");
+        }
+        const box = document.getElementById("chat-messages");
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMasterChat(preset) {
+        const input = document.getElementById("chat-input");
+        const text = (preset ?? input.value).trim();
+        if (!text || isSending) return;
+        input.value = "";
+        history.push({ role: "user", content: text });
+        isSending = true;
+        document.getElementById("chat-send-btn").disabled = true;
+        render();
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/master-chat`, {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({ messages: history.filter((m) => !m.error).map(({ role, content }) => ({ role, content })) })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+            history.push({ role: "assistant", content: data.reply });
+        } catch (err) {
+            history.push({ role: "assistant", content: "Lỗi: " + err.message, error: true });
+        } finally {
+            isSending = false;
+            document.getElementById("chat-send-btn").disabled = false;
+            render();
+        }
+    }
+
+    async function loadOverview() {
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/master-chat`, { headers: authHeaders() });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+            if (!history.length && Array.isArray(data.history)) { history = data.history.map(({ role, content }) => ({ role, content })); render(); }
+            document.getElementById("tenants-title").textContent = `Các tenant (${data.tenants.length}) — hôm nay ${data.date}`;
+            document.getElementById("tenant-list").innerHTML = data.tenants.map((t) => `
+                <div class="list-group-item"><div class="fw-bold">${esc(t.bot_name)} <span class="text-secondary fw-normal">(${esc(t.tenant)})</span></div>
+                <div class="text-secondary fs-5">${t.customer_messages} tin khách · ${t.chat_sessions} phiên · ${t.unresolved_escalations_total} tồn đọng</div></div>`).join("") || '<div class="list-group-item text-secondary">Chưa có tenant nào.</div>';
+            const missing = data.telegram.filter((t) => !t.connected);
+            const box = document.getElementById("tele-status");
+            box.classList.remove("d-none");
+            box.innerHTML = missing.length
+                ? `<i class="ti ti-brand-telegram"></i> Chưa kết nối Telegram: <strong>${missing.map((t) => esc(t.bot_name)).join(", ")}</strong> — chat trực tiếp tại đây, hoặc thêm Telegram chat id ở <a href="config.html">Bot Settings</a> để nhận báo cáo hằng ngày.`
+                : '<i class="ti ti-brand-telegram"></i> Tất cả tenant đã kết nối Telegram (báo cáo hằng ngày gửi tự động). Bạn vẫn có thể chat tại đây.';
+        } catch (err) {
+            document.getElementById("tenant-list").innerHTML = `<div class="list-group-item text-danger">${esc(err.message)}</div>`;
+        }
+    }
+
+    (async () => {
+        await requireAuth();
+        renderSidebar(window.AUTH_USER);
+        document.getElementById("chat-suggestions").innerHTML = SUGGESTIONS.map((q, i) => `<button class="btn btn-sm btn-outline-primary" data-i="${i}">${esc(q)}</button>`).join("");
+        document.getElementById("chat-suggestions").addEventListener("click", (e) => {
+            const b = e.target.closest("button[data-i]");
+            if (b) sendMasterChat(SUGGESTIONS[b.dataset.i]);
+        });
+        render();
+        loadOverview();
+    })();
+    </script>
+</body>
+</html>
