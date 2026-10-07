@@ -195,6 +195,13 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="text-secondary fs-5 mb-3">Media khách tự upload hoặc do n8n render (Cloudinary/HuggingFace) đều xuất hiện ở đây để chọn gắn vào bài viết.</div>
+                                    <div class="mb-3" id="media-storage-box">
+                                        <div class="d-flex justify-content-between fs-5 mb-1">
+                                            <span class="text-secondary"><i class="ti ti-database me-1"></i> Dung lượng còn lại</span>
+                                            <span id="media-storage-text" class="fw-medium">Đang tải...</span>
+                                        </div>
+                                        <div class="progress progress-sm"><div id="media-storage-bar" class="progress-bar bg-primary" style="width:0%"></div></div>
+                                    </div>
                                     <input type="file" id="media-file-input" accept="image/*,video/*" class="d-none">
                                     <div id="media-library-grid" class="row row-cards"></div>
                                 </div>
@@ -499,7 +506,7 @@
             <div class="mb-3">
               <label class="form-label">Chọn file</label>
               <input type="file" id="upload-media-file" class="form-control" accept="image/*,video/*">
-              <small class="form-hint mt-1">Lưu trực tiếp vào PocketBase (VPS của bạn).</small>
+              <small class="form-hint mt-1" id="upload-storage-hint">Đang kiểm tra dung lượng...</small>
             </div>
           </div>
           <div class="modal-footer">
@@ -1358,7 +1365,37 @@
         return record.url || '';
     }
 
+    function formatBytes(bytes) {
+        if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2).replace(/\.?0+$/, '')} GB`;
+        if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1).replace(/\.0$/, '')} MB`;
+        return `${Math.ceil(bytes / 1024)} KB`;
+    }
+
+    let mediaStorage = null; // { used, limit, remaining } hoặc null nếu chưa tải được
+
+    async function loadMediaStorage() {
+        const text = document.getElementById('media-storage-text');
+        const bar = document.getElementById('media-storage-bar');
+        const hint = document.getElementById('upload-storage-hint');
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/media/usage`, { headers: { Authorization: PB.authStore.token } });
+            if (!res.ok) throw new Error(res.status);
+            const d = await res.json();
+            mediaStorage = { used: d.used_bytes, limit: d.limit_bytes, remaining: d.remaining_bytes };
+            const percent = d.limit_bytes > 0 ? Math.min(100, (d.used_bytes / d.limit_bytes) * 100) : 100;
+            text.textContent = `${formatBytes(d.remaining_bytes)} còn lại (đã dùng ${formatBytes(d.used_bytes)} / ${formatBytes(d.limit_bytes)})`;
+            bar.style.width = `${percent}%`;
+            bar.className = `progress-bar ${percent >= 90 ? 'bg-danger' : percent >= 70 ? 'bg-warning' : 'bg-primary'}`;
+            hint.textContent = `Còn lại ${formatBytes(d.remaining_bytes)}. Ảnh tối đa 15 MB, video tối đa 200 MB.`;
+        } catch (err) {
+            mediaStorage = null;
+            text.textContent = 'Không tải được';
+            hint.textContent = 'Ảnh tối đa 15 MB, video tối đa 200 MB.';
+        }
+    }
+
     async function loadMediaLibrary() {
+        loadMediaStorage();
         const grid = document.getElementById('media-library-grid');
         if (grid) grid.innerHTML = '<div class="col-12 text-secondary">Đang tải...</div>';
         try {
@@ -1456,6 +1493,7 @@
     document.getElementById('save-upload-media-btn').addEventListener('click', async () => {
         const fileInput = document.getElementById('upload-media-file');
         if (!fileInput.files[0]) { showToast('Chọn file trước đã', 'error'); return; }
+        if (mediaStorage && fileInput.files[0].size > mediaStorage.remaining) { showToast(`File ${formatBytes(fileInput.files[0].size)} lớn hơn dung lượng còn lại (${formatBytes(mediaStorage.remaining)}).`, 'error'); return; }
         const formData = new FormData();
         formData.append('tenant', window.TENANT);
         formData.append('label', document.getElementById('upload-media-label').value);
