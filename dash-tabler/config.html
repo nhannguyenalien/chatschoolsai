@@ -9,11 +9,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
     
     <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
-    <script src="_shared/config.js"></script>
-    <script src="_shared/auth.js"></script>
+    <script src="_shared/config.js?v=20260915-2"></script>
+    <script src="_shared/auth.js?v=20260915-2"></script>
     <script src="_shared/ui.js"></script>
     <script src="_shared/i18n.js?v=20261007-1"></script>
-    <script src="_shared/sidebar.js"></script>
+    <script src="_shared/sidebar.js?v=20261007-1"></script>
 
     <style>
         @import url('https://rsms.me/inter/inter.css');
@@ -117,10 +117,6 @@
                                                 <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Màu chủ đạo</label>
                                                 <input type="color" class="form-control form-control-color w-100" id="botColor" value="#007f9d" oninput="updatePreview()" title="Choose your color">
                                             </div>
-                                            <div class="col-sm-8">
-                                                <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Webhook URL</label>
-                                                <input type="url" class="form-control font-monospace text-secondary" id="botWebhook" placeholder="https://your-worker.workers.dev/chat">
-                                            </div>
                                         </div>
 
                                         <div class="mb-3">
@@ -146,6 +142,19 @@
                                         <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Telegram Chat ID nhận cảnh báo</label>
                                         <input type="text" class="form-control font-monospace" id="ownerTelegramChatId" placeholder="VD: 123456789">
                                         <small class="form-hint mt-1">Khi AI không chắc chắn trả lời được khách, hệ thống sẽ nhắn cảnh báo tới đây qua Telegram kèm link mở đúng đoạn chat trong "Chat Logs". Lấy Chat ID bằng cách nhắn <code>/start</code> cho bot Telegram rồi hỏi <code>@userinfobot</code>, hoặc để trống nếu chỉ muốn xem trong mục "Cần xử lý" ở Chat Logs.</small>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-video text-primary fs-2"></i> Video AI (PixVerse)
+                                        </h3>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Mặc định bạn chỉ cần truyền <code>image_url</code>/<code>video_url</code> khi đăng bài. Nếu muốn hệ thống tự sinh video từ <code>video_prompt</code>, hãy nhập API key PixVerse của riêng bạn — chi phí video tính trên tài khoản PixVerse của bạn, không trừ quota tin nhắn.</div>
+                                        <label class="form-label text-uppercase tracking-wide text-secondary fs-5">PixVerse API Key</label>
+                                        <input type="password" class="form-control font-monospace" id="pixverseApiKey" placeholder="••••••••••••••" autocomplete="off">
                                     </div>
                                 </div>
 
@@ -187,7 +196,8 @@
                                         </h3>
                                     </div>
                                     <div class="card-body pt-2">
-                                        <div class="text-secondary fs-5 mb-3">Cho phép hệ thống khác (n8n, backend riêng của bạn...) gọi thẳng vào để tạo bài viết, duyệt đăng, xem trạng thái — không cần mở dashboard. Xem tài liệu đầy đủ tại <code>docs/API.md</code> trong repo.</div>
+                                        <div class="text-secondary fs-5 mb-3">Cho phép hệ thống khác (n8n, backend riêng của bạn...) gọi thẳng vào để tạo bài viết, duyệt đăng, xem trạng thái — không cần mở dashboard. Xem tài liệu đầy đủ tại <a href="#" id="api-docs-link" target="_blank" rel="noopener">trang API Docs</a>.</div>
+                                        <script>document.getElementById('api-docs-link').href = WORKER_URL + '/docs';</script>
                                         <label class="form-label text-uppercase tracking-wide text-secondary fs-5">API Key</label>
                                         <div class="input-group mb-2">
                                             <input type="text" class="form-control font-monospace" id="apiKeyDisplay" readonly placeholder="Chưa tạo — bấm nút bên phải">
@@ -197,6 +207,18 @@
                                         <small class="form-hint">Gửi kèm header <code>Authorization: Bearer &lt;API key&gt;</code> khi gọi <code>{{WORKER_URL}}/api/v1/...</code>. Đổi mới key sẽ khiến hệ thống ngoài đang dùng key cũ ngừng gọi được — chỉ đổi khi nghi lộ key.</small>
                                     </div>
                                 </div>
+
+                                <a href="widget.html" class="card card-link text-decoration-none">
+                                    <div class="card-body pt-2 d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <h3 class="card-title d-flex align-items-center gap-2 mb-1">
+                                                <i class="ti ti-code text-primary fs-2"></i> Nhúng chatbot vào website
+                                            </h3>
+                                            <div class="text-secondary fs-5">Chọn mẫu giao diện, xem trước trực tiếp, lấy đoạn mã dán vào web khách.</div>
+                                        </div>
+                                        <i class="ti ti-chevron-right fs-2 text-secondary"></i>
+                                    </div>
+                                </a>
 
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0 d-flex justify-content-between align-items-center">
@@ -213,28 +235,6 @@
                                     </div>
                                 </div>
 
-                                <div class="card">
-                                    <div class="card-header border-bottom-0 pb-0">
-                                        <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-plug-connected text-primary fs-2"></i> <span data-i18n="cfg_card_tools_title">Tool tùy chỉnh cho Agent (API ngoài)</span>
-                                        </h3>
-                                    </div>
-                                    <div class="card-body pt-2">
-                                        <div class="text-secondary fs-5 mb-3">Khai báo API ngoài bằng JSON — không cần code. Agent sẽ tự quyết định khi nào gọi tool này dựa vào phần "Mô tả" bạn ghi.</div>
-
-                                        <div id="custom-tool-list" class="d-flex flex-column gap-2 mb-4">
-                                            <div class="text-secondary fs-5">Đang tải...</div>
-                                        </div>
-
-                                        <div class="border rounded p-3">
-                                            <div class="fw-medium mb-2">+ Thêm tool mới</div>
-                                            <div class="mb-2">
-                                                <div class="text-secondary fs-6 mb-1">Chọn 1 mẫu — chỉ cần điền domain/API key của bạn, không cần biết JSON:</div>
-                                                <div class="d-flex flex-wrap gap-2" id="tool-template-picker"></div>
-                                            </div>
-                                            <div id="tool-quick-setup" class="d-none border rounded p-3 mb-3 bg-secondary-lt"></div>
-
-                                            <details class="mt-2">
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0">
                                         <h3 class="card-title d-flex align-items-center gap-2">
@@ -269,6 +269,28 @@
                                     </div>
                                 </div>
 
+                                <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-plug-connected text-primary fs-2"></i> <span data-i18n="cfg_card_tools_title">Tool tùy chỉnh cho Agent (API ngoài)</span>
+                                        </h3>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Khai báo API ngoài bằng JSON — không cần code. Agent sẽ tự quyết định khi nào gọi tool này dựa vào phần "Mô tả" bạn ghi.</div>
+
+                                        <div id="custom-tool-list" class="d-flex flex-column gap-2 mb-4">
+                                            <div class="text-secondary fs-5">Đang tải...</div>
+                                        </div>
+
+                                        <div class="border rounded p-3">
+                                            <div class="fw-medium mb-2">+ Thêm tool mới</div>
+                                            <div class="mb-2">
+                                                <div class="text-secondary fs-6 mb-1">Chọn 1 mẫu — chỉ cần điền domain/API key của bạn, không cần biết JSON:</div>
+                                                <div class="d-flex flex-wrap gap-2" id="tool-template-picker"></div>
+                                            </div>
+                                            <div id="tool-quick-setup" class="d-none border rounded p-3 mb-3 bg-secondary-lt"></div>
+
+                                            <details class="mt-2">
                                                 <summary class="text-secondary fs-6" style="cursor:pointer;">Hoặc tự tạo tool khác (nâng cao — cần biết JSON)</summary>
                                             <div class="row g-2 mt-1">
                                                 <div class="col-md-6">
@@ -380,56 +402,11 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0">
                                         <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-robot text-primary fs-2"></i> Model Selection
-                                        </h3>
-                                    </div>
-                                    <div class="card-body pt-3">
-                                        <div class="form-selectgroup form-selectgroup-boxes d-flex flex-column gap-2">
-                                            <label class="form-selectgroup-item flex-fill">
-                                                <input type="radio" name="modelSelection" value="gpt-4o-mini" class="form-selectgroup-input" checked>
-                                                <div class="form-selectgroup-label d-flex align-items-center p-3 text-start">
-                                                    <div class="me-3"><span class="form-selectgroup-check"></span></div>
-                                                    <div>
-                                                        <div class="fw-bold fs-4 text-body d-flex align-items-center gap-2">
-                                                            GPT-4o Mini
-                                                            <span class="badge bg-primary badge-blink" style="width:6px;height:6px;padding:0;"></span>
-                                                        </div>
-                                                        <div class="text-secondary fs-5 mt-1">Nhanh, rẻ, đủ mạnh cho tư vấn.</div>
-                                                    </div>
-                                                </div>
-                                            </label>
-                                            <label class="form-selectgroup-item flex-fill">
-                                                <input type="radio" name="modelSelection" value="gpt-4o" class="form-selectgroup-input">
-                                                <div class="form-selectgroup-label d-flex align-items-center p-3 text-start">
-                                                    <div class="me-3"><span class="form-selectgroup-check"></span></div>
-                                                    <div>
-                                                        <div class="fw-bold fs-4 text-body">GPT-4o</div>
-                                                        <div class="text-secondary fs-5 mt-1">Mạnh nhất, câu hỏi phức tạp.</div>
-                                                    </div>
-                                                </div>
-                                            </label>
-                                            <label class="form-selectgroup-item flex-fill">
-                                                <input type="radio" name="modelSelection" value="claude-sonnet-4-6" class="form-selectgroup-input">
-                                                <div class="form-selectgroup-label d-flex align-items-center p-3 text-start">
-                                                    <div class="me-3"><span class="form-selectgroup-check"></span></div>
-                                                    <div>
-                                                        <div class="fw-bold fs-4 text-body">Claude Sonnet</div>
-                                                        <div class="text-secondary fs-5 mt-1">Xuất sắc về ngữ nghĩa tiếng Việt.</div>
-                                                    </div>
-                                                </div>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="card">
-                                    <div class="card-header border-bottom-0 pb-0">
-                                        <h3 class="card-title d-flex align-items-center gap-2">
                                             <i class="ti ti-adjustments-horizontal text-primary fs-2"></i> Advanced Parameters
                                         </h3>
                                     </div>
                                     <div class="card-body pt-3">
-                                        <div class="mb-4">
+                                        <div>
                                             <div class="d-flex justify-content-between align-items-center mb-2">
                                                 <label class="form-label mb-0 text-uppercase tracking-wide text-secondary fs-5">Temperature</label>
                                                 <span class="badge bg-blue-lt fs-5" id="tempValue">0.3</span>
@@ -438,23 +415,7 @@
                                             <div class="d-flex justify-content-between text-secondary fs-6 mt-1">
                                                 <span>Chính xác</span><span>Sáng tạo</span>
                                             </div>
-                                        </div>
-                                        <div class="mb-4">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <label class="form-label mb-0 text-uppercase tracking-wide text-secondary fs-5">Max Tokens</label>
-                                                <span class="badge bg-blue-lt fs-5" id="maxTokensValue">1000</span>
-                                            </div>
-                                            <input type="range" class="form-range" id="maxTokensSlider" max="4000" min="200" step="100" value="1000" oninput="document.getElementById('maxTokensValue').innerText=this.value">
-                                            <div class="d-flex justify-content-between text-secondary fs-6 mt-1">
-                                                <span>200</span><span>4000</span>
-                                            </div>
-                                        </div>
-                                        <div class="hr-text mt-3 mb-3">Options</div>
-                                        <div>
-                                            <label class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="enableStreaming" checked>
-                                                <span class="form-check-label fw-medium">Enable streaming response</span>
-                                            </label>
+                                            <div class="form-hint mt-2">Model luna (reasoning) luôn dùng temperature 1 — giá trị này chỉ áp dụng cho model khác.</div>
                                         </div>
                                     </div>
                                 </div>
@@ -463,8 +424,8 @@
                                     <button class="btn btn-outline-secondary w-50" onclick="discardChanges()">
                                         Discard
                                     </button>
-                                    <button class="btn btn-primary w-50" id="save-btn" onclick="saveConfig()">
-                                        <i class="ti ti-device-floppy me-2"></i> Save
+                                    <button class="btn btn-primary w-50" id="save-btn" onclick="saveConfig()" disabled>
+                                        <span class="spinner-border spinner-border-sm me-2"></span> Loading...
                                     </button>
                                 </div>
 
@@ -498,6 +459,7 @@
        - owner_telegram_chat_id (text) — nơi worker gửi cảnh báo khi AI trả lời không chắc chắn.
        - cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret (text) — tài khoản Cloudinary
          riêng của tenant, dùng để chèn logo lên ảnh trước khi đăng.
+       - pixverse_api_key (text) — API key PixVerse riêng của tenant (sinh video từ video_prompt).
        - brand_logo_url (text) — link ảnh logo do tenant nhập.
        - brand_logo_public_id, brand_logo_cached_url (text) — cache nội bộ do worker tự ghi, KHÔNG hiển thị
          trên UI (worker dùng để biết đã upload logo lên Cloudinary chưa, tránh upload lại mỗi lần đăng bài).
@@ -507,14 +469,21 @@
     // ═══════════════════════════════════════
     // BOOT
     // ═══════════════════════════════════════
+    const DEFAULT_WEBHOOK_URL = `${WORKER_URL.replace(/\/+$/, "")}/chat`;
     let configRecordId = null;
     let originalData   = null;
+    let configLoadState = "loading";
+
+    function setSaveButtonReady() {
+        const btn = document.getElementById("save-btn");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-device-floppy me-2"></i> Save';
+    }
 
     (async () => {
         // Uncomment nếu bác dùng auth.js thật
         // await requireAuth();
 
-        loadAdsConnections();
         // Giả lập Dữ liệu tạm thời để chạy Preview
         await requireAuth();
         renderSidebar(window.AUTH_USER);
@@ -545,6 +514,7 @@
 
         await loadConfig();
         await loadAgentLogs();
+        loadAdsConnections();
         renderToolTemplatePicker();
         await loadCustomTools();
     })();
@@ -554,39 +524,51 @@
     // ═══════════════════════════════════════
     async function loadConfig() {
         try {
-            const r = await PB.collection("bot_configs").getFirstListItem(`tenant="${window.TENANT}"`);
+            // Legacy data may contain duplicate rows. Keep the editor and public chat on
+            // the same canonical row: the config most recently updated for this tenant.
+            const r = await PB.collection("bot_configs").getFirstListItem(
+                `tenant="${window.TENANT}"`,
+                { sort: "-updated" }
+            );
             configRecordId = r.id;
 
             document.getElementById("botName").value     = r.bot_name    || "";
             document.getElementById("botAvatar").value   = r.bot_avatar  || "🤖";
             document.getElementById("botColor").value    = r.color       || "#007f9d";
-            document.getElementById("botWebhook").value  = r.webhook     || "";
             document.getElementById("greetingMsg").value = r.greeting    || "";
             document.getElementById("ownerTelegramChatId").value = r.owner_telegram_chat_id || "";
             document.getElementById("cloudinaryCloudName").value = r.cloudinary_cloud_name || "";
             document.getElementById("cloudinaryApiKey").value = r.cloudinary_api_key || "";
             document.getElementById("cloudinaryApiSecret").value = r.cloudinary_api_secret || "";
             document.getElementById("brandLogoUrl").value = r.brand_logo_url || "";
+            document.getElementById("pixverseApiKey").value = r.pixverse_api_key || "";
             previewBrandLogo();
             document.getElementById("apiKeyDisplay").value = r.api_key || "";
             document.getElementById("systemPrompt").value = r.system_prompt || "";
             document.getElementById("responseLanguage").value = r.response_language || "auto";
             document.getElementById("tempSlider").value  = r.temperature  || 0.3;
             document.getElementById("tempValue").textContent = r.temperature || 0.3;
-            document.getElementById("maxTokensSlider").value = r.max_tokens || 1000;
-            document.getElementById("maxTokensValue").textContent = r.max_tokens || 1000;
-            if (r.streaming !== undefined) document.getElementById("enableStreaming").checked = r.streaming;
-
-            if (r.model) {
-                const radio = document.querySelector(`input[name="modelSelection"][value="${r.model}"]`);
-                if (radio) radio.checked = true;
-            }
 
             originalData = getFormData();
             updatePreview();
+            configLoadState = "ready";
+            setSaveButtonReady();
+        } catch (err) {
+            // PocketBase trả 404 khi tenant thật sự chưa có cấu hình. Chỉ trường hợp này
+            // mới được phép đi vào nhánh create; lỗi mạng/quyền không được giả thành "chưa có".
+            if (err?.status === 404) {
+                configRecordId = null;
+                originalData = getFormData();
+                configLoadState = "ready";
+                setSaveButtonReady();
+                updatePreview();
+                return;
+            }
 
-        } catch {
+            configLoadState = "error";
             updatePreview();
+            showToast("Không thể tải cấu hình bot. Vui lòng tải lại trang.", "error");
+            console.error("Failed to load bot config", err);
         }
     }
 
@@ -614,6 +596,8 @@
         if (url && url.startsWith("http")) { img.src = url; img.classList.remove("d-none"); }
         else { img.classList.add("d-none"); }
     }
+    // Trang nhúng widget (mẫu giao diện, preview, domain) đã tách sang widget.html — xem link
+    // "Nhúng chatbot vào website" ở card phía trên.
 
     // ═══════════════════════════════════════
     // API KEY (cho hệ thống ngoài gọi /api/v1/...)
@@ -639,6 +623,22 @@
     function copyApiKey() {
         const val = document.getElementById("apiKeyDisplay").value;
         if (!val) { showToast("Chưa có API key để copy", "error"); return; }
+        navigator.clipboard.writeText(val);
+        showToast("Đã copy API key", "success");
+    }
+
+    // ═══════════════════════════════════════
+    // AI AGENT (chạy tay + xem lịch sử quyết định)
+    // ═══════════════════════════════════════
+    const AGENT_TOOL_ICON = {
+        trigger_publish: "ti-send", trigger_rss_crawl: "ti-rss", pause_rss_source: "ti-player-pause",
+        send_alert: "ti-bell", no_action: "ti-check", error: "ti-alert-triangle"
+    };
+    const AGENT_TOOL_LABEL = {
+        trigger_publish: "Đăng bài đã duyệt", trigger_rss_crawl: "Crawl RSS", pause_rss_source: "Tạm dừng nguồn RSS",
+        send_alert: "Gửi cảnh báo", no_action: "Không hành động", error: "Lỗi"
+    };
+
     // ===== ADS AGENT (Meta Ads, chỉ đọc) =====
     function adsKey() { return document.getElementById("apiKeyDisplay").value.trim(); }
     async function adsApi(path, init = {}) {
@@ -707,22 +707,6 @@
         finally { btn.disabled = false; }
     }
 
-        navigator.clipboard.writeText(val);
-        showToast("Đã copy API key", "success");
-    }
-
-    // ═══════════════════════════════════════
-    // AI AGENT (chạy tay + xem lịch sử quyết định)
-    // ═══════════════════════════════════════
-    const AGENT_TOOL_ICON = {
-        trigger_publish: "ti-send", trigger_rss_crawl: "ti-rss", pause_rss_source: "ti-player-pause",
-        send_alert: "ti-bell", no_action: "ti-check", error: "ti-alert-triangle"
-    };
-    const AGENT_TOOL_LABEL = {
-        trigger_publish: "Đăng bài đã duyệt", trigger_rss_crawl: "Crawl RSS", pause_rss_source: "Tạm dừng nguồn RSS",
-        send_alert: "Gửi cảnh báo", no_action: "Không hành động", error: "Lỗi"
-    };
-
     async function runAgentNow() {
         const apiKey = document.getElementById("apiKeyDisplay").value.trim();
         if (!apiKey) {
@@ -752,15 +736,22 @@
     async function loadAgentLogs() {
         const el = document.getElementById("agent-log-list");
         try {
-            const logs = await PB.collection("agent_logs").getList(1, 10, {
-                sort: "-created",
-                filter: `tenant="${window.TENANT}"`
+            const apiKey = document.getElementById("apiKeyDisplay").value.trim();
+            if (!apiKey) {
+                el.innerHTML = '<div class="text-secondary fs-5">Chưa có API key để tải lịch sử Agent.</div>';
+                return;
+            }
+            const response = await fetch(`${WORKER_URL}/api/v1/agent-logs?limit=10`, {
+                headers: { Authorization: `Bearer ${apiKey}` }
             });
-            if (logs.items.length === 0) {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error?.message || data.error || `Lỗi ${response.status}`);
+            const logs = data.items || [];
+            if (logs.length === 0) {
                 el.innerHTML = '<div class="text-secondary fs-5">Chưa có lần chạy nào — bấm "Chạy Agent ngay" hoặc chờ tới giờ (agent tự chạy mỗi giờ).</div>';
                 return;
             }
-            el.innerHTML = logs.items.map(log => {
+            el.innerHTML = logs.map(log => {
                 const icon = AGENT_TOOL_ICON[log.tool_name] || "ti-robot";
                 const label = AGENT_TOOL_LABEL[log.tool_name] || log.tool_name || "—";
                 const time = new Date(log.created).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -998,35 +989,45 @@
     // GET DATA & SAVE
     // ═══════════════════════════════════════
     function getFormData() {
-        const selectedModel = document.querySelector('input[name="modelSelection"]:checked')?.value || "gpt-4o-mini";
         return {
-            tenant:        window.TENANT, 
+            tenant:        window.TENANT,
             bot_name:      document.getElementById("botName").value.trim(),
             bot_avatar:    document.getElementById("botAvatar").value.trim() || "🤖",
             color:         document.getElementById("botColor").value,
-            webhook:       document.getElementById("botWebhook").value.trim(),
+            // Webhook là endpoint nội bộ cố định; workspace không được tự thay đổi.
+            webhook:       DEFAULT_WEBHOOK_URL,
             greeting:      document.getElementById("greetingMsg").value.trim(),
             owner_telegram_chat_id: document.getElementById("ownerTelegramChatId").value.trim(),
             cloudinary_cloud_name: document.getElementById("cloudinaryCloudName").value.trim(),
             cloudinary_api_key: document.getElementById("cloudinaryApiKey").value.trim(),
             cloudinary_api_secret: document.getElementById("cloudinaryApiSecret").value.trim(),
             brand_logo_url: document.getElementById("brandLogoUrl").value.trim(),
+            pixverse_api_key: document.getElementById("pixverseApiKey").value.trim(),
             system_prompt: document.getElementById("systemPrompt").value.trim(),
             response_language: document.getElementById("responseLanguage").value,
-            model:         selectedModel,
-            temperature:   parseFloat(document.getElementById("tempSlider").value),
-            max_tokens:    parseInt(document.getElementById("maxTokensSlider").value),
-            streaming:     document.getElementById("enableStreaming").checked
+            // Không lưu model/max_tokens/streaming nữa — worker chưa từng đọc 3 field này khi
+            // gọi AnythingLLM (chỉ system_prompt + temperature có tác dụng thật), UI dễ gây hiểu
+            // lầm là đổi được model/độ dài trả lời nên đã bỏ 2 card liên quan ở trên.
+            temperature:   parseFloat(document.getElementById("tempSlider").value)
         };
     }
 
     async function saveConfig() {
         const btn  = document.getElementById("save-btn");
+
+        if (configLoadState !== "ready") {
+            showToast(
+                configLoadState === "loading"
+                    ? "Cấu hình đang tải, vui lòng chờ."
+                    : "Chưa tải được cấu hình. Vui lòng tải lại trang.",
+                "error"
+            );
+            return;
+        }
+
         const data = getFormData();
 
         if (!data.bot_name) { showToast("Vui lòng nhập tên bot", "error"); return; }
-        if (!data.webhook)  { showToast("Vui lòng nhập Webhook URL", "error"); return; }
-
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Saving...';
 
@@ -1057,24 +1058,18 @@
         document.getElementById("botName").value       = originalData.bot_name      || "";
         document.getElementById("botAvatar").value     = originalData.bot_avatar    || "🤖";
         document.getElementById("botColor").value      = originalData.color         || "#007f9d";
-        document.getElementById("botWebhook").value    = originalData.webhook       || "";
         document.getElementById("greetingMsg").value   = originalData.greeting      || "";
         document.getElementById("ownerTelegramChatId").value = originalData.owner_telegram_chat_id || "";
         document.getElementById("cloudinaryCloudName").value = originalData.cloudinary_cloud_name || "";
         document.getElementById("cloudinaryApiKey").value = originalData.cloudinary_api_key || "";
         document.getElementById("cloudinaryApiSecret").value = originalData.cloudinary_api_secret || "";
         document.getElementById("brandLogoUrl").value = originalData.brand_logo_url || "";
+        document.getElementById("pixverseApiKey").value = originalData.pixverse_api_key || "";
         previewBrandLogo();
         document.getElementById("systemPrompt").value  = originalData.system_prompt || "";
         document.getElementById("responseLanguage").value = originalData.response_language || "auto";
         document.getElementById("tempSlider").value    = originalData.temperature   || 0.3;
         document.getElementById("tempValue").textContent = originalData.temperature || 0.3;
-        document.getElementById("maxTokensSlider").value = originalData.max_tokens  || 1000;
-        document.getElementById("maxTokensValue").textContent = originalData.max_tokens || 1000;
-        document.getElementById("enableStreaming").checked = originalData.streaming ?? true;
-
-        const radio = document.querySelector(`input[name="modelSelection"][value="${originalData.model}"]`);
-        if (radio) radio.checked = true;
 
         updatePreview();
         showToast("Đã huỷ thay đổi", "success");
