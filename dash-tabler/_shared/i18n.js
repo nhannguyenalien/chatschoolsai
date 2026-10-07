@@ -370,18 +370,66 @@ const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
   contentScript.src = "_shared/i18n-content.js?v=20261007-1";
-  contentScript.onload = () => applyI18n();
+  contentScript.onload = () => {
+    applyI18n();
+    // Bản dịch bổ sung cho các chuỗi động/trang mới, gộp vào cùng bảng I18N_CONTENT.
+    const extraScript = document.createElement("script");
+    extraScript.src = "_shared/i18n-extra.js?v=20261007-2";
+    extraScript.onload = () => {
+      Object.keys(window.I18N_EXTRA || {}).forEach((lang) => {
+        window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);
+      });
+      applyI18n();
+    };
+    document.head.appendChild(extraScript);
+  };
   document.head.appendChild(contentScript);
 }
+
+// alert/confirm/prompt không nằm trong DOM nên bọc lại để dịch cùng bảng từ điển.
+["alert", "confirm", "prompt"].forEach((name) => {
+  const native = window[name];
+  if (typeof native !== "function") return;
+  window[name] = function (message, ...rest) {
+    const lang = getLang();
+    const translations = window.I18N_CONTENT && window.I18N_CONTENT[lang];
+    const translated = lang !== "vi" && typeof message === "string"
+      ? message.split("\n").map((line) => translateDynamicText(line.trim(), translations) || line).join("\n")
+      : message;
+    return native.call(window, translated, ...rest);
+  };
+});
 
 const ORIGINAL_TEXT = new WeakMap();
 const ORIGINAL_ATTRS = new WeakMap();
 const LAST_TRANSLATED_TEXT = new WeakMap();
 const LAST_TRANSLATED_ATTRS = new WeakMap();
 
+// Bảng bổ sung (_shared/i18n-extra.js) được gộp vào I18N_CONTENT; khoá có thể chứa "{}"
+// làm chỗ giữ cho phần động (số, tên...) và khoá kết thúc bằng ":" được dùng làm tiền tố.
+const PATTERN_CACHE = {};
+function getPatterns(lang, translations) {
+  const cached = PATTERN_CACHE[lang];
+  if (cached && cached.size === Object.keys(translations).length) return cached;
+  const exact = [];
+  const prefixes = [];
+  Object.keys(translations).forEach((key) => {
+    if (key.includes("{}")) {
+      const body = key.split("{}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(.+?)");
+      exact.push({ regex: new RegExp(`^${body}$`, "s"), value: translations[key] });
+    } else if (key.endsWith(":") && key.length > 3) {
+      prefixes.push(key);
+    }
+  });
+  prefixes.sort((a, b) => b.length - a.length);
+  return (PATTERN_CACHE[lang] = { size: Object.keys(translations).length, exact, prefixes });
+}
+
 function translateDynamicText(source, translations) {
   if (!source || !translations) return null;
   if (translations[source]) return translations[source];
+  const collapsed = source.replace(/\s+/g, " ");
+  if (translations[collapsed]) return translations[collapsed];
 
   // Các bộ đếm được render lại bằng JavaScript nên giá trị đầy đủ không thể
   // nằm sẵn trong từ điển (ví dụ "12 Hoạt động", "35 dòng").
@@ -390,14 +438,19 @@ function translateDynamicText(source, translations) {
     return `${counterMatch[1]} ${translations[counterMatch[2]]}`;
   }
 
+  const patterns = getPatterns(getLang(), translations);
+  for (const { regex, value } of patterns.exact) {
+    const match = collapsed.match(regex);
+    if (match) {
+      let index = 1;
+      return value.replace(/\{\}/g, () => match[index++] ?? "");
+    }
+  }
+
   // Giữ nguyên chi tiết kỹ thuật từ API, chỉ dịch phần nhãn lỗi/trạng thái.
-  const prefixes = [
-    "Lỗi tải dữ liệu:", "Lỗi khởi tạo:", "Lỗi cập nhật:", "Lỗi upload:",
-    "Lỗi lưu:", "Lỗi xoá:", "Lỗi xóa:", "Lỗi chạy Agent:",
-  ];
-  const prefix = prefixes.find((item) => source.startsWith(`${item} `));
+  const prefix = patterns.prefixes.find((item) => collapsed.startsWith(`${item} `));
   if (prefix && translations[prefix]) {
-    return `${translations[prefix]} ${source.slice(prefix.length + 1)}`;
+    return `${translations[prefix]} ${collapsed.slice(prefix.length + 1)}`;
   }
   return null;
 }
@@ -405,6 +458,12 @@ function translateDynamicText(source, translations) {
 function translateLegacyContent(root = document) {
   const lang = getLang();
   const translations = window.I18N_CONTENT && window.I18N_CONTENT[lang];
+  if (root === document) {
+    // Tiêu đề tab không phải text node nên dịch riêng, nhớ bản gốc để quay lại tiếng Việt.
+    if (document.documentElement.dataset.titleVi === undefined) document.documentElement.dataset.titleVi = document.title;
+    const titleVi = document.documentElement.dataset.titleVi;
+    document.title = (lang !== "vi" && translateDynamicText(titleVi, translations)) || titleVi;
+  }
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
