@@ -76,7 +76,7 @@ function renderSidebar(user) {
         <a href="account.html#workspaces" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 py-0 px-2" style="font-size:11px; line-height:22px;" data-i18n-title="sb_add_workspace_title" title="${sbT('sb_add_workspace_title', 'Tạo workspace mới')}"><i class="ti ti-plus"></i><span data-i18n="sb_add_new">${sbT('sb_add_new', 'Thêm mới')}</span></a>
       </div>
       ${memberships.length > 1 ? `
-      <select id="sidebar-tenant-switcher" class="form-select form-select-sm" onchange="switchTenant(this.value)" aria-label="${sbT('sb_choose_tenant', 'Chọn tenant')}">
+      <select id="sidebar-tenant-switcher" class="form-select form-select-sm" onchange="switchTenant(this.value)" data-i18n-aria-label="sb_choose_tenant" aria-label="${sbT('sb_choose_tenant', 'Chọn tenant')}">
         ${memberships.map((item) => `<option value="${escapeSidebarHtml(item.tenant)}" ${item.tenant === tenant ? 'selected' : ''}>${escapeSidebarHtml(item.tenant)} (${escapeSidebarHtml(item.role)})</option>`).join('')}
       </select>` : `<div class="text-white fs-5">${escapeSidebarHtml(tenant)}</div>`}
     </div>`;
