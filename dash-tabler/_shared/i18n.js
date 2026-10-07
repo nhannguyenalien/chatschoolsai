@@ -369,7 +369,7 @@ const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
 // Tải riêng để file từ điển chính vẫn dễ bảo trì; khi tải xong trang sẽ được dịch lại.
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
-  contentScript.src = "_shared/i18n-content.js?v=20260814-1";
+  contentScript.src = "_shared/i18n-content.js?v=20261007-1";
   contentScript.onload = () => applyI18n();
   document.head.appendChild(contentScript);
 }
