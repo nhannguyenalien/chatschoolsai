@@ -93,7 +93,39 @@ const I18N_DICT = {
 
     // sm-config.html
     sm_title: "Cấu hình Kênh",
-    sm_subtitle: "Quản lý Page/Account và token cho Facebook, Instagram, WhatsApp, Zalo và các API chat khác."
+    sm_subtitle: "Quản lý Page/Account và token cho Facebook, Instagram, WhatsApp, Zalo và các API chat khác.",
+
+    // widget.html
+    nav_widget: "Nhúng Widget",
+    btn_copy: "Copy",
+    wg_breadcrumb_parent: "Cấu hình bot",
+    wg_title: "Nhúng chatbot vào website",
+    wg_subtitle: "Chọn mẫu giao diện, chỉnh theo ý khách, xem trước thật — rồi copy 1 dòng mã dán vào web.",
+    wg_templates_title: "Mẫu giao diện",
+    wg_customize_title: "Tuỳ chỉnh riêng",
+    wg_color: "Màu chủ đạo",
+    wg_position: "Vị trí bong bóng chat",
+    wg_position_right: "Góc phải",
+    wg_position_left: "Góc trái",
+    wg_display_style: "Kiểu hiển thị",
+    wg_style_bubble: "Bong bóng nổi",
+    wg_style_sidebar: "Thanh bên (sidebar)",
+    wg_widget_lang: "Ngôn ngữ widget",
+    wg_radius: "Độ bo góc",
+    wg_radius_square: "Vuông vức",
+    wg_radius_round: "Bo tròn",
+    wg_domain: "Domain sẽ nhúng (khuyên điền khi dùng thật)",
+    wg_domain_hint: "Bỏ trống thì widget chạy được trên mọi trang (tiện để test). Điền domain thật trước khi đưa cho khách để chặn trang lạ nhúng ké bot của bạn.",
+    wg_snippet_title: "Đoạn mã nhúng",
+    wg_snippet_hint: 'Dán đoạn này vào trước thẻ <code>&lt;/body&gt;</code> của website.',
+    wg_preview_title: "Xem trước trực tiếp",
+    wg_preview_hint: "Đây là widget thật đang chạy — bấm thử được luôn trong khung dưới.",
+    wg_toast_copied: "Đã copy đoạn mã nhúng",
+    wg_tpl_blue_name: "Xanh dương chuyên nghiệp", wg_tpl_blue_desc: "Mặc định, phù hợp mọi ngành",
+    wg_tpl_mono_name: "Tối giản đen trắng", wg_tpl_mono_desc: "Góc vuông vức, sang trọng kín đáo",
+    wg_tpl_orange_name: "Cam năng động", wg_tpl_orange_desc: "Bo tròn hết cỡ, nổi bật, trẻ trung",
+    wg_tpl_green_name: "Xanh lá thân thiện", wg_tpl_green_desc: "Đặt bên trái, gần gũi",
+    wg_tpl_purple_name: "Tím sang trọng", wg_tpl_purple_desc: "Hợp ngành làm đẹp, thời trang"
   },
   en: {
     nav_overview: "Overview",
@@ -170,7 +202,38 @@ const I18N_DICT = {
     an_subtitle: "Track posting status across every platform.",
 
     sm_title: "Channel Settings",
-    sm_subtitle: "Manage Pages/Accounts and tokens for Facebook, Instagram, WhatsApp, Zalo and other chat APIs."
+    sm_subtitle: "Manage Pages/Accounts and tokens for Facebook, Instagram, WhatsApp, Zalo and other chat APIs.",
+
+    nav_widget: "Embed Widget",
+    btn_copy: "Copy",
+    wg_breadcrumb_parent: "Bot Settings",
+    wg_title: "Embed the chatbot on your website",
+    wg_subtitle: "Pick a template, customize it for your client, preview it live — then copy 1 line of code into the site.",
+    wg_templates_title: "Templates",
+    wg_customize_title: "Custom options",
+    wg_color: "Accent color",
+    wg_position: "Chat bubble position",
+    wg_position_right: "Bottom right",
+    wg_position_left: "Bottom left",
+    wg_display_style: "Display style",
+    wg_style_bubble: "Floating bubble",
+    wg_style_sidebar: "Docked sidebar",
+    wg_widget_lang: "Widget language",
+    wg_radius: "Corner roundness",
+    wg_radius_square: "Sharp",
+    wg_radius_round: "Rounded",
+    wg_domain: "Domain to embed on (recommended for production)",
+    wg_domain_hint: "Leave blank to run on any page (handy for testing). Fill in the real domain before handing it to the client, to block other sites from embedding it.",
+    wg_snippet_title: "Embed code",
+    wg_snippet_hint: 'Paste this right before the closing <code>&lt;/body&gt;</code> tag of the website.',
+    wg_preview_title: "Live preview",
+    wg_preview_hint: "This is the real widget running live — try clicking it right in the frame below.",
+    wg_toast_copied: "Embed code copied",
+    wg_tpl_blue_name: "Professional Blue", wg_tpl_blue_desc: "Default, fits any industry",
+    wg_tpl_mono_name: "Minimal Mono", wg_tpl_mono_desc: "Sharp corners, understated and elegant",
+    wg_tpl_orange_name: "Energetic Orange", wg_tpl_orange_desc: "Fully rounded, bold and youthful",
+    wg_tpl_green_name: "Friendly Green", wg_tpl_green_desc: "Placed on the left, approachable",
+    wg_tpl_purple_name: "Elegant Purple", wg_tpl_purple_desc: "Great fit for beauty and fashion brands"
   },
   ja: {
     nav_overview: "概要", nav_bot_settings: "ボット設定", nav_agent_chat: "エージェントとチャット", nav_knowledge: "ナレッジベース", nav_messages: "チャット履歴", nav_leads: "見込み客", nav_billing: "請求", nav_posts: "SNS投稿", nav_composer: "投稿作成", nav_analytics: "分析", nav_sm_config: "チャンネル設定", nav_loyalty: "顧客・ロイヤルティ", nav_social_media: "ソーシャルメディア", logout: "ログアウト",
@@ -183,7 +246,8 @@ const I18N_DICT = {
     bill_title_top: "ダッシュボード", bill_title: "請求と利用状況", bill_subtitle: "プラン、上限、取引履歴を管理します。",
     post_title: "不動産投稿", post_subtitle: "SNSへ自動公開する投稿を管理、承認、追跡します", post_btn_refresh: "更新",
     comp_title: "投稿作成", comp_subtitle: "投稿の下書き、RSSからのAIリライト、各プラットフォームへの手動公開を行います。", comp_manage_channels: "公開チャンネルを管理",
-    an_title: "分析", an_subtitle: "すべてのプラットフォームの投稿状況を追跡します。", sm_title: "チャンネル設定", sm_subtitle: "Facebook、Instagram、WhatsApp、Zalo、その他のチャットAPIのページ／アカウントとトークンを管理します。"
+    an_title: "分析", an_subtitle: "すべてのプラットフォームの投稿状況を追跡します。", sm_title: "チャンネル設定", sm_subtitle: "Facebook、Instagram、WhatsApp、Zalo、その他のチャットAPIのページ／アカウントとトークンを管理します。",
+    nav_widget: "ウィジェット埋め込み", btn_copy: "コピー", wg_title: "チャットボットをウェブサイトに埋め込む", wg_templates_title: "テンプレート", wg_customize_title: "カスタム設定", wg_color: "アクセントカラー", wg_position: "チャットバブルの位置", wg_position_right: "右下", wg_position_left: "左下", wg_display_style: "表示スタイル", wg_style_bubble: "フローティングバブル", wg_style_sidebar: "サイドバー固定", wg_widget_lang: "ウィジェットの言語", wg_snippet_title: "埋め込みコード", wg_preview_title: "ライブプレビュー"
   },
   es: {
     nav_overview: "Resumen", nav_bot_settings: "Configuración del bot", nav_agent_chat: "Chat con el agente", nav_knowledge: "Base de conocimiento", nav_messages: "Historial de chats", nav_leads: "Clientes potenciales", nav_billing: "Facturación", nav_posts: "Publicaciones sociales", nav_composer: "Redactor", nav_analytics: "Analítica", nav_sm_config: "Configuración de canales", nav_loyalty: "Clientes y fidelización", nav_social_media: "Redes sociales", logout: "Cerrar sesión",
@@ -196,7 +260,8 @@ const I18N_DICT = {
     bill_title_top: "Panel", bill_title: "Facturación y uso", bill_subtitle: "Gestiona tu plan, límites e historial de transacciones.",
     post_title: "Publicaciones inmobiliarias", post_subtitle: "Gestiona, aprueba y controla publicaciones automáticas en redes sociales", post_btn_refresh: "Actualizar",
     comp_title: "Redactor", comp_subtitle: "Redacta publicaciones, usa IA para reescribir desde RSS y publica manualmente en tus plataformas.", comp_manage_channels: "Gestionar canales de publicación",
-    an_title: "Analítica", an_subtitle: "Controla el estado de las publicaciones en todas las plataformas.", sm_title: "Configuración de canales", sm_subtitle: "Gestiona páginas, cuentas y tokens de Facebook, Instagram, WhatsApp, Zalo y otras API de chat."
+    an_title: "Analítica", an_subtitle: "Controla el estado de las publicaciones en todas las plataformas.", sm_title: "Configuración de canales", sm_subtitle: "Gestiona páginas, cuentas y tokens de Facebook, Instagram, WhatsApp, Zalo y otras API de chat.",
+    nav_widget: "Widget incrustado", btn_copy: "Copiar", wg_title: "Incrusta el chatbot en tu sitio web", wg_templates_title: "Plantillas", wg_customize_title: "Opciones personalizadas", wg_color: "Color de acento", wg_position: "Posición de la burbuja", wg_position_right: "Abajo a la derecha", wg_position_left: "Abajo a la izquierda", wg_display_style: "Estilo de visualización", wg_style_bubble: "Burbuja flotante", wg_style_sidebar: "Barra lateral fija", wg_widget_lang: "Idioma del widget", wg_snippet_title: "Código para incrustar", wg_preview_title: "Vista previa en vivo"
   },
   fr: {
     nav_overview: "Vue d’ensemble", nav_bot_settings: "Paramètres du bot", nav_agent_chat: "Discuter avec l’agent", nav_knowledge: "Base de connaissances", nav_messages: "Historique des chats", nav_leads: "Prospects", nav_billing: "Facturation", nav_posts: "Publications sociales", nav_composer: "Rédacteur", nav_analytics: "Analytique", nav_sm_config: "Paramètres des canaux", nav_loyalty: "Clients et fidélité", nav_social_media: "Réseaux sociaux", logout: "Se déconnecter",
@@ -209,7 +274,8 @@ const I18N_DICT = {
     bill_title_top: "Tableau de bord", bill_title: "Facturation et utilisation", bill_subtitle: "Gérez votre forfait, vos limites et l’historique des transactions.",
     post_title: "Publications immobilières", post_subtitle: "Gérez, approuvez et suivez les publications automatiques sur les réseaux sociaux", post_btn_refresh: "Actualiser",
     comp_title: "Rédacteur", comp_subtitle: "Rédigez des publications, utilisez l’IA pour réécrire depuis RSS et publiez manuellement sur vos plateformes.", comp_manage_channels: "Gérer les canaux de publication",
-    an_title: "Analytique", an_subtitle: "Suivez l’état des publications sur toutes les plateformes.", sm_title: "Paramètres des canaux", sm_subtitle: "Gérez les pages, comptes et jetons Facebook, Instagram, WhatsApp, Zalo et autres API de chat."
+    an_title: "Analytique", an_subtitle: "Suivez l’état des publications sur toutes les plateformes.", sm_title: "Paramètres des canaux", sm_subtitle: "Gérez les pages, comptes et jetons Facebook, Instagram, WhatsApp, Zalo et autres API de chat.",
+    nav_widget: "Widget à intégrer", btn_copy: "Copier", wg_title: "Intégrer le chatbot sur votre site", wg_templates_title: "Modèles", wg_customize_title: "Options personnalisées", wg_color: "Couleur d’accent", wg_position: "Position de la bulle", wg_position_right: "En bas à droite", wg_position_left: "En bas à gauche", wg_display_style: "Style d’affichage", wg_style_bubble: "Bulle flottante", wg_style_sidebar: "Barre latérale fixe", wg_widget_lang: "Langue du widget", wg_snippet_title: "Code à intégrer", wg_preview_title: "Aperçu en direct"
   },
   ko: {
     nav_overview: "개요", nav_bot_settings: "봇 설정", nav_agent_chat: "에이전트와 채팅", nav_knowledge: "지식 베이스", nav_messages: "채팅 기록", nav_leads: "잠재 고객", nav_billing: "결제", nav_posts: "소셜 게시물", nav_composer: "게시물 작성", nav_analytics: "분석", nav_sm_config: "채널 설정", nav_loyalty: "고객 및 로열티", nav_social_media: "소셜 미디어", logout: "로그아웃",
@@ -222,9 +288,80 @@ const I18N_DICT = {
     bill_title_top: "대시보드", bill_title: "결제 및 사용량", bill_subtitle: "요금제, 한도 및 거래 내역을 관리합니다.",
     post_title: "부동산 게시물", post_subtitle: "소셜 미디어에 자동 게시되는 글을 관리, 승인 및 추적합니다", post_btn_refresh: "새로고침",
     comp_title: "게시물 작성", comp_subtitle: "게시물을 작성하고 AI로 RSS 콘텐츠를 다시 쓰며 플랫폼에 직접 게시합니다.", comp_manage_channels: "게시 채널 관리",
-    an_title: "분석", an_subtitle: "모든 플랫폼의 게시 상태를 추적합니다.", sm_title: "채널 설정", sm_subtitle: "Facebook, Instagram, WhatsApp, Zalo 및 기타 채팅 API의 페이지/계정과 토큰을 관리합니다."
+    an_title: "분석", an_subtitle: "모든 플랫폼의 게시 상태를 추적합니다.", sm_title: "채널 설정", sm_subtitle: "Facebook, Instagram, WhatsApp, Zalo 및 기타 채팅 API의 페이지/계정과 토큰을 관리합니다.",
+    nav_widget: "위젯 임베드", btn_copy: "복사", wg_title: "웹사이트에 챗봇 임베드하기", wg_templates_title: "템플릿", wg_customize_title: "맞춤 설정", wg_color: "강조 색상", wg_position: "채팅 버블 위치", wg_position_right: "오른쪽 하단", wg_position_left: "왼쪽 하단", wg_display_style: "표시 스타일", wg_style_bubble: "플로팅 버블", wg_style_sidebar: "고정 사이드바", wg_widget_lang: "위젯 언어", wg_snippet_title: "임베드 코드", wg_preview_title: "실시간 미리보기"
   }
 };
+
+// Nhãn sidebar (trước đây viết cứng tiếng Việt nên không đổi theo ngôn ngữ).
+Object.assign(I18N_DICT.vi, {
+  nav_customer_view: "Xem như khách hàng", nav_account_section: "Tài khoản", nav_account_hint: "Dùng chung mọi workspace",
+  nav_master_agent: "Agent tổng (mọi tenant)", nav_account_info: "Thông tin tài khoản", nav_api_docs: "API Docs",
+  sb_workspace_current: "Workspace đang dùng", sb_add_new: "Thêm mới", sb_add_workspace_title: "Tạo workspace mới", sb_choose_tenant: "Chọn tenant"
+});
+Object.assign(I18N_DICT.en, {
+  nav_customer_view: "View as customer", nav_account_section: "Account", nav_account_hint: "Shared across all workspaces",
+  nav_master_agent: "Master agent (all tenants)", nav_account_info: "Account information", nav_api_docs: "API Docs",
+  sb_workspace_current: "Current workspace", sb_add_new: "Add new", sb_add_workspace_title: "Create new workspace", sb_choose_tenant: "Select tenant"
+});
+Object.assign(I18N_DICT.ja, {
+  nav_customer_view: "顧客として表示", nav_account_section: "アカウント", nav_account_hint: "すべてのワークスペースで共通",
+  nav_master_agent: "マスターエージェント(全テナント)", nav_account_info: "アカウント情報", nav_api_docs: "APIドキュメント",
+  sb_workspace_current: "使用中のワークスペース", sb_add_new: "新規追加", sb_add_workspace_title: "新しいワークスペースを作成", sb_choose_tenant: "テナントを選択"
+});
+Object.assign(I18N_DICT.es, {
+  nav_customer_view: "Ver como cliente", nav_account_section: "Cuenta", nav_account_hint: "Compartido en todos los espacios de trabajo",
+  nav_master_agent: "Agente maestro (todos los tenants)", nav_account_info: "Información de la cuenta", nav_api_docs: "Documentación API",
+  sb_workspace_current: "Espacio de trabajo actual", sb_add_new: "Añadir", sb_add_workspace_title: "Crear nuevo espacio de trabajo", sb_choose_tenant: "Seleccionar tenant"
+});
+Object.assign(I18N_DICT.fr, {
+  nav_customer_view: "Voir comme un client", nav_account_section: "Compte", nav_account_hint: "Commun à tous les espaces de travail",
+  nav_master_agent: "Agent principal (tous les tenants)", nav_account_info: "Informations du compte", nav_api_docs: "Documentation API",
+  sb_workspace_current: "Espace de travail actuel", sb_add_new: "Ajouter", sb_add_workspace_title: "Créer un nouvel espace de travail", sb_choose_tenant: "Choisir le tenant"
+});
+Object.assign(I18N_DICT.ko, {
+  nav_customer_view: "고객으로 보기", nav_account_section: "계정", nav_account_hint: "모든 워크스페이스에서 공통",
+  nav_master_agent: "마스터 에이전트(모든 테넌트)", nav_account_info: "계정 정보", nav_api_docs: "API 문서",
+  sb_workspace_current: "현재 워크스페이스", sb_add_new: "새로 추가", sb_add_workspace_title: "새 워크스페이스 만들기", sb_choose_tenant: "테넌트 선택"
+});
+
+// Bổ sung bản dịch trang Widget cho ja/es/fr/ko.
+Object.assign(I18N_DICT.ja, {
+  wg_breadcrumb_parent: "ボット設定", wg_subtitle: "テンプレートを選び、お客様に合わせて調整し、実際にプレビューしてから、1行のコードをサイトに貼り付けます。", wg_radius: "角の丸み", wg_radius_square: "シャープ", wg_radius_round: "丸め",
+  wg_domain: "埋め込むドメイン(本番利用では入力推奨)", wg_domain_hint: "空欄の場合、どのページでもウィジェットが動作します(テストに便利)。お客様に渡す前に実際のドメインを入力して、他サイトによる無断埋め込みを防いでください。", wg_snippet_hint: "この内容をウェブサイトの閉じタグ <code>&lt;/body&gt;</code> の直前に貼り付けてください。", wg_preview_hint: "実際に動作しているウィジェットです。下のフレーム内でそのままクリックして試せます。", wg_toast_copied: "埋め込みコードをコピーしました",
+  wg_tpl_blue_name: "プロフェッショナルブルー", wg_tpl_blue_desc: "デフォルト、あらゆる業種に対応",
+  wg_tpl_mono_name: "ミニマルモノクロ", wg_tpl_mono_desc: "角はシャープで上品、控えめな印象",
+  wg_tpl_orange_name: "エネルギッシュオレンジ", wg_tpl_orange_desc: "大きく丸く、目立つ若々しい印象",
+  wg_tpl_green_name: "フレンドリーグリーン", wg_tpl_green_desc: "左側に配置、親しみやすい",
+  wg_tpl_purple_name: "エレガントパープル", wg_tpl_purple_desc: "美容・ファッション業界に最適"
+});
+Object.assign(I18N_DICT.es, {
+  wg_breadcrumb_parent: "Configuración del bot", wg_subtitle: "Elige una plantilla, personalízala para tu cliente, previsualízala en vivo y copia una línea de código en el sitio.", wg_radius: "Redondez de esquinas", wg_radius_square: "Angular", wg_radius_round: "Redondeado",
+  wg_domain: "Dominio donde se incrustará (recomendado en producción)", wg_domain_hint: "Si lo dejas vacío, el widget funciona en cualquier página (útil para pruebas). Introduce el dominio real antes de entregarlo al cliente para evitar que otros sitios incrusten tu bot.", wg_snippet_hint: "Pega esto justo antes de la etiqueta de cierre <code>&lt;/body&gt;</code> del sitio web.", wg_preview_hint: "Este es el widget real en funcionamiento: puedes probarlo directamente en el marco de abajo.", wg_toast_copied: "Código de incrustación copiado",
+  wg_tpl_blue_name: "Azul profesional", wg_tpl_blue_desc: "Por defecto, apto para cualquier sector",
+  wg_tpl_mono_name: "Monocromo minimalista", wg_tpl_mono_desc: "Esquinas angulares, elegante y discreto",
+  wg_tpl_orange_name: "Naranja enérgico", wg_tpl_orange_desc: "Totalmente redondeado, llamativo y juvenil",
+  wg_tpl_green_name: "Verde amigable", wg_tpl_green_desc: "Colocado a la izquierda, cercano",
+  wg_tpl_purple_name: "Púrpura elegante", wg_tpl_purple_desc: "Ideal para marcas de belleza y moda"
+});
+Object.assign(I18N_DICT.fr, {
+  wg_breadcrumb_parent: "Paramètres du bot", wg_subtitle: "Choisissez un modèle, personnalisez-le pour votre client, prévisualisez-le en direct, puis copiez une ligne de code dans le site.", wg_radius: "Arrondi des angles", wg_radius_square: "Angles droits", wg_radius_round: "Arrondi",
+  wg_domain: "Domaine d’intégration (recommandé en production)", wg_domain_hint: "Laissez vide pour que le widget fonctionne sur n’importe quelle page (pratique pour les tests). Renseignez le vrai domaine avant de le remettre au client afin d’empêcher d’autres sites d’intégrer votre bot.", wg_snippet_hint: "Collez ceci juste avant la balise fermante <code>&lt;/body&gt;</code> du site web.", wg_preview_hint: "Voici le vrai widget en fonctionnement : essayez-le directement dans le cadre ci-dessous.", wg_toast_copied: "Code d’intégration copié",
+  wg_tpl_blue_name: "Bleu professionnel", wg_tpl_blue_desc: "Par défaut, adapté à tous les secteurs",
+  wg_tpl_mono_name: "Monochrome minimaliste", wg_tpl_mono_desc: "Angles droits, élégant et discret",
+  wg_tpl_orange_name: "Orange dynamique", wg_tpl_orange_desc: "Entièrement arrondi, marquant et jeune",
+  wg_tpl_green_name: "Vert convivial", wg_tpl_green_desc: "Placé à gauche, chaleureux",
+  wg_tpl_purple_name: "Violet élégant", wg_tpl_purple_desc: "Idéal pour la beauté et la mode"
+});
+Object.assign(I18N_DICT.ko, {
+  wg_breadcrumb_parent: "봇 설정", wg_subtitle: "템플릿을 고르고, 고객에 맞게 조정하고, 실제로 미리 본 뒤 한 줄의 코드를 사이트에 붙여 넣으세요.", wg_radius: "모서리 둥글기", wg_radius_square: "각진", wg_radius_round: "둥근",
+  wg_domain: "임베드할 도메인(실제 사용 시 입력 권장)", wg_domain_hint: "비워 두면 모든 페이지에서 위젯이 작동합니다(테스트에 편리). 고객에게 전달하기 전에 실제 도메인을 입력해 다른 사이트가 봇을 무단으로 임베드하지 못하게 하세요.", wg_snippet_hint: "이 코드를 웹사이트의 닫는 태그 <code>&lt;/body&gt;</code> 바로 앞에 붙여 넣으세요.", wg_preview_hint: "실제로 작동 중인 위젯입니다. 아래 프레임에서 바로 눌러 보세요.", wg_toast_copied: "임베드 코드를 복사했습니다",
+  wg_tpl_blue_name: "프로페셔널 블루", wg_tpl_blue_desc: "기본값, 모든 업종에 적합",
+  wg_tpl_mono_name: "미니멀 모노", wg_tpl_mono_desc: "각진 모서리, 절제되고 세련됨",
+  wg_tpl_orange_name: "에너제틱 오렌지", wg_tpl_orange_desc: "완전히 둥글고 눈에 띄며 젊은 느낌",
+  wg_tpl_green_name: "프렌들리 그린", wg_tpl_green_desc: "왼쪽 배치, 친근함",
+  wg_tpl_purple_name: "엘레강트 퍼플", wg_tpl_purple_desc: "뷰티·패션 브랜드에 적합"
+});
 
 const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
 

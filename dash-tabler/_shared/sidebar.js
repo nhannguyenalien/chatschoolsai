@@ -24,7 +24,7 @@ const SIDEBAR_NAV = [
       { href: 'knowledge.html',icon: 'ti-book',             labelKey: 'nav_knowledge' },
       { href: 'messages.html', icon: 'ti-message-circle',   labelKey: 'nav_messages' },
       { href: 'loyalty.html',  icon: 'ti-gift',             labelKey: 'nav_loyalty' },
-      { href: 'customer/',     icon: 'ti-arrows-right-left', label: 'Xem như khách hàng' },
+      { href: 'customer/',     icon: 'ti-arrows-right-left', labelKey: 'nav_customer_view' },
       // "leads.html" (nav_leads) đã bỏ — trang này chưa từng được xây, link chết âm thầm rơi về
       // Overview qua fallback SPA của Cloudflare Pages, gây nhầm cho người dùng. Thêm lại nav
       // item này khi trang thật được build.
@@ -42,16 +42,18 @@ const SIDEBAR_NAV = [
   },
   {
     scope: 'account',
-    section: 'Tài khoản',
-    sectionHint: 'Dùng chung mọi workspace',
+    sectionKey: 'nav_account_section',
+    sectionHintKey: 'nav_account_hint',
     items: [
       { href: 'billing.html',  icon: 'ti-receipt',          labelKey: 'nav_billing' },
-      { href: 'master-agent.html', icon: 'ti-robot', label: 'Agent tổng (mọi tenant)' },
-      { href: 'account.html',  icon: 'ti-user-circle',      label: 'Thông tin tài khoản' },
-      { href: (typeof WORKER_URL !== 'undefined' ? WORKER_URL : '') + '/docs', icon: 'ti-api', label: 'API Docs', external: true },
+      { href: 'master-agent.html', icon: 'ti-robot', labelKey: 'nav_master_agent' },
+      { href: 'account.html',  icon: 'ti-user-circle',      labelKey: 'nav_account_info' },
+      { href: (typeof WORKER_URL !== 'undefined' ? WORKER_URL : '') + '/docs', icon: 'ti-api', labelKey: 'nav_api_docs', external: true },
     ]
   }
 ];
+
+const sbT = (key, fallback) => (typeof t === 'function' ? t(key) : fallback);
 
 function renderSidebar(user) {
   const el = document.getElementById('sidebar-placeholder');
@@ -70,11 +72,11 @@ function renderSidebar(user) {
   const tenantSwitcherHtml = `
     <div class="px-2 pt-2 pb-1">
       <div class="d-flex align-items-center justify-content-between mb-1">
-        <label for="sidebar-tenant-switcher" class="form-label text-white-50 fs-6 mb-0">Workspace đang dùng</label>
-        <a href="account.html#workspaces" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 py-0 px-2" style="font-size:11px; line-height:22px;" title="Tạo workspace mới"><i class="ti ti-plus"></i>Thêm mới</a>
+        <label for="sidebar-tenant-switcher" class="form-label text-white-50 fs-6 mb-0" data-i18n="sb_workspace_current">${sbT('sb_workspace_current', 'Workspace đang dùng')}</label>
+        <a href="account.html#workspaces" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 py-0 px-2" style="font-size:11px; line-height:22px;" data-i18n-title="sb_add_workspace_title" title="${sbT('sb_add_workspace_title', 'Tạo workspace mới')}"><i class="ti ti-plus"></i><span data-i18n="sb_add_new">${sbT('sb_add_new', 'Thêm mới')}</span></a>
       </div>
       ${memberships.length > 1 ? `
-      <select id="sidebar-tenant-switcher" class="form-select form-select-sm" onchange="switchTenant(this.value)" aria-label="Chọn tenant">
+      <select id="sidebar-tenant-switcher" class="form-select form-select-sm" onchange="switchTenant(this.value)" aria-label="${sbT('sb_choose_tenant', 'Chọn tenant')}">
         ${memberships.map((item) => `<option value="${escapeSidebarHtml(item.tenant)}" ${item.tenant === tenant ? 'selected' : ''}>${escapeSidebarHtml(item.tenant)} (${escapeSidebarHtml(item.role)})</option>`).join('')}
       </select>` : `<div class="text-white fs-5">${escapeSidebarHtml(tenant)}</div>`}
     </div>`;
@@ -84,7 +86,7 @@ function renderSidebar(user) {
       ? `<span data-i18n="${group.sectionKey}">${typeof t === 'function' ? t(group.sectionKey) : 'Social Media'}</span>`
       : (group.section ? `<span>${group.section}</span>` : '');
     const sectionHtml = title
-      ? `<p class="nav-category">${title}${group.sectionHint ? `<small>${group.sectionHint}</small>` : ''}</p>`
+      ? `<p class="nav-category">${title}${group.sectionHintKey ? `<small data-i18n="${group.sectionHintKey}">${sbT(group.sectionHintKey, '')}</small>` : ''}</p>`
       : '';
 
     const itemsHtml = group.items.map(item => {
