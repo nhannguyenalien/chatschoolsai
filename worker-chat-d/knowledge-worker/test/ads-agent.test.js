@@ -3,19 +3,19 @@ import assert from "node:assert/strict";
 import { classifyCampaign, evaluateAccount, mergeThresholds, DEFAULT_THRESHOLDS } from "../src/domain/ads/rules.js";
 import { selectAdsModel } from "../src/domain/ads/router.js";
 import { encryptJson, decryptJson } from "../src/domain/ads/crypto.js";
-import { createMetaAdsIntegration, normalizeAccountId, rowToMetrics } from "../src/integrations/metaAds.js";
+import { createMetaAdsIntegration, normalizeAccountId, rowToMetrics, kindForObjective } from "../src/integrations/metaAds.js";
 import { runAdsReport, plainReport } from "../src/workflows/runAdsReport.js";
 
 const camp = (id, cur, prev = cur) => ({ id, name: `c${id}`, current: cur, previous: prev });
-const good = { spend: 100, impressions: 10000, clicks: 300, purchases: 10, revenue: 400, frequency: 1.8 };
+const good = { spend: 100, impressions: 10000, clicks: 300, results: 10, revenue: 400, frequency: 1.8 };
 
 test("rules: SCALE khi ROAS tốt và không cờ", () => {
   assert.equal(classifyCampaign(camp(1, good)).label, "SCALE");
 });
 test("rules: PAUSE khi chi nhiều mà không ra đơn", () => {
-  const r = classifyCampaign(camp(2, { ...good, purchases: 0, revenue: 0 }));
+  const r = classifyCampaign(camp(2, { ...good, results: 0, revenue: 0 }));
   assert.equal(r.label, "PAUSE");
-  assert.ok(r.flags.includes("spend_no_conversion"));
+  assert.ok(r.flags.includes("spend_no_result"));
 });
 test("rules: WATCH + creative_fatigue khi frequency cao", () => {
   const r = classifyCampaign(camp(3, { ...good, frequency: 4.2, revenue: 250 }));
@@ -23,12 +23,12 @@ test("rules: WATCH + creative_fatigue khi frequency cao", () => {
   assert.notEqual(r.label, "SCALE");
 });
 test("rules: ROAS tụt và CPA tăng được gắn cờ", () => {
-  const r = classifyCampaign(camp(4, { ...good, revenue: 250, purchases: 6 }, good));
+  const r = classifyCampaign(camp(4, { ...good, revenue: 250, results: 6 }, good));
   assert.ok(r.flags.includes("roas_drop"));
-  assert.ok(r.flags.includes("cpa_rise"));
+  assert.ok(r.flags.includes("cost_rise"));
 });
 test("rules: chi quá ít thì WATCH low_data, không kết luận", () => {
-  const r = classifyCampaign(camp(5, { spend: 1, purchases: 0 }));
+  const r = classifyCampaign(camp(5, { spend: 1, results: 0 }));
   assert.deepEqual([r.label, r.flags], ["WATCH", ["low_data"]]);
 });
 test("rules: anomaly khi >=3 campaign bị cờ", () => {
@@ -66,8 +66,8 @@ test("meta: chuẩn hóa account id", () => {
   assert.throws(() => normalizeAccountId("abc"));
 });
 test("meta: rowToMetrics đọc purchase và giá trị", () => {
-  const m = rowToMetrics({ spend: "10", impressions: "100", clicks: "5", frequency: "1.2", actions: [{ action_type: "omni_purchase", value: "2" }], action_values: [{ action_type: "omni_purchase", value: "40" }] });
-  assert.deepEqual([m.spend, m.purchases, m.revenue], [10, 2, 40]);
+  const m = rowToMetrics({ spend: "10", impressions: "100", clicks: "5", frequency: "1.2", actions: [{ action_type: "omni_purchase", value: "2" }], action_values: [{ action_type: "omni_purchase", value: "40" }] }, "sales");
+  assert.deepEqual([m.spend, m.results, m.revenue], [10, 2, 40]);
 });
 test("meta: fetchCampaigns ghép 2 cửa sổ 7 ngày theo campaign", async () => {
   const urls = [];
@@ -89,7 +89,7 @@ test("meta: lỗi API được ném ra kèm thông điệp", async () => {
   await assert.rejects(meta.listAccounts("bad"), /Invalid OAuth token/);
 });
 
-const conn = { label: "Shop", account_ids: JSON.stringify([{ id: "act_111111", name: "Shop VN", currency: "VND" }]), thresholds_json: "{}" };
+const conn = { label: "Shop", account_ids: JSON.stringify([{ id: "act_111111", name: "Shop VN", currency: "USD" }]), thresholds_json: "{}" };
 const mkDeps = (campaigns, calls) => ({
   meta: { fetchCampaigns: async () => campaigns }, decryptToken: async () => "tok", env: { ADS_MODEL_CHEAP: "c", ADS_MODEL_STRONG: "s" },
   callModel: async (args) => { calls.push(args); return "BÁO CÁO"; },
@@ -194,4 +194,68 @@ test("ads api: route trả JSON, lỗi nghiệp vụ giữ status, lỗi lạ kh
   assert.equal(boom.status, 500);
   assert.ok(!(await boom.text()).includes("secret"));
   assert.equal(await call("GET", "/api/v1/other"), null);
+});
+
+// ---- Hồi quy: dữ liệu thật của một account VND, campaign mục tiêu tin nhắn/engagement ----
+const ENGAGEMENT_ROW = {
+  campaign_id: "77", campaign_name: "course", objective: "OUTCOME_ENGAGEMENT", spend: "185061", impressions: "1476", clicks: "24", frequency: "1.69",
+  actions: [{ action_type: "link_click", value: "7" }, { action_type: "post_engagement", value: "9" }, { action_type: "onsite_conversion.messaging_conversation_started_7d", value: "1" }],
+};
+test("kind: mục tiêu campaign quyết định kết quả chính, có thể ghi đè", () => {
+  assert.equal(kindForObjective("OUTCOME_SALES"), "sales");
+  assert.equal(kindForObjective("OUTCOME_LEADS"), "leads");
+  assert.equal(kindForObjective("OUTCOME_TRAFFIC"), "traffic");
+  assert.equal(kindForObjective("OUTCOME_AWARENESS"), "awareness");
+  assert.equal(kindForObjective("SOMETHING_NEW"), "engagement");
+  assert.equal(kindForObjective("OUTCOME_SALES", "messages"), "messages");
+  assert.equal(kindForObjective("OUTCOME_SALES", "bogus"), "sales");
+});
+test("meta: engagement lấy tin nhắn làm kết quả, traffic lấy link_click, sales cần giá trị đơn", () => {
+  assert.equal(rowToMetrics(ENGAGEMENT_ROW, "engagement").results, 1);
+  assert.equal(rowToMetrics({ ...ENGAGEMENT_ROW, actions: [{ action_type: "post_engagement", value: "9" }] }, "engagement").results, 9);
+  assert.equal(rowToMetrics(ENGAGEMENT_ROW, "traffic").results, 7);
+  assert.equal(rowToMetrics(ENGAGEMENT_ROW, "sales").results, 0);
+  assert.equal(rowToMetrics(ENGAGEMENT_ROW, "awareness").results, 0);
+});
+test("hồi quy: campaign engagement có tin nhắn KHÔNG bị PAUSE vì thiếu đơn hàng", async () => {
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ data: [ENGAGEMENT_ROW] }) });
+  const [c] = await createMetaAdsIntegration({ fetchImpl }).fetchCampaigns({ token: "t", accountId: "123456", today: new Date("2025-12-12T00:00:00Z") });
+  assert.equal(c.kind, "engagement");
+  const r = classifyCampaign(c, mergeThresholds({}, "VND"));
+  assert.notEqual(r.label, "PAUSE");
+  assert.ok(!r.flags.includes("spend_no_result"));
+});
+test("hồi quy: ngưỡng min_spend theo tiền tệ, VND không còn coi 5 đồng là đủ dữ liệu", () => {
+  assert.equal(mergeThresholds({}, "USD").min_spend, 5);
+  assert.equal(mergeThresholds({}, "VND").min_spend, 125000);
+  assert.equal(mergeThresholds({ min_spend: 300000 }, "VND").min_spend, 300000);
+  const small = { id: "1", name: "n", kind: "traffic", current: { spend: 50000, results: 0 }, previous: {} };
+  assert.deepEqual(classifyCampaign(small, mergeThresholds({}, "VND")).flags, ["low_data"]);
+});
+test("rules: chi nhiều mà 0 kết quả thì PAUSE, kể cả không phải bán hàng (VND)", () => {
+  const c = { id: "1", name: "n", kind: "messages", current: { spend: 700000, results: 0 }, previous: {} };
+  const r = classifyCampaign(c, mergeThresholds({}, "VND"));
+  assert.equal(r.label, "PAUSE");
+  assert.ok(r.flags.includes("spend_no_result"));
+});
+test("rules: chi phí mỗi kết quả tăng được gắn cờ; cost_target quyết định SCALE", () => {
+  const prev = { spend: 200000, results: 10 };
+  const costly = { id: "1", name: "n", kind: "leads", current: { spend: 300000, results: 10 }, previous: prev };
+  assert.ok(classifyCampaign(costly, mergeThresholds({}, "VND")).flags.includes("cost_rise"));
+  const cheap = { id: "2", name: "n", kind: "leads", current: { spend: 200000, results: 10 }, previous: prev };
+  assert.equal(classifyCampaign(cheap, mergeThresholds({}, "VND")).label, "HOLD");
+  assert.equal(classifyCampaign(cheap, mergeThresholds({ cost_target: 25000 }, "VND")).label, "SCALE");
+  assert.ok(classifyCampaign(costly, mergeThresholds({ cost_target: 12000 }, "VND")).flags.includes("cost_over_target"));
+});
+test("rules: awareness không bị đánh giá theo kết quả; sales không có doanh thu không dùng ROAS", () => {
+  const aw = { id: "1", name: "n", kind: "awareness", current: { spend: 900000, results: 0 }, previous: {} };
+  assert.equal(classifyCampaign(aw, mergeThresholds({}, "VND")).label, "HOLD");
+  const noRev = { id: "2", name: "n", kind: "sales", current: { spend: 900000, results: 5, revenue: 0 }, previous: {} };
+  assert.notEqual(classifyCampaign(noRev, mergeThresholds({}, "VND")).label, "PAUSE");
+});
+test("report: result_kind của kết nối được truyền xuống connector", async () => {
+  let seen;
+  const deps = { ...mkDeps([], []), meta: { fetchCampaigns: async (a) => { seen = a; return [camp(1, good)]; } } };
+  await runAdsReport({ tenant: "t", connections: [{ ...conn, thresholds_json: JSON.stringify({ result_kind: "messages" }) }], deps });
+  assert.equal(seen.resultKind, "messages");
 });

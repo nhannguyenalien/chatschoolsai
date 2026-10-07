@@ -369,7 +369,7 @@ Trả về đúng danh sách tool mà `/api/v1/agent-chat` có thể gọi — l
 Response:
 ## Ads Agent (Meta Ads, chỉ đọc)
 
-Agent đọc số liệu campaign của các ad account Meta, chạy rule engine (SCALE / HOLD / WATCH / PAUSE, cờ `creative_fatigue`, `roas_drop`, `cpa_rise`, `spend_no_conversion`), rồi gửi báo cáo + đề xuất qua Telegram và đưa vào bản tin của Agent tổng. **Không ghi gì vào ad account.** Thiết kế đầy đủ: `docs/ADS_AGENT.md`.
+Agent đọc số liệu campaign của các ad account Meta, chạy rule engine (SCALE / HOLD / WATCH / PAUSE, cờ `creative_fatigue`, `roas_drop`, `cost_rise`, `spend_no_result`, `cost_over_target`), rồi gửi báo cáo + đề xuất qua Telegram và đưa vào bản tin của Agent tổng. **Không ghi gì vào ad account.** Thiết kế đầy đủ: `docs/ADS_AGENT.md`.
 
 **Khách tự tạo token:** Meta Business Settings → System users → Add assets (ad account, quyền View performance) → Generate token với `ads_read`. Dán token ở `config.html` → card "Ads Agent". Token được kiểm tra với Meta, lưu **mã hóa** (AES-GCM, khóa `ADS_TOKEN_ENCRYPTION_KEY`), không bao giờ trả lại client. Mỗi tenant nhiều token, mỗi token nhiều ad account (tối đa 5 token, 20 account/token).
 
@@ -380,6 +380,10 @@ Agent đọc số liệu campaign của các ad account Meta, chạy rule engine
 | `DELETE /api/v1/ads/connections/:id` | Gỡ kết nối |
 | `GET /api/v1/ads/reports` | 10 báo cáo gần nhất |
 | `POST /api/v1/trigger/ads` | Chạy báo cáo ngay và gửi Telegram |
+
+**Kết quả chính theo mục tiêu campaign:** agent tự nhận từ `objective` của campaign — `sales` (đơn hàng, ROAS), `leads`, `messages`, `traffic` (click), `engagement` (cuộc trò chuyện, hoặc tương tác nếu không có), `awareness` (không đánh giá theo kết quả). Chỉ campaign bán hàng **có giá trị đơn** mới dùng ROAS; còn lại đánh giá theo chi phí mỗi kết quả (so với 7 ngày trước, và `cost_target` nếu khách đặt). Ghi đè bằng `thresholds_json` của kết nối, ví dụ `{"result_kind":"messages"}`.
+
+**Ngưỡng theo tiền tệ:** `min_spend` mặc định là 5 USD, tự quy đổi theo tiền tệ ad account (VND ×25.000, JPY ×150...). Khi khách tự đặt `min_spend` hoặc `cost_target` trong `thresholds_json`, giá trị là theo đúng tiền tệ của account, không quy đổi. Các ngưỡng khác: `max_frequency` (3.5), `roas_scale` (3), `roas_pause` (1), `roas_drop_pct` (20), `cost_rise_pct` (25).
 
 **Lịch chạy:** 07:00 giờ VN mỗi ngày (cron `0 * * * *` lúc 00:00 UTC). Lượt này chạy THAY cho lượt AI Agent của giờ đó (không thêm cron, gói Free chỉ 5 cron); AI Agent chạy lại ở giờ kế tiếp.
 
