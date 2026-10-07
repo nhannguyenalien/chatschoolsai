@@ -593,7 +593,11 @@ window.I18N_EXTRA = {
     "🇻🇳 Tiếng Việt": "🇻🇳 Tiếng Việt",
     "👤 Tên": "👤 Name",
     "🔗 Lưu phiên chat sang máy khác:": "🔗 Save the chat session to another device:",
-    "🟡 Mất kết nối, đang thử lại...": "🟡 Connection lost, retrying..."
+    "🟡 Mất kết nối, đang thử lại...": "🟡 Connection lost, retrying...",
+    "Agent đọc số liệu quảng cáo Meta mỗi sáng 07:00, gửi báo cáo và đề xuất (scale / giữ / tạm dừng) qua Telegram. Agent chỉ đọc, không đổi gì trong tài khoản quảng cáo của bạn.": "The agent reads Meta ad metrics every morning at 07:00 and sends a report with recommendations (scale / keep / pause) via Telegram. The agent is read-only and does not change anything in your ads account.",
+    "Vào Meta Business Settings → Users → System users → Add (vai trò Admin hoặc Employee).": "Go to Meta Business Settings → Users → System users → Add (role Admin or Employee).",
+    "Bấm Add assets → Ad accounts → chọn các tài khoản cần theo dõi, quyền View performance là đủ.": "Click Add assets → Ad accounts → choose the accounts to track; the View performance permission is enough.",
+    "Bấm Generate new token, chọn app của bạn, tick quyền ads_read, chọn thời hạn \"Never\".": "Click Generate new token, choose your app, tick the ads_read permission, choose the expiry \"Never\"."
   },
   "ja": {
     "\"Tạo Verify Token ngẫu nhiên\"": "「ランダムな Verify Token を生成」",
@@ -1187,7 +1191,11 @@ window.I18N_EXTRA = {
     "🇻🇳 Tiếng Việt": "🇻🇳 Tiếng Việt",
     "👤 Tên": "👤 名前",
     "🔗 Lưu phiên chat sang máy khác:": "🔗 チャットセッションを別の端末に保存:",
-    "🟡 Mất kết nối, đang thử lại...": "🟡 接続が切れました。再試行中..."
+    "🟡 Mất kết nối, đang thử lại...": "🟡 接続が切れました。再試行中...",
+    "Agent đọc số liệu quảng cáo Meta mỗi sáng 07:00, gửi báo cáo và đề xuất (scale / giữ / tạm dừng) qua Telegram. Agent chỉ đọc, không đổi gì trong tài khoản quảng cáo của bạn.": "エージェントは毎朝 07:00 に Meta 広告の指標を読み取り、レポートと提案(拡大 / 維持 / 一時停止)を Telegram で送信します。エージェントは読み取り専用で、広告アカウントには一切変更を加えません。",
+    "Vào Meta Business Settings → Users → System users → Add (vai trò Admin hoặc Employee).": "Meta Business Settings → Users → System users → Add(ロール:Admin または Employee)に移動します。",
+    "Bấm Add assets → Ad accounts → chọn các tài khoản cần theo dõi, quyền View performance là đủ.": "Add assets → Ad accounts をクリックし、追跡するアカウントを選択します。権限は View performance で十分です。",
+    "Bấm Generate new token, chọn app của bạn, tick quyền ads_read, chọn thời hạn \"Never\".": "Generate new token をクリックし、アプリを選択して ads_read 権限にチェックを入れ、有効期限は「Never」を選択します。"
   },
   "es": {
     "\"Tạo Verify Token ngẫu nhiên\"": "\"Generar Verify Token aleatorio\"",
@@ -1781,7 +1789,11 @@ window.I18N_EXTRA = {
     "🇻🇳 Tiếng Việt": "🇻🇳 Tiếng Việt",
     "👤 Tên": "👤 Nombre",
     "🔗 Lưu phiên chat sang máy khác:": "🔗 Guardar la sesión de chat en otro dispositivo:",
-    "🟡 Mất kết nối, đang thử lại...": "🟡 Conexión perdida, reintentando..."
+    "🟡 Mất kết nối, đang thử lại...": "🟡 Conexión perdida, reintentando...",
+    "Agent đọc số liệu quảng cáo Meta mỗi sáng 07:00, gửi báo cáo và đề xuất (scale / giữ / tạm dừng) qua Telegram. Agent chỉ đọc, không đổi gì trong tài khoản quảng cáo của bạn.": "El agente lee las métricas de anuncios de Meta cada mañana a las 07:00 y envía un informe con recomendaciones (escalar / mantener / pausar) por Telegram. El agente es de solo lectura y no cambia nada en tu cuenta de anuncios.",
+    "Vào Meta Business Settings → Users → System users → Add (vai trò Admin hoặc Employee).": "Ve a Meta Business Settings → Users → System users → Add (rol Admin o Employee).",
+    "Bấm Add assets → Ad accounts → chọn các tài khoản cần theo dõi, quyền View performance là đủ.": "Haz clic en Add assets → Ad accounts → elige las cuentas a seguir; con el permiso View performance basta.",
+    "Bấm Generate new token, chọn app của bạn, tick quyền ads_read, chọn thời hạn \"Never\".": "Haz clic en Generate new token, elige tu app, marca el permiso ads_read y elige la caducidad «Never»."
   },
   "fr": {
     "\"Tạo Verify Token ngẫu nhiên\"": "« Générer un Verify Token aléatoire »",
@@ -2375,7 +2387,12 @@ window.I18N_EXTRA = {
     "🇻🇳 Tiếng Việt": "🇻🇳 Tiếng Việt",
     "👤 Tên": "👤 Nom",
     "🔗 Lưu phiên chat sang máy khác:": "🔗 Enregistrer la session de chat sur un autre appareil :",
-    "🟡 Mất kết nối, đang thử lại...": "🟡 Connexion perdue, nouvelle tentative..."
+    "🟡 Mất kết nối, đang thử lại...": "🟡 Connexion perdue, nouvelle tentative...",
+    "Agent đọc số liệu quảng cáo Meta mỗi sáng 07:00, gửi báo cáo và đề xuất (scale / giữ / tạm dừng) qua Telegram. Agent chỉ đọc, không đổi gì trong tài khoản quảng cáo của bạn.": "L’agent lit les métriques publicitaires Meta chaque matin à 07:00 et envoie un rapport avec des recommandations (augmenter / maintenir / mettre en pause) via Telegram. L’agent est en lecture seule et ne modifie rien dans votre compte publicitaire.",
+    "Vào Meta Business Settings → Users → System users → Add (vai trò Admin hoặc Employee).": "Allez dans Meta Business Settings → Users → System users → Add (rôle Admin ou Employee).",
+    "Bấm Add assets → Ad accounts → chọn các tài khoản cần theo dõi, quyền View performance là đủ.": "Cliquez sur Add assets → Ad accounts → choisissez les comptes à suivre ; l’autorisation View performance suffit.",
+    "Bấm Generate new token, chọn app của bạn, tick quyền ads_read, chọn thời hạn \"Never\".": "Cliquez sur Generate new token, choisissez votre app, cochez l’autorisation ads_read et choisissez l’expiration « Never ».",
+    "Ổn định": "Stable"
   },
   "ko": {
     "\"Tạo Verify Token ngẫu nhiên\"": "\"무작위 Verify Token 생성\"",
@@ -2969,6 +2986,10 @@ window.I18N_EXTRA = {
     "🇻🇳 Tiếng Việt": "🇻🇳 Tiếng Việt",
     "👤 Tên": "👤 이름",
     "🔗 Lưu phiên chat sang máy khác:": "🔗 채팅 세션을 다른 기기에 저장:",
-    "🟡 Mất kết nối, đang thử lại...": "🟡 연결이 끊어졌습니다. 다시 시도하는 중..."
+    "🟡 Mất kết nối, đang thử lại...": "🟡 연결이 끊어졌습니다. 다시 시도하는 중...",
+    "Agent đọc số liệu quảng cáo Meta mỗi sáng 07:00, gửi báo cáo và đề xuất (scale / giữ / tạm dừng) qua Telegram. Agent chỉ đọc, không đổi gì trong tài khoản quảng cáo của bạn.": "에이전트가 매일 아침 07:00에 Meta 광고 지표를 읽고 보고서와 제안(확대 / 유지 / 일시중지)을 Telegram으로 보냅니다. 에이전트는 읽기 전용이며 광고 계정은 전혀 변경하지 않습니다.",
+    "Vào Meta Business Settings → Users → System users → Add (vai trò Admin hoặc Employee).": "Meta Business Settings → Users → System users → Add (역할: Admin 또는 Employee)로 이동하세요.",
+    "Bấm Add assets → Ad accounts → chọn các tài khoản cần theo dõi, quyền View performance là đủ.": "Add assets → Ad accounts를 클릭하고 추적할 계정을 선택하세요. View performance 권한이면 충분합니다.",
+    "Bấm Generate new token, chọn app của bạn, tick quyền ads_read, chọn thời hạn \"Never\".": "Generate new token을 클릭하고 앱을 선택한 뒤 ads_read 권한을 체크하고 만료 기간은 \"Never\"를 선택하세요."
   }
 };

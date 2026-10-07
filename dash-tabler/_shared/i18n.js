@@ -367,14 +367,18 @@ const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
 
 // Bảng này chứa toàn bộ nội dung cũ viết trực tiếp trong HTML/JavaScript.
 // Tải riêng để file từ điển chính vẫn dễ bảo trì; khi tải xong trang sẽ được dịch lại.
+// Đường dẫn tương đối so với chính file này để dùng được cả từ trang con (vd customer/).
+const I18N_BASE = document.currentScript && document.currentScript.src
+  ? new URL(".", document.currentScript.src).href
+  : "_shared/";
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
-  contentScript.src = "_shared/i18n-content.js?v=20261007-2";
+  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261007-3`;
   contentScript.onload = () => {
     applyI18n();
     // Bản dịch bổ sung cho các chuỗi động/trang mới, gộp vào cùng bảng I18N_CONTENT.
     const extraScript = document.createElement("script");
-    extraScript.src = "_shared/i18n-extra.js?v=20261007-2";
+    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261007-3`;
     extraScript.onload = () => {
       Object.keys(window.I18N_EXTRA || {}).forEach((lang) => {
         window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);
