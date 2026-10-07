@@ -367,6 +367,26 @@ Lưu ý bảo mật: nội dung gửi lên (kể cả token/API key nếu khách
 Trả về đúng danh sách tool mà `/api/v1/agent-chat` có thể gọi — lấy trực tiếp từ mảng `CONFIG_CHAT_TOOLS` trong code (nguồn duy nhất), không phải tài liệu viết tay có thể lệch dần theo thời gian. Dùng để hiển thị "Agent có thể làm được gì?" trên UI.
 
 Response:
+## Ads Agent (Meta Ads, chỉ đọc)
+
+Agent đọc số liệu campaign của các ad account Meta, chạy rule engine (SCALE / HOLD / WATCH / PAUSE, cờ `creative_fatigue`, `roas_drop`, `cpa_rise`, `spend_no_conversion`), rồi gửi báo cáo + đề xuất qua Telegram và đưa vào bản tin của Agent tổng. **Không ghi gì vào ad account.** Thiết kế đầy đủ: `docs/ADS_AGENT.md`.
+
+**Khách tự tạo token:** Meta Business Settings → System users → Add assets (ad account, quyền View performance) → Generate token với `ads_read`. Dán token ở `config.html` → card "Ads Agent". Token được kiểm tra với Meta, lưu **mã hóa** (AES-GCM, khóa `ADS_TOKEN_ENCRYPTION_KEY`), không bao giờ trả lại client. Mỗi tenant nhiều token, mỗi token nhiều ad account (tối đa 5 token, 20 account/token).
+
+| Endpoint | Mô tả |
+|---|---|
+| `GET /api/v1/ads/connections` | Danh sách kết nối (không có token) |
+| `POST /api/v1/ads/connections` | `{label, token, account_ids?}` — kiểm tra token, lưu mã hóa |
+| `DELETE /api/v1/ads/connections/:id` | Gỡ kết nối |
+| `GET /api/v1/ads/reports` | 10 báo cáo gần nhất |
+| `POST /api/v1/trigger/ads` | Chạy báo cáo ngay và gửi Telegram |
+
+**Lịch chạy:** 07:00 giờ VN mỗi ngày (cron `0 * * * *` lúc 00:00 UTC). Lượt này chạy THAY cho lượt AI Agent của giờ đó (không thêm cron, gói Free chỉ 5 cron); AI Agent chạy lại ở giờ kế tiếp.
+
+**Model:** không có gì đáng chú ý → báo cáo dựng bằng code, **không gọi model**. Có cờ → `ADS_MODEL_CHEAP`; bất thường lớn (≥3 campaign bị cờ, hoặc campaign chi nhiều mà không ra đơn) → `ADS_MODEL_STRONG`. Thiếu biến thì rơi về `OPENAI_CHAT_MODEL`. Chỉ số đã tổng hợp mới gửi cho model, không gửi token.
+
+**Triển khai:** (1) `node scripts/pb-ads-migrate.mjs --apply` (cần `PB_BACKUP_CONFIRMED=yes`) tạo `ads_connections`, `ads_reports`; (2) `wrangler secret put ADS_TOKEN_ENCRYPTION_KEY` (chuỗi ngẫu nhiên dài, mất khóa = khách phải dán lại token); (3) tuỳ chọn đặt `ADS_MODEL_CHEAP`, `ADS_MODEL_STRONG`. Thử với ad account thật mà không ghi gì: `META_ADS_TOKEN=... node scripts/ads-smoke.mjs`.
+
 ```json
 {
   "success": true,

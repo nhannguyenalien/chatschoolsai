@@ -235,6 +235,40 @@
                                             <div id="tool-quick-setup" class="d-none border rounded p-3 mb-3 bg-secondary-lt"></div>
 
                                             <details class="mt-2">
+                                <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-chart-line text-primary fs-2"></i> Ads Agent (Meta Ads)
+                                        </h3>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Agent đọc số liệu quảng cáo Meta mỗi sáng 07:00, gửi báo cáo và đề xuất (scale / giữ / tạm dừng) qua Telegram. Agent <b>chỉ đọc</b>, không đổi gì trong tài khoản quảng cáo của bạn.</div>
+                                        <div id="ads-conn-list" class="d-flex flex-column gap-2 mb-3"><div class="text-secondary fs-5">Đang tải...</div></div>
+                                        <div class="border rounded p-3">
+                                            <div class="fw-medium mb-2">+ Kết nối token Meta Ads</div>
+                                            <details class="mb-2">
+                                                <summary class="text-secondary fs-6" style="cursor:pointer;">Cách tạo token (1 lần, khoảng 3 phút)</summary>
+                                                <ol class="fs-6 text-secondary mt-2 mb-0">
+                                                    <li>Vào Meta Business Settings → <b>Users → System users</b> → Add (vai trò Admin hoặc Employee).</li>
+                                                    <li>Bấm <b>Add assets</b> → Ad accounts → chọn các tài khoản cần theo dõi, quyền <b>View performance</b> là đủ.</li>
+                                                    <li>Bấm <b>Generate new token</b>, chọn app của bạn, tick quyền <code>ads_read</code>, chọn thời hạn "Never".</li>
+                                                    <li>Copy token và dán vào ô bên dưới.</li>
+                                                </ol>
+                                            </details>
+                                            <div class="row g-2">
+                                                <div class="col-md-4"><input type="text" class="form-control" id="ads-label" placeholder="Tên gợi nhớ (vd: Shop chính)" maxlength="60"></div>
+                                                <div class="col-md-8"><input type="password" class="form-control font-monospace" id="ads-token" placeholder="Dán token Meta Ads (ads_read)" autocomplete="off"></div>
+                                            </div>
+                                            <div class="text-secondary fs-6 mt-2">Token chỉ được lưu dạng mã hóa và không hiển thị lại. Toàn bộ ad account mà token truy cập được sẽ được theo dõi.</div>
+                                            <div class="mt-2 d-flex gap-2">
+                                                <button class="btn btn-primary btn-sm" id="ads-connect-btn" onclick="connectAds()">Kết nối</button>
+                                                <button class="btn btn-outline-primary btn-sm" id="ads-run-btn" onclick="runAdsNow()"><i class="ti ti-player-play me-1"></i> Chạy báo cáo ngay</button>
+                                            </div>
+                                            <pre id="ads-report" class="d-none mt-3 mb-0 p-3 border rounded fs-6" style="white-space:pre-wrap;"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+
                                                 <summary class="text-secondary fs-6" style="cursor:pointer;">Hoặc tự tạo tool khác (nâng cao — cần biết JSON)</summary>
                                             <div class="row g-2 mt-1">
                                                 <div class="col-md-6">
@@ -480,6 +514,7 @@
         // Uncomment nếu bác dùng auth.js thật
         // await requireAuth();
 
+        loadAdsConnections();
         // Giả lập Dữ liệu tạm thời để chạy Preview
         await requireAuth();
         renderSidebar(window.AUTH_USER);
@@ -604,6 +639,74 @@
     function copyApiKey() {
         const val = document.getElementById("apiKeyDisplay").value;
         if (!val) { showToast("Chưa có API key để copy", "error"); return; }
+    // ===== ADS AGENT (Meta Ads, chỉ đọc) =====
+    function adsKey() { return document.getElementById("apiKeyDisplay").value.trim(); }
+    async function adsApi(path, init = {}) {
+        const key = adsKey();
+        if (!key) throw new Error("Chưa có API key — bấm 'Tạo / Đổi mới' ở card API bên trên trước");
+        const res = await fetch(`${WORKER_URL}${path}`, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${key}`, "Content-Type": "application/json" } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+        return data;
+    }
+    async function loadAdsConnections() {
+        const el = document.getElementById("ads-conn-list");
+        if (!adsKey()) { el.innerHTML = '<div class="text-secondary fs-5">Chưa có API key.</div>'; return; }
+        try {
+            const { connections } = await adsApi("/api/v1/ads/connections");
+            el.replaceChildren();
+            if (!connections.length) { el.innerHTML = '<div class="text-secondary fs-5">Chưa kết nối tài khoản quảng cáo nào.</div>'; return; }
+            for (const c of connections) {
+                const row = document.createElement("div");
+                row.className = "border rounded p-2 d-flex align-items-center gap-2";
+                const info = document.createElement("div");
+                info.className = "flex-fill";
+                const title = document.createElement("div");
+                title.className = "fw-medium";
+                title.textContent = c.label || "Meta Ads";
+                const sub = document.createElement("div");
+                sub.className = "text-secondary fs-6";
+                sub.textContent = c.accounts.map(a => a.name || a.id).join(", ") || "—";
+                info.append(title, sub);
+                const del = document.createElement("button");
+                del.className = "btn btn-outline-danger btn-sm";
+                del.textContent = "Gỡ";
+                del.onclick = () => removeAds(c.id);
+                row.append(info, del);
+                el.append(row);
+            }
+        } catch (err) { el.innerHTML = ""; const d = document.createElement("div"); d.className = "text-danger fs-5"; d.textContent = err.message; el.append(d); }
+    }
+    async function connectAds() {
+        const token = document.getElementById("ads-token").value.trim();
+        if (!token) { showToast("Hãy dán token Meta Ads", "error"); return; }
+        const btn = document.getElementById("ads-connect-btn");
+        btn.disabled = true;
+        try {
+            await adsApi("/api/v1/ads/connections", { method: "POST", body: JSON.stringify({ label: document.getElementById("ads-label").value.trim(), token }) });
+            document.getElementById("ads-token").value = "";
+            showToast("Đã kết nối Meta Ads", "success");
+            await loadAdsConnections();
+        } catch (err) { showToast("Không kết nối được: " + err.message, "error"); }
+        finally { btn.disabled = false; }
+    }
+    async function removeAds(id) {
+        if (!confirm("Gỡ kết nối này? Agent sẽ ngừng theo dõi các ad account của token này.")) return;
+        try { await adsApi(`/api/v1/ads/connections/${encodeURIComponent(id)}`, { method: "DELETE" }); await loadAdsConnections(); }
+        catch (err) { showToast("Lỗi: " + err.message, "error"); }
+    }
+    async function runAdsNow() {
+        const btn = document.getElementById("ads-run-btn");
+        const out = document.getElementById("ads-report");
+        btn.disabled = true;
+        try {
+            const data = await adsApi("/api/v1/trigger/ads", { method: "POST" });
+            out.classList.remove("d-none");
+            out.textContent = data.skipped ? "Chưa có tài khoản quảng cáo nào được kết nối." : data.report;
+        } catch (err) { showToast("Lỗi chạy báo cáo: " + err.message, "error"); }
+        finally { btn.disabled = false; }
+    }
+
         navigator.clipboard.writeText(val);
         showToast("Đã copy API key", "success");
     }
