@@ -69,6 +69,17 @@
                         <div class="text-secondary mt-1 fs-3" data-i18n="sm_subtitle">Quản lý Page/Account và token cho Facebook, Instagram, WhatsApp, Zalo và các API chat khác.</div>
                     </div>
 
+                    <div class="card mb-3">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center fs-5 mb-2">
+                                <span class="text-secondary"><i class="ti ti-database me-1"></i> Dung lượng lưu trữ ảnh/video</span>
+                                <span id="sm-storage-text" class="fw-medium">Đang tải...</span>
+                            </div>
+                            <div class="progress progress-sm"><div id="sm-storage-bar" class="progress-bar bg-primary" style="width:0%"></div></div>
+                            <div id="sm-storage-note" class="text-secondary fs-6 mt-1"></div>
+                        </div>
+                    </div>
+
                     <ul class="nav nav-pills mb-3" id="platform-tabs" role="tablist">
                         <li class="nav-item"><a href="#" class="nav-link active" data-platform="" onclick="switchPlatformTab('', this)" data-i18n="msg_filter_all">Tất cả</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="facebook" onclick="switchPlatformTab('facebook', this)"><i class="ti ti-brand-facebook me-1"></i>Facebook</a></li>
@@ -145,10 +156,35 @@
                 <option value="fr">Français</option><option value="ko">한국어</option>
               </select>
             </div>
+            <div class="mb-3 d-none" id="page-content-mode-wrap">
+              <label class="form-label">Cách tạo nội dung cho kênh này</label>
+              <select id="page-content-mode" class="form-select">
+                <option value="same">Đăng nguyên bản bài gốc</option>
+                <option value="translate">Dịch từ bài gốc sang ngôn ngữ của kênh</option>
+                <option value="independent">AI viết bài riêng cho kênh (ngôn ngữ + góc nhìn khác)</option>
+              </select>
+              <small class="form-hint mt-1">Áp dụng cho Facebook/Instagram/LinkedIn. "Dịch" tự dịch ngay trước khi đăng; "Bài riêng" tạo một bài khác nhau cho mỗi kênh từ cùng nguồn tin.</small>
+            </div>
             <div class="mb-3">
               <label class="form-label">Cấu hình thêm (JSON, tuỳ chọn)</label>
-              <textarea id="page-extra" class="form-control font-monospace" rows="3" placeholder='VD: {"app_secret":"...","verify_token":"...","webhook_url":"..."}'></textarea>
+              <div class="input-group">
+                <textarea id="page-extra" class="form-control font-monospace" rows="3" placeholder='VD: {"app_secret":"...","verify_token":"...","webhook_url":"..."}'></textarea>
+              </div>
               <small class="form-hint mt-1" id="page-extra-hint">Dùng cho các field đặc thù của từng platform (app secret, verify token, webhook...).</small>
+              <button type="button" id="gen-verify-token-btn" class="btn btn-sm btn-outline-primary mt-2 d-none">
+                <i class="ti ti-refresh me-1"></i> Tạo Verify Token ngẫu nhiên
+              </button>
+            </div>
+            <div class="alert alert-info d-none" id="meta-webhook-guide" role="alert">
+              <h4 class="alert-title">Kết nối nhắn tin/bình luận tự động (Messenger &amp; Instagram)</h4>
+              <div class="text-secondary">
+                <ol class="mb-0 ps-3">
+                  <li>Bấm nút <strong>"Tạo Verify Token ngẫu nhiên"</strong> ở trên (hoặc tự nghĩ 1 chuỗi bất kỳ), rồi bấm <strong>Lưu</strong> kênh này lại.</li>
+                  <li>Vào Meta App Dashboard của bạn → Webhooks → đăng ký: Callback URL <code>https://apic.schoolsai.work/meta-webhook</code>, dán đúng Verify Token vừa tạo.</li>
+                  <li>Subscribe field <code>messages</code> (nhắn tin riêng) và <code>feed</code> (Facebook)/<code>comments</code> (Instagram) nếu muốn tự động trả lời bình luận.</li>
+                  <li>Nếu App của bạn chưa qua App Review cho <code>pages_messaging</code>/<code>pages_manage_engagement</code>, chỉ tài khoản admin/tester của App nhận được tin nhắn/bình luận thật khi test.</li>
+                </ol>
+              </div>
             </div>
             <label class="form-check">
               <input class="form-check-input" type="checkbox" id="page-active" checked>
@@ -157,6 +193,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-danger me-auto d-none" id="delete-page-btn">Xóa</button>
+            <button type="button" class="btn btn-outline-primary d-none" id="test-wordpress-btn"><i class="ti ti-plug-connected me-1"></i>Kiểm tra WordPress</button>
             <button type="button" class="btn" data-bs-dismiss="modal">Đóng</button>
             <button type="button" id="save-page-btn" class="btn btn-primary">Lưu</button>
           </div>
@@ -199,7 +236,10 @@
     };
     const EXTRA_HINTS = {
         sanity: 'Tuỳ chọn — chỉnh tên document type/field cho khớp schema riêng của bạn: {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}. Bỏ trống = dùng mặc định trên.',
+        facebook: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
+        instagram: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
     };
+    const META_WEBHOOK_PLATFORMS = ['facebook', 'instagram'];
     const PLATFORM_ICON = {
         facebook: 'ti-brand-facebook', instagram: 'ti-brand-instagram',
         whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle',
@@ -208,6 +248,15 @@
 
     let pagesConfigCache = [];
     let activePlatformTab = '';
+    let workerApiKey = '';
+
+    async function getWorkerApiKey() {
+        if (workerApiKey) return workerApiKey;
+        const configs = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
+        if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+        workerApiKey = configs.items[0].api_key;
+        return workerApiKey;
+    }
 
     // ═══════════════════════════════════════
     // BOOT
@@ -215,6 +264,7 @@
     (async () => {
         await requireAuth();
         renderSidebar(window.AUTH_USER);
+        loadStorageUsage();
         await loadPages();
     })();
 
@@ -275,7 +325,27 @@
         document.getElementById('page-token').placeholder = TOKEN_HINTS[platform] || '';
         document.getElementById('page-extra-hint').textContent = EXTRA_HINTS[platform]
             || 'Dùng cho các field đặc thù của từng platform (app secret, verify token, webhook...).';
+        const isMeta = META_WEBHOOK_PLATFORMS.includes(platform);
+        document.getElementById('page-content-mode-wrap').classList.toggle('d-none', !['facebook', 'instagram', 'linkedin'].includes(platform));
+        document.getElementById('gen-verify-token-btn').classList.toggle('d-none', !isMeta);
+        document.getElementById('meta-webhook-guide').classList.toggle('d-none', !isMeta);
+        document.getElementById('test-wordpress-btn').classList.toggle('d-none', !(platform === 'wordpress' && document.getElementById('page-id-hidden').value));
     }
+
+    // Merge {"verify_token":"..."} vào JSON đã có trong ô "Cấu hình thêm" (không đè mất field
+    // khác tenant đã điền, vd app_secret) rồi tự sinh 1 chuỗi ngẫu nhiên — tenant không cần tự
+    // gõ tay JSON hay tự nghĩ ra chuỗi, chỉ cần copy đúng token khi đăng ký trên Meta App Dashboard.
+    document.getElementById('gen-verify-token-btn').addEventListener('click', () => {
+        const textarea = document.getElementById('page-extra');
+        let current = {};
+        const raw = textarea.value.trim();
+        if (raw) {
+            try { current = JSON.parse(raw); } catch { current = {}; }
+        }
+        current.verify_token = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+        textarea.value = JSON.stringify(current, null, 2);
+        showToast('Đã tạo Verify Token mới — nhớ bấm Lưu rồi copy sang Meta App Dashboard', 'success');
+    });
 
     function openPageModal(pc) {
         document.getElementById('page-id-hidden').value = pc?.id || '';
@@ -284,6 +354,9 @@
         document.getElementById('page-pageid').value = pc?.page_id || '';
         document.getElementById('page-token').value = pc?.access_token || '';
         document.getElementById('page-language').value = pc?.default_language ? pc.default_language : 'auto';
+        let extraObj = {};
+        try { extraObj = JSON.parse(pc?.extra_config || '{}') || {}; } catch {}
+        document.getElementById('page-content-mode').value = extraObj.content_mode || 'same';
         document.getElementById('page-extra').value = pc?.extra_config || '';
         document.getElementById('page-active').checked = pc ? !!pc.is_active : true;
         document.getElementById('delete-page-btn').classList.toggle('d-none', !pc);
@@ -293,11 +366,17 @@
 
     document.getElementById('save-page-btn').addEventListener('click', async () => {
         const id = document.getElementById('page-id-hidden').value;
-        const extraRaw = document.getElementById('page-extra').value.trim();
+        let extraRaw = document.getElementById('page-extra').value.trim();
+        let extraObj = {};
         if (extraRaw) {
-            try { JSON.parse(extraRaw); }
+            try { extraObj = JSON.parse(extraRaw); }
             catch { showToast('Cấu hình thêm phải là JSON hợp lệ', 'error'); return; }
         }
+        // Chế độ nội dung nằm trong extra_config.content_mode ("same" = mặc định, không lưu).
+        const contentMode = document.getElementById('page-content-mode').value;
+        if (['facebook', 'instagram', 'linkedin'].includes(document.getElementById('page-platform').value) && contentMode !== 'same') extraObj.content_mode = contentMode;
+        else delete extraObj.content_mode;
+        extraRaw = Object.keys(extraObj).length ? JSON.stringify(extraObj, null, 2) : '';
         const data = {
             tenant: window.TENANT,
             platform: document.getElementById('page-platform').value,
@@ -335,6 +414,44 @@
         } catch (err) {
             showToast('Lỗi xóa: ' + err.message, 'error');
         }
+    });
+
+    function formatBytes(bytes) {
+        if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2).replace(/\.?0+$/, '')} GB`;
+        if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1).replace(/\.0$/, '')} MB`;
+        return `${Math.ceil(bytes / 1024)} KB`;
+    }
+
+    async function loadStorageUsage() {
+        const text = document.getElementById('sm-storage-text');
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/media/usage`, { headers: { Authorization: PB.authStore.token } });
+            if (!res.ok) throw new Error(res.status);
+            const d = await res.json();
+            const percent = d.limit_bytes > 0 ? Math.min(100, (d.used_bytes / d.limit_bytes) * 100) : 100;
+            text.textContent = `Đã dùng ${formatBytes(d.used_bytes)} / ${formatBytes(d.limit_bytes)} (${Math.round(percent)}%)`;
+            const bar = document.getElementById('sm-storage-bar');
+            bar.style.width = `${percent}%`;
+            bar.className = `progress-bar ${percent >= 90 ? 'bg-danger' : percent >= 70 ? 'bg-warning' : 'bg-primary'}`;
+            document.getElementById('sm-storage-note').textContent = percent >= 100
+                ? 'Đã hết dung lượng — xóa bớt media hoặc nâng cấp gói để tiếp tục đăng ảnh/video.'
+                : `Còn lại ${formatBytes(d.remaining_bytes)} · dùng chung cho mọi workspace của tài khoản.`;
+        } catch (err) {
+            console.error('Lỗi tải dung lượng lưu trữ:', err);
+            text.textContent = 'Không tải được';
+        }
+    }
+    document.getElementById('test-wordpress-btn').addEventListener('click', async () => {
+        const siteId = document.getElementById('page-id-hidden').value;
+        if (!siteId) return showToast('Hãy lưu kênh WordPress trước khi kiểm tra.', 'error');
+        btnLoading('test-wordpress-btn', 'Đang kiểm tra...');
+        try {
+            const response = await fetch(`${WORKER_URL}/api/v1/wordpress/test`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${await getWorkerApiKey()}` }, body:JSON.stringify({ siteId }) });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+            showToast(`Kết nối tốt: ${result.user?.name || 'WordPress'}${result.canPublishPosts ? ' · có quyền đăng bài' : ' · thiếu quyền đăng bài'}`, result.canPublishPosts ? 'success' : 'error');
+        } catch (err) { showToast(`WordPress chưa sẵn sàng: ${err.message}`, 'error'); }
+        finally { btnReset('test-wordpress-btn'); }
     });
     </script>
 </body>
