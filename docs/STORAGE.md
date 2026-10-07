@@ -11,7 +11,7 @@
 | pro | 2 GB |
 
 - Tính theo **tài khoản** (chung cho mọi workspace), không reset theo tháng.
-- Override: field `storage_limit_bytes` trên record `tenants`.
+- Override: field `storage_limit_bytes` trên record `tenants` (0 hoặc trống = dùng mặc định theo gói).
 - Bộ đếm `tenants.storage_used` (byte) do `AccountQuota` Durable Object ghi (cùng DO với quota tin nhắn, nên
   upload song song không vượt hạn mức). Giữ chỗ trước khi ghi, hoàn trả nếu ghi lỗi hoặc khi xoá.
 - Giới hạn mỗi file: ảnh 15 MB, video 200 MB. Định dạng: png/jpg/webp/gif/svg, mp4/webm/mov.
@@ -36,5 +36,6 @@ Với Instagram/Facebook nên đặt custom domain cho bucket và `MEDIA_PUBLIC_
 
 - `GET /api/account/media/usage` → `{ plan, used_bytes, limit_bytes, remaining_bytes }`
 - `POST /api/account/media` (multipart: `tenant`, `file`, `label`) → 201 `{ media }`
+- `PATCH /api/account/media/:id` (`{ label }`) → đổi tên
 - `DELETE /api/account/media/:id` → xoá file, hoàn dung lượng
 - `GET /media/*` → phục vụ object R2

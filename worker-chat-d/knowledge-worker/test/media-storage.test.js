@@ -31,6 +31,7 @@ test('plan limits: free 100MB, pro 2GB, admin override', () => {
   assert.equal(storageLimit({ plan_id: 'pro' }), 2048 * MB);
   assert.equal(STORAGE_LIMITS.pro, 2 * 1024 * MB);
   assert.equal(storageLimit({ plan_id: 'free', storage_limit_bytes: 5 }), 5);
+  assert.equal(storageLimit({ plan_id: 'pro', storage_limit_bytes: 0 }), 2048 * MB, 'PocketBase default 0 = plan default');
 });
 
 test('concurrent reservations never exceed the free limit; release refunds', async () => {

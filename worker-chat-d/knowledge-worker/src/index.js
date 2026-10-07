@@ -271,6 +271,9 @@ var index_default = {
       if (accountMediaDeleteMatch && request.method === "DELETE") {
         return await handleAccountMediaDelete(request, env2, cors, accountMediaDeleteMatch[1]);
       }
+      if (accountMediaDeleteMatch && request.method === "PATCH") {
+        return await handleAccountMediaUpdate(request, env2, cors, accountMediaDeleteMatch[1]);
+      }
       if (url.pathname === "/api/account/workspaces" && request.method === "GET") {
         return await handleAccountListWorkspaces(request, env2, cors);
       }
@@ -2363,6 +2366,25 @@ async function handleAccountMediaDelete(request, env, cors, id) {
   } catch (err) {
     return mediaErrorResponse(err, cors);
   }
+}
+
+// Chỉ cho đổi nhãn: url/r2_key/size_bytes do Worker quản lý để quota luôn khớp với file thật.
+async function handleAccountMediaUpdate(request, env, cors, id) {
+  const body = await request.json().catch(() => ({}));
+  const label = typeof body.label === "string" ? body.label.trim().slice(0, 100) : null;
+  if (label === null) return Response.json({ error: "Thiếu label" }, { status: 400, headers: cors });
+  const token = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records/${encodeURIComponent(id)}`, { headers: { Authorization: token } });
+  if (res.status === 404) return Response.json({ error: "Not found" }, { status: 404, headers: cors });
+  if (!res.ok) return Response.json({ error: "Media unavailable" }, { status: 503, headers: cors });
+  const record = await res.json();
+  const access = await resolveMediaTenantAccess(request, env, record.tenant);
+  if (access.error) return Response.json({ error: access.error }, { status: access.status, headers: cors });
+  const patch = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records/${encodeURIComponent(id)}`, {
+    method: "PATCH", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify({ label })
+  });
+  if (!patch.ok) return Response.json({ error: "Không cập nhật được media" }, { status: 502, headers: cors });
+  return Response.json({ success: true, media: { id, label } }, { headers: cors });
 }
 
 async function handleServeMedia(env, cors, key) {

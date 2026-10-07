@@ -1384,7 +1384,7 @@
             : m.status === 'error' ? '<span class="badge bg-red-lt">Lỗi</span>' : '';
         const actionBtn = mode === 'picker'
             ? `<button class="btn btn-sm btn-primary w-100 pick-btn">Chọn</button>`
-            : `<button class="btn btn-sm btn-outline-danger w-100 delete-media-btn"><i class="ti ti-trash"></i></button>`;
+            : `<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-secondary w-100 edit-media-btn" title="Đổi tên"><i class="ti ti-pencil"></i></button><button class="btn btn-sm btn-outline-danger w-100 delete-media-btn" title="Xóa"><i class="ti ti-trash"></i></button></div>`;
         return `
           <div class="col-md-3">
             <div class="card">
@@ -1411,6 +1411,21 @@
             const wrap = document.createElement('div');
             wrap.innerHTML = mediaCardHtml(m, 'library');
             const col = wrap.firstElementChild;
+            col.querySelector('.edit-media-btn').addEventListener('click', async () => {
+                const label = prompt('Tên media:', m.label || '');
+                if (label === null) return;
+                try {
+                    const res = await fetch(`${WORKER_URL}/api/account/media/${encodeURIComponent(m.id)}`, {
+                        method: 'PATCH', headers: { Authorization: PB.authStore.token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ label })
+                    });
+                    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.status);
+                    showToast('Đã đổi tên', 'success');
+                    loadMediaLibrary();
+                } catch (err) {
+                    showToast('Lỗi đổi tên: ' + err.message, 'error');
+                }
+            });
             col.querySelector('.delete-media-btn').addEventListener('click', async () => {
                 if (!confirm('Xóa media này khỏi thư viện?')) return;
                 try {

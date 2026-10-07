@@ -64,7 +64,7 @@ export function sumByAccount(records, resolveAccount) {
 
 export function limitFor(account) {
   const o = Number(account.storage_limit_bytes);
-  if (account.storage_limit_bytes !== "" && account.storage_limit_bytes != null && Number.isSafeInteger(o) && o >= 0) return o;
+  if (Number.isSafeInteger(o) && o > 0) return o; // 0/trống = mặc định theo gói
   return account.plan_id === "pro" ? STORAGE_LIMITS.pro : STORAGE_LIMITS.free;
 }
 

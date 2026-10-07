@@ -11,9 +11,10 @@ const MB = 1024 * 1024;
 export const STORAGE_LIMITS = Object.freeze({ free: 100 * MB, pro: 2048 * MB });
 
 // Dung lượng media (byte) theo gói; storage_limit_bytes trên record "tenants" cho admin override.
+// Field Number của PocketBase mặc định là 0, nên 0/trống nghĩa là "dùng mặc định theo gói".
 export function storageLimit(record) {
   const value = record.storage_limit_bytes;
-  if (value === undefined || value === null || value === '') return record.plan_id === 'pro' ? STORAGE_LIMITS.pro : STORAGE_LIMITS.free;
+  if (value === undefined || value === null || value === '' || Number(value) === 0) return record.plan_id === 'pro' ? STORAGE_LIMITS.pro : STORAGE_LIMITS.free;
   const limit = Number(value);
   if (!Number.isSafeInteger(limit) || limit < 0) throw new Error('Invalid storage limit');
   return limit;
