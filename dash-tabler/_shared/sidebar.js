@@ -4,28 +4,51 @@
  * Gọi: renderSidebar() sau khi auth xong
  */
 
+// scope 'workspace': dữ liệu riêng của workspace (tenant) đang chọn — đổi workspace là đổi nội dung.
+// scope 'account': dùng chung cho cả tài khoản (gói, hạn mức, dung lượng, đăng nhập) — không đổi theo workspace.
 const SIDEBAR_NAV = [
   {
+    scope: 'workspace',
     section: null,
     items: [
       { href: 'index.html',    icon: 'ti-layout-dashboard', labelKey: 'nav_overview' },
+    ]
+  },
+  {
+    scope: 'workspace',
+    section: 'Chatbot',
+    items: [
       { href: 'config.html',   icon: 'ti-settings',         labelKey: 'nav_bot_settings' },
+      { href: 'widget.html',  icon: 'ti-code',              labelKey: 'nav_widget' },
       { href: 'agent-chat.html', icon: 'ti-message-2-bot',  labelKey: 'nav_agent_chat' },
       { href: 'knowledge.html',icon: 'ti-book',             labelKey: 'nav_knowledge' },
       { href: 'messages.html', icon: 'ti-message-circle',   labelKey: 'nav_messages' },
       { href: 'loyalty.html',  icon: 'ti-gift',             labelKey: 'nav_loyalty' },
-      { href: 'leads.html',    icon: 'ti-users',            labelKey: 'nav_leads' },
-      { href: 'billing.html',  icon: 'ti-receipt',          labelKey: 'nav_billing' },
-      { href: 'account.html',  icon: 'ti-user-circle',      label: 'Thông tin tài khoản' },
+      { href: 'customer/',     icon: 'ti-arrows-right-left', label: 'Xem như khách hàng' },
+      // "leads.html" (nav_leads) đã bỏ — trang này chưa từng được xây, link chết âm thầm rơi về
+      // Overview qua fallback SPA của Cloudflare Pages, gây nhầm cho người dùng. Thêm lại nav
+      // item này khi trang thật được build.
     ]
   },
   {
+    scope: 'workspace',
     sectionKey: 'nav_social_media',
     items: [
       { href: 'post.html',      icon: 'ti-article',        labelKey: 'nav_posts' },
       { href: 'composer.html',  icon: 'ti-edit',           labelKey: 'nav_composer' },
       { href: 'analytics.html', icon: 'ti-chart-bar',      labelKey: 'nav_analytics' },
       { href: 'sm-config.html', icon: 'ti-brand-facebook', labelKey: 'nav_sm_config' },
+    ]
+  },
+  {
+    scope: 'account',
+    section: 'Tài khoản',
+    sectionHint: 'Dùng chung mọi workspace',
+    items: [
+      { href: 'billing.html',  icon: 'ti-receipt',          labelKey: 'nav_billing' },
+      { href: 'master-agent.html', icon: 'ti-robot', label: 'Agent tổng (mọi tenant)' },
+      { href: 'account.html',  icon: 'ti-user-circle',      label: 'Thông tin tài khoản' },
+      { href: (typeof WORKER_URL !== 'undefined' ? WORKER_URL : '') + '/docs', icon: 'ti-api', label: 'API Docs', external: true },
     ]
   }
 ];
@@ -37,26 +60,42 @@ function renderSidebar(user) {
   const currentPage = window.location.pathname.split('/').pop() || 'index.html';
   const currentLang = typeof getLang === 'function' ? getLang() : 'vi';
   const tenant = window.TENANT || '—';
+  const memberships = Array.isArray(window.TENANT_MEMBERSHIPS) ? window.TENANT_MEMBERSHIPS : [];
   const userName = user?.name || user?.email || 'Admin';
   const avatarUrl = user?.avatarUrl || user?.avatar
     ? (typeof PB !== 'undefined' && user.avatar
         ? PB.getFileUrl(user, user.avatar, { thumb: '40x40' })
         : (user?.avatarUrl || ''))
     : '';
+  const tenantSwitcherHtml = `
+    <div class="px-2 pt-2 pb-1">
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <label for="sidebar-tenant-switcher" class="form-label text-white-50 fs-6 mb-0">Workspace đang dùng</label>
+        <a href="account.html#workspaces" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 py-0 px-2" style="font-size:11px; line-height:22px;" title="Tạo workspace mới"><i class="ti ti-plus"></i>Thêm mới</a>
+      </div>
+      ${memberships.length > 1 ? `
+      <select id="sidebar-tenant-switcher" class="form-select form-select-sm" onchange="switchTenant(this.value)" aria-label="Chọn tenant">
+        ${memberships.map((item) => `<option value="${escapeSidebarHtml(item.tenant)}" ${item.tenant === tenant ? 'selected' : ''}>${escapeSidebarHtml(item.tenant)} (${escapeSidebarHtml(item.role)})</option>`).join('')}
+      </select>` : `<div class="text-white fs-5">${escapeSidebarHtml(tenant)}</div>`}
+    </div>`;
 
-  const navHtml = SIDEBAR_NAV.map(group => {
-    const sectionHtml = group.sectionKey
-      ? `<p class="nav-category" data-i18n="${group.sectionKey}">${typeof t === 'function' ? t(group.sectionKey) : 'Social Media'}</p>`
+  const renderGroup = group => {
+    const title = group.sectionKey
+      ? `<span data-i18n="${group.sectionKey}">${typeof t === 'function' ? t(group.sectionKey) : 'Social Media'}</span>`
+      : (group.section ? `<span>${group.section}</span>` : '');
+    const sectionHtml = title
+      ? `<p class="nav-category">${title}${group.sectionHint ? `<small>${group.sectionHint}</small>` : ''}</p>`
       : '';
 
     const itemsHtml = group.items.map(item => {
-      const isActive = currentPage === item.href ||
-        (item.href !== 'index.html' && currentPage.startsWith(item.href.replace('.html','')));
+      const isActive = !item.external && (currentPage === item.href ||
+        (item.href !== 'index.html' && currentPage.startsWith(item.href.replace('.html',''))));
       const label = item.label || (typeof t === 'function' ? t(item.labelKey) : item.labelKey);
       const i18nAttr = item.labelKey ? ` data-i18n="${item.labelKey}"` : '';
+      const targetAttr = item.external ? ' target="_blank" rel="noopener"' : '';
       return `
         <li class="nav-item">
-          <a class="nav-link ${isActive ? 'active' : ''}" href="${item.href}">
+          <a class="nav-link ${isActive ? 'active' : ''}" href="${item.href}"${targetAttr}>
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <i class="ti ${item.icon}"></i>
             </span>
@@ -66,7 +105,20 @@ function renderSidebar(user) {
     }).join('');
 
     return sectionHtml + `<ul class="navbar-nav">${itemsHtml}</ul>`;
-  }).join('<div class="my-2 border-top"></div>');
+  };
+
+  // Hai khối: workspace (kèm bộ chọn workspace ở đầu) và tài khoản (dùng chung).
+  const workspaceNavHtml = SIDEBAR_NAV.filter(g => g.scope === 'workspace').map(renderGroup).join('');
+  const accountNavHtml = SIDEBAR_NAV.filter(g => g.scope === 'account').map(renderGroup).join('');
+  const navHtml = `
+    <style>
+      .nav-scope-workspace { border-left: 3px solid #5751E1; padding-left: 4px; margin: 0 0 8px 4px; }
+      .nav-scope-account { border-left: 3px solid #FFC224; padding-left: 4px; margin: 0 0 8px 4px; }
+      .nav-category { margin: 6px 0 0 12px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.55); }
+      .nav-category small { display: block; font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; color: rgba(255,255,255,.4); }
+    </style>
+    <div class="nav-scope-workspace">${tenantSwitcherHtml}${workspaceNavHtml}</div>
+    <div class="nav-scope-account">${accountNavHtml}</div>`;
 
   // Dùng outerHTML (không phải innerHTML) để <aside> trở thành sibling trực tiếp của .page-wrapper —
   // CSS của Tabler định vị margin-left cho .page-wrapper bằng sibling selector, lồng thêm 1 div bọc
@@ -97,7 +149,7 @@ function renderSidebar(user) {
         <div class="collapse navbar-collapse" id="sidebar-menu">
 
           <!-- Nav items -->
-          <div class="flex-fill overflow-auto" style="max-height:calc(100vh - 200px)">
+          <div class="flex-fill overflow-auto" style="max-height:calc(100vh - 150px)">
             ${navHtml}
           </div>
 
@@ -137,6 +189,15 @@ function renderSidebar(user) {
   // Sidebar chỉ là 1 phần của trang — áp dụng luôn i18n cho toàn bộ DOM còn lại
   // để mỗi trang không phải tự nhớ gọi applyI18n() riêng.
   if (typeof applyI18n === 'function') applyI18n();
+}
+
+function escapeSidebarHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // Cập nhật avatar/name sau khi auth

@@ -79,6 +79,49 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-12" id="storage">
+                            <div class="card">
+                                <div class="card-header d-flex align-items-center justify-content-between">
+                                    <h3 class="card-title mb-0"><i class="ti ti-database me-2 text-primary"></i>Dung lượng lưu trữ ảnh/video</h3>
+                                    <span id="storage-plan" class="badge bg-secondary-lt">—</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-end mb-2">
+                                        <div id="storage-text" class="fs-2 fw-bold">Đang tải...</div>
+                                        <div id="storage-percent" class="fs-2 fw-bold text-primary">0%</div>
+                                    </div>
+                                    <div class="progress progress-lg mb-2"><div id="storage-bar" class="progress-bar bg-primary" style="width:0%"></div></div>
+                                    <div id="storage-note" class="text-secondary fs-5">Dùng chung cho mọi workspace của tài khoản. Gói Free 100 MB, gói Pro 2 GB.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" id="workspaces">
+                            <div class="card">
+                                <div class="card-header d-flex align-items-center justify-content-between">
+                                    <h3 class="card-title mb-0"><i class="ti ti-building-store me-2 text-primary"></i>Không gian làm việc (workspace)</h3>
+                                    <span id="workspace-quota" class="badge bg-secondary-lt">—</span>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-secondary fs-5">Mỗi workspace là 1 bot/tenant riêng — cấu hình, kênh kết nối, khách hàng và điểm thưởng tách biệt. Gói Free tối đa 3, gói Pro tối đa 10.</p>
+                                    <div id="workspace-list" class="mb-3"><span class="text-secondary fs-5"><span class="spinner-border spinner-border-sm me-1"></span>Đang tải...</span></div>
+                                    <form id="workspace-form" class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label" for="workspace-bot-name">Tên bot</label>
+                                            <input id="workspace-bot-name" class="form-control" type="text" maxlength="80" placeholder="VD: Shop Hữu Tín 2" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label" for="workspace-slug">Mã workspace (slug)</label>
+                                            <input id="workspace-slug" class="form-control" type="text" pattern="[a-z0-9][a-z0-9_\-]{2,39}" placeholder="huutin-2" required>
+                                            <small class="form-hint">3–40 ký tự: chữ thường, số, gạch ngang/dưới. Không đổi được sau khi tạo.</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button id="workspace-submit" class="btn btn-primary w-100" type="submit"><i class="ti ti-plus me-1"></i>Tạo workspace</button>
+                                        </div>
+                                        <div class="col-12"><div id="workspace-error" class="alert alert-danger d-none py-2 mb-0" role="alert"></div></div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -90,6 +133,7 @@
             await requireAuth();
             const user = window.AUTH_USER;
             renderSidebar(user);
+            loadStorageUsage();
             document.getElementById('account-name').textContent = user.name || user.email || '—';
             document.getElementById('account-email-display').textContent = user.email || '—';
             document.getElementById('account-email').value = user.email || '';
@@ -133,22 +177,131 @@
                 errorEl.classList.remove('d-none');
                 return;
             }
-            const payload = { password, passwordConfirm: confirmation };
-            if (currentPassword) payload.oldPassword = currentPassword;
             button.disabled = true;
             button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
             try {
-                const updatedUser = await PB.collection('tenants').update(window.AUTH_USER.id, payload);
-                window.AUTH_USER = updatedUser;
+                if (localStorage.getItem('loginMethod') === 'google') {
+                    const res = await fetch(`${WORKER_URL}/api/account/set-initial-password`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: PB.authStore.token },
+                        body: JSON.stringify({ password, passwordConfirm: confirmation }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || 'Không thể lưu mật khẩu.');
+                } else {
+                    const updatedUser = await PB.collection('tenants').update(window.AUTH_USER.id, {
+                        password,
+                        passwordConfirm: confirmation,
+                        oldPassword: currentPassword,
+                    });
+                    window.AUTH_USER = updatedUser;
+                }
                 event.target.reset();
                 showToast('Đã lưu mật khẩu. Bạn có thể đăng nhập bằng email ở lần sau.', 'success');
             } catch (err) {
                 const fields = err?.response?.data || {};
-                errorEl.textContent = fields.oldPassword?.message || fields.password?.message || err?.message || 'Không thể lưu mật khẩu.';
+                errorEl.textContent = fields.oldPassword?.message || fields.password?.message || err?.response?.message || err?.message || 'Không thể lưu mật khẩu.';
                 errorEl.classList.remove('d-none');
             } finally {
                 button.disabled = false;
                 button.innerHTML = '<i class="ti ti-device-floppy me-2"></i>Lưu mật khẩu';
+            }
+        });
+
+        // ── Workspace / tenant tự phục vụ ──────────────────────────────
+        const slugify = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+
+        let workspaceSlugTouched = false;
+        const wsBotName = document.getElementById('workspace-bot-name');
+        const wsSlug = document.getElementById('workspace-slug');
+        const wsForm = document.getElementById('workspace-form');
+        const wsSubmit = document.getElementById('workspace-submit');
+        const wsError = document.getElementById('workspace-error');
+        const wsList = document.getElementById('workspace-list');
+        const wsQuota = document.getElementById('workspace-quota');
+
+        wsSlug.addEventListener('input', () => { workspaceSlugTouched = true; });
+        wsBotName.addEventListener('input', () => { if (!workspaceSlugTouched) wsSlug.value = slugify(wsBotName.value); });
+
+        function formatBytes(bytes) {
+            if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2).replace(/\.?0+$/, '')} GB`;
+            if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1).replace(/\.0$/, '')} MB`;
+            return `${Math.ceil(bytes / 1024)} KB`;
+        }
+
+        async function loadStorageUsage() {
+            const text = document.getElementById('storage-text');
+            try {
+                const res = await fetch(`${WORKER_URL}/api/account/media/usage`, { headers: { Authorization: PB.authStore.token } });
+                if (!res.ok) throw new Error(res.status);
+                const d = await res.json();
+                const percent = d.limit_bytes > 0 ? Math.min(100, (d.used_bytes / d.limit_bytes) * 100) : 100;
+                text.textContent = `${formatBytes(d.used_bytes)} / ${formatBytes(d.limit_bytes)}`;
+                const pct = document.getElementById('storage-percent');
+                pct.textContent = `${Math.round(percent)}%`;
+                const bar = document.getElementById('storage-bar');
+                bar.style.width = `${percent}%`;
+                const level = percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'primary';
+                bar.className = `progress-bar bg-${level}`;
+                pct.className = `fs-2 fw-bold text-${level}`;
+                document.getElementById('storage-plan').textContent = d.plan === 'pro' ? 'Gói Pro' : 'Gói Free';
+                document.getElementById('storage-note').textContent = percent >= 100
+                    ? 'Đã hết dung lượng — xóa bớt media hoặc nâng cấp gói để tiếp tục lưu ảnh/video.'
+                    : `Còn lại ${formatBytes(d.remaining_bytes)}. Dùng chung cho mọi workspace của tài khoản.`;
+            } catch (err) {
+                console.error('Lỗi tải dung lượng lưu trữ:', err);
+                text.textContent = 'Không tải được';
+            }
+        }
+
+        async function loadWorkspaces() {
+            try {
+                const res = await fetch(`${WORKER_URL}/api/account/workspaces`, { headers: { Authorization: PB.authStore.token } });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+                wsQuota.textContent = `${data.plan === 'pro' ? 'Pro' : 'Free'} · ${data.used}/${data.limit}`;
+                wsQuota.className = 'badge ' + (data.used >= data.limit ? 'bg-red-lt' : 'bg-green-lt');
+                wsList.innerHTML = (data.workspaces || []).map(slug => `
+                    <span class="badge bg-blue-lt me-1 mb-1 fs-5">
+                        <i class="ti ti-building me-1"></i>${slug}${slug === window.TENANT ? ' <span class="text-secondary">(đang dùng)</span>' : ''}
+                    </span>`).join('') || '<span class="text-secondary fs-5">Chưa có workspace nào.</span>';
+                const full = data.used >= data.limit;
+                wsSubmit.disabled = full;
+                wsSubmit.innerHTML = full
+                    ? '<i class="ti ti-lock me-1"></i>Đã đạt giới hạn gói'
+                    : '<i class="ti ti-plus me-1"></i>Tạo workspace';
+            } catch (err) {
+                wsList.innerHTML = `<span class="text-danger fs-5">Không tải được danh sách: ${err.message}</span>`;
+            }
+        }
+        loadWorkspaces();
+
+        wsForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            wsError.classList.add('d-none');
+            const botName = wsBotName.value.trim();
+            const slug = wsSlug.value.trim();
+            if (botName.length < 2) { wsError.textContent = 'Tên bot phải từ 2 ký tự.'; wsError.classList.remove('d-none'); return; }
+            if (!/^[a-z0-9][a-z0-9_-]{2,39}$/.test(slug)) { wsError.textContent = 'Mã workspace không hợp lệ (3–40 ký tự, chữ thường/số/gạch).'; wsError.classList.remove('d-none'); return; }
+            wsSubmit.disabled = true;
+            wsSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang tạo...';
+            try {
+                const res = await fetch(`${WORKER_URL}/api/account/workspaces`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: PB.authStore.token },
+                    body: JSON.stringify({ bot_name: botName, tenant: slug }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+                showToast(`Đã tạo workspace "${data.tenant}". Đang chuyển sang workspace mới...`, 'success');
+                try { localStorage.setItem(`schoolsai.activeTenant.${window.AUTH_USER.id}`, data.tenant); } catch (_) {}
+                setTimeout(() => window.location.reload(), 1200);
+            } catch (err) {
+                wsError.textContent = err.message;
+                wsError.classList.remove('d-none');
+                wsSubmit.disabled = false;
+                wsSubmit.innerHTML = '<i class="ti ti-plus me-1"></i>Tạo workspace';
             }
         });
     </script>
