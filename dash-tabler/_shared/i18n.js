@@ -369,7 +369,7 @@ const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
 // Tải riêng để file từ điển chính vẫn dễ bảo trì; khi tải xong trang sẽ được dịch lại.
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
-  contentScript.src = "_shared/i18n-content.js?v=20261007-1";
+  contentScript.src = "_shared/i18n-content.js?v=20261007-2";
   contentScript.onload = () => {
     applyI18n();
     // Bản dịch bổ sung cho các chuỗi động/trang mới, gộp vào cùng bảng I18N_CONTENT.
@@ -378,6 +378,7 @@ if (!window.I18N_CONTENT) {
     extraScript.onload = () => {
       Object.keys(window.I18N_EXTRA || {}).forEach((lang) => {
         window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);
+        delete PATTERN_CACHE[lang];
       });
       applyI18n();
     };
@@ -410,19 +411,20 @@ const LAST_TRANSLATED_ATTRS = new WeakMap();
 const PATTERN_CACHE = {};
 function getPatterns(lang, translations) {
   const cached = PATTERN_CACHE[lang];
-  if (cached && cached.size === Object.keys(translations).length) return cached;
+  if (cached && cached.source === translations) return cached;
   const exact = [];
   const prefixes = [];
   Object.keys(translations).forEach((key) => {
     if (key.includes("{}")) {
       const body = key.split("{}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(.+?)");
-      exact.push({ regex: new RegExp(`^${body}$`, "s"), value: translations[key] });
+      exact.push({ regex: new RegExp(`^${body}$`, "s"), value: translations[key], weight: key.replace(/\{\}/g, "").length });
     } else if (key.endsWith(":") && key.length > 3) {
       prefixes.push(key);
     }
   });
+  exact.sort((a, b) => b.weight - a.weight);
   prefixes.sort((a, b) => b.length - a.length);
-  return (PATTERN_CACHE[lang] = { size: Object.keys(translations).length, exact, prefixes });
+  return (PATTERN_CACHE[lang] = { source: translations, exact, prefixes });
 }
 
 function translateDynamicText(source, translations) {
@@ -439,18 +441,19 @@ function translateDynamicText(source, translations) {
   }
 
   const patterns = getPatterns(getLang(), translations);
+
+  // Giữ nguyên chi tiết kỹ thuật từ API, chỉ dịch phần nhãn lỗi/trạng thái.
+  const prefix = patterns.prefixes.find((item) => collapsed.startsWith(`${item} `));
+  if (prefix && translations[prefix]) {
+    return `${translations[prefix]} ${collapsed.slice(prefix.length + 1)}`;
+  }
+
   for (const { regex, value } of patterns.exact) {
     const match = collapsed.match(regex);
     if (match) {
       let index = 1;
       return value.replace(/\{\}/g, () => match[index++] ?? "");
     }
-  }
-
-  // Giữ nguyên chi tiết kỹ thuật từ API, chỉ dịch phần nhãn lỗi/trạng thái.
-  const prefix = patterns.prefixes.find((item) => collapsed.startsWith(`${item} `));
-  if (prefix && translations[prefix]) {
-    return `${translations[prefix]} ${collapsed.slice(prefix.length + 1)}`;
   }
   return null;
 }
