@@ -1,0 +1,3 @@
+# Script/CSS dung chung đổi thường xuyên: luôn hỏi lại server (ETag) thay vì cache 4 giờ.
+/_shared/*
+  Cache-Control: no-cache
