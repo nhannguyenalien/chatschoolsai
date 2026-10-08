@@ -4,7 +4,7 @@
  */
 
 const PB_URL     = "https://nhannguyen123-chat.hf.space";
-const WORKER_URL = "https://knowledge-worker.toidayhoc.workers.dev";
+const WORKER_URL = "https://apic.schoolsai.work";
 
 // Không cần chỉnh gì dưới đây
 const PB = new PocketBase(PB_URL);
