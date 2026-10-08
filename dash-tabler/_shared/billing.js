@@ -54,13 +54,16 @@ async function loadPaymentPlans() {
           try {
             const payment = await billingRequest(`payments/${encodeURIComponent(orderId)}`);
             if (payment.status === 'paid') {
-              status.textContent = payment.payment_verified
-                ? 'Đã xác minh thanh toán. Gói dịch vụ đang chờ kích hoạt.'
-                : 'Giao dịch đã thanh toán nhưng thông tin gói cần được kiểm tra.';
+              status.textContent = payment.service_activated
+                ? (payment.credited_messages ? `Đã thanh toán. Đã cộng thêm ${payment.credited_messages} câu.` : 'Đã thanh toán. Gói Pro đã được kích hoạt.')
+                : (payment.payment_verified
+                  ? 'Đã xác minh thanh toán. Gói Pro đang được kích hoạt, vui lòng kiểm tra lại sau ít phút.'
+                  : 'Giao dịch đã thanh toán nhưng thông tin gói cần được kiểm tra.');
+              if (payment.service_activated) setTimeout(() => window.location.reload(), 1200);
             } else {
               status.textContent = `Trạng thái giao dịch: ${payment.status}. Chưa cấp dịch vụ.`;
             }
-            if (['paid', 'expired', 'failed', 'cancelled', 'canceled', 'refunded'].includes(payment.status)) {
+            if ((payment.status === 'paid' && payment.service_activated) || ['expired', 'failed', 'cancelled', 'canceled', 'refunded'].includes(payment.status)) {
               sessionStorage.removeItem(key);
               sessionStorage.removeItem(`${key}.order`);
               check.remove();

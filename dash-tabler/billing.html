@@ -208,10 +208,14 @@
                 if(!authModel) return;
                 
                 // Đồng bộ dữ liệu realtime mới nhất từ PocketBase
+                // Làm mới gói từ cổng thanh toán (gia hạn/hết hạn Whop) trước khi đọc hồ sơ.
+                try { await billingRequest('status'); } catch (e) { /* chưa cấu hình thanh toán */ }
                 const user = await PB.collection('tenants').getOne(authModel.id);
-                
-                const planName = (user.plan_id === 'pro') ? 'Pro Plan' : 'Free Plan';
-                const limit = Math.max(0, Number(user.message_limit ?? 100));
+
+                const expiresAt = Number(user.pro_expires_at) || 0;
+                const isPro = user.plan_id === 'pro' && (!expiresAt || expiresAt > Date.now());
+                const planName = isPro ? 'Pro Plan' : 'Free Plan';
+                const limit = expiresAt ? (isPro ? 1000 : 100) : Math.max(0, Number(user.message_limit ?? 100));
                 let used = user.message_used || 0;
 
                 // Xử lý logic hiển thị Lazy Reset Tháng ở Frontend
@@ -220,8 +224,10 @@
                     used = 0;
                 }
                 
+                const bonus = Math.max(0, (Number(user.message_bonus_granted) || 0) - (Number(user.message_bonus_used) || 0));
                 let remaining = limit - used;
                 if(remaining < 0) remaining = 0;
+                remaining += bonus;
 
                 let percent = limit > 0 ? (used / limit) * 100 : 0;
                 if(percent > 100) percent = 100;
@@ -243,7 +249,7 @@
                 }
 
                 document.getElementById('ui-plan-desc').textContent =
-                    planName === 'Free Plan' ? `Gói miễn phí: ${limit} câu trả lời/tháng.` : 'Bạn đang sử dụng gói Pro.';
+                    planName === 'Free Plan' ? `Gói miễn phí: ${limit} câu trả lời/tháng.` : (expiresAt ? `Bạn đang sử dụng gói Pro đến ${new Date(expiresAt).toLocaleDateString()}.` : 'Bạn đang sử dụng gói Pro.');
                 await loadPaymentPlans();
 
             } catch (err) {

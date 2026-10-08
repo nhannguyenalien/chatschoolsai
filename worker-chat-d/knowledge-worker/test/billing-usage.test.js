@@ -102,3 +102,23 @@ test('different workspaces resolve to the same owner budget', async () => {
     assert.equal(f.record().message_used, 3);
   } finally { globalThis.fetch = original; }
 });
+
+test('add-on credits are spent only after the monthly limit, never expire, and survive restart', async () => {
+  const f = fixture({ message_limit: 2, message_bonus_granted: 3, message_bonus_used: 0 });
+  const results = await Promise.all(Array.from({ length: 10 }, async () => (await f.reserve(1)).json()));
+  assert.equal(results.filter(r => r.ok).length, 5);
+  assert.equal(f.record().message_used, 2);
+  assert.equal(f.record().message_bonus_used, 3);
+  f.restart();
+  assert.equal((await (await f.reserve(1)).json()).ok, false);
+  // A new grant raises granted only; the used counter is untouched and spending resumes.
+  await f.backend.write('account-1', { message_bonus_granted: 4 });
+  assert.equal((await (await f.reserve(1)).json()).ok, true);
+  assert.equal(f.record().message_bonus_used, 4);
+});
+
+test('failed PB write for a bonus spend blocks the call', async () => {
+  const f = fixture({ message_limit: 0, message_bonus_granted: 1 });
+  f.backend.write = async () => { throw new Error('pb down'); };
+  assert.equal((await f.reserve(1)).status, 503);
+});

@@ -1,9 +1,9 @@
-import { AccountQuotaStore, messageLimit, storageLimit } from "./domain/billing/accountQuota.js";
+import { AccountQuotaStore, bonusRemaining, effectivePlan, messageLimit, storageLimit } from "./domain/billing/accountQuota.js";
 import { createMediaStore, MediaError } from "./domain/media/mediaStore.js";
 import { checkTargetPreflight, PREFLIGHT_MARKER, PREFLIGHT_WINDOW_MINUTES, preflightNotice } from "./domain/publishing/preflight.js";
 import { classifyPublishError, failureNotice, metaApiError, nextRetryAt } from "./domain/publishing/retryPolicy.js";
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain/billing/costs.js";
-import { handleBGate } from "./domain/billing/bgate.js";
+import { handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
 import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
 import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
@@ -224,7 +224,7 @@ var index_default = {
         const results = await handleMasterDigest(env2, { accountId: String(opts.account_id || ""), dryRun: opts.dry_run === true, today: opts.today === true });
         return new Response(JSON.stringify({ ok: true, accounts_checked: results.checked, results }), { headers: cors });
       }
-      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent" || url.pathname === "/ping-anyllm" || url.pathname === "/call/setup" || url.pathname === "/messages/setup-via-voice" || url.pathname === "/system-config/setup-voice-fields" || url.pathname === "/content-planning/setup" || url.pathname === "/lessons/setup" || url.pathname === "/tenants/setup-linked-phones" || url.pathname === "/pages-config/setup-webhook-token") {
+      if (url.pathname === "/sync-docs" || url.pathname === "/run-digest" || url.pathname === "/run-rss-crawl" || url.pathname === "/run-publish-dispatch" || url.pathname === "/run-agent" || url.pathname === "/ping-anyllm" || url.pathname === "/call/setup" || url.pathname === "/messages/setup-via-voice" || url.pathname === "/system-config/setup-voice-fields" || url.pathname === "/content-planning/setup" || url.pathname === "/lessons/setup" || url.pathname === "/tenants/setup-linked-phones" || url.pathname === "/tenants/setup-billing-fields" || url.pathname === "/pages-config/setup-webhook-token") {
         if (request.method !== "POST") {
           return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
         }
@@ -239,6 +239,7 @@ var index_default = {
         if (url.pathname === "/system-config/setup-voice-fields") return await handleSystemConfigAddVoiceFields(env2, cors);
         if (url.pathname === "/content-planning/setup") return await handleContentPlanningSetup(env2, cors);
         if (url.pathname === "/tenants/setup-linked-phones") return await handleTenantsAddLinkedPhonesField(env2, cors);
+        if (url.pathname === "/tenants/setup-billing-fields") return await handleTenantsAddBillingFields(env2, cors);
         if (url.pathname === "/sync-docs") return await handleSyncDocs(request, env2, cors);
         if (url.pathname === "/run-digest") await handleDailyDigest(env2);
         else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env2);
@@ -263,9 +264,12 @@ var index_default = {
       if (url.pathname === "/api/account/set-initial-password" && request.method === "POST") {
         return await handleSetInitialPassword(request, env2, cors);
       }
+      if (url.pathname === "/api/billing/bgate-webhook") {
+        return await handleBGateWebhook(request, env2, accountBillingStore(env2));
+      }
       if (url.pathname.startsWith("/api/account/billing/")) {
         const account = await resolveOwnAccountRecord(request, env2);
-        return await handleBGate(request, env, account, cors);
+        return await handleBGate(request, env2, account, cors, fetch, accountBillingStore(env2));
       }
       if (url.pathname === "/api/account/master-chat" && (request.method === "GET" || request.method === "POST")) {
         const limited = request.method === "POST" ? enforceRateLimit(request, "master-chat", 30, 60 * 60 * 1000) : null;
@@ -709,9 +713,43 @@ async function accountQuota(env, accountId, units = 0) {
   if (!response.ok) throw new Error("Quota service unavailable");
   return response.json();
 }
+// Read/write of the "tenants" account record for BGate entitlement sync (admin token).
+function accountBillingStore(env) {
+  const request = async (id, patch) => {
+    const token = await getPbToken(env);
+    const response = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants/records/${encodeURIComponent(id)}`, {
+      method: patch ? "PATCH" : "GET",
+      headers: { Authorization: token, "Content-Type": "application/json" },
+      ...(patch ? { body: JSON.stringify(patch) } : {})
+    });
+    if (!response.ok) throw new Error(`Account record failed (${response.status})`);
+    return response.json();
+  };
+  return { read: (id) => request(id), write: (id, patch) => request(id, patch) };
+}
+__name(accountBillingStore, "accountBillingStore");
+
+// Safety net for missed webhooks (e.g. a Whop auto-renewal): once pro_expires_at has passed,
+// re-read the entitlement before charging the account the free-plan quota. Throttled per isolate.
+var billingRefreshAt = /* @__PURE__ */ new Map();
+async function refreshExpiredPro(env, record) {
+  const expiresAt = Number(record.pro_expires_at) || 0;
+  if (record.plan_id !== "pro" || !expiresAt || expiresAt > Date.now() || !env.BGATE_API_KEY) return record;
+  if (Date.now() - (billingRefreshAt.get(record.id) || 0) < 10 * 60 * 1000) return record;
+  billingRefreshAt.set(record.id, Date.now());
+  try {
+    await syncEntitlement(env, record.id, accountBillingStore(env));
+    return await accountBillingStore(env).read(record.id);
+  } catch {
+    return record;
+  }
+}
+__name(refreshExpiredPro, "refreshExpiredPro");
+
 async function checkAndConsumeMessageQuota(env, pbToken, tenant) {
-  const record = await resolveAccountForTenant(env, pbToken, tenant);
+  let record = await resolveAccountForTenant(env, pbToken, tenant);
   if (!record) throw new Error("Không tìm thấy tài khoản chịu quota");
+  record = await refreshExpiredPro(env, record);
   return accountQuota(env, record.id);
 }
 
@@ -725,9 +763,10 @@ function quotaSnapshot(quota) {
   return {
     total: limit,
     used,
-    remaining: Math.max(0, limit - used),
+    remaining: Math.max(0, limit - used) + bonusRemaining(quota.record || {}),
+    bonus_remaining: bonusRemaining(quota.record || {}),
     reset_at: resetAt.toISOString(),
-    plan: record.plan_id || "free",
+    plan: effectivePlan(record),
     status: quota.ok ? "active" : "exhausted"
   };
 }
@@ -1143,7 +1182,7 @@ async function handleAiVoiceTurn(request, env, cors) {
     // Giới hạn 1 ph\xFAt gọi AI/ng\xE0y/user cho t\xE0i khoản thường (kh\xF4ng phải "pro") — check TRƯỚC khi
     // chạy Whisper/LLM/TTS để kh\xF4ng tốn ph\xED cho lượt đ\xE3 vượt giới hạn.
     const tenantRow = await resolveAccountForTenant(env, pbToken, tenant);
-    const isPro = tenantRow?.plan_id === "pro";
+    const isPro = effectivePlan(tenantRow) === "pro";
     let voiceUsage = { recordId: null, seconds: 0 };
     if (!isPro) {
       voiceUsage = await getVoiceUsageToday(env, pbToken, tenant, session);
@@ -4000,7 +4039,7 @@ var WORKSPACE_LIMITS = { free: 3, pro: 10 };
 var WORKSPACE_HARD_CEILING = 5000;
 
 function accountPlan(account) {
-  return account?.plan_id === "pro" ? "pro" : "free";
+  return effectivePlan(account);
 }
 __name(accountPlan, "accountPlan");
 
@@ -4489,6 +4528,35 @@ __name(handleCustomerPortalOverview, "handleCustomerPortalOverview");
 // (metadata_json, prize_value_json...) thay vì field kiểu "json" riêng của PocketBase, để không
 // phải đoán format field JSON theo từng phiên bản PocketBase (xem handleMessagesAddViaVoiceField
 // ngay dưới, đang dùng đúng cách nhân bản field mẫu này).
+// Adds the billing fields on tenants: pro_expires_at (epoch ms, 0 = never expires) for the Whop
+// entitlement sync, and the add-on ledger (message_bonus_granted/_used, bonus_orders).
+async function handleTenantsAddBillingFields(env, cors) {
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants`, { headers: { Authorization: pbToken } });
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: `Không đọc được collection "tenants" (${res.status})` }), { status: 502, headers: cors });
+  }
+  const collection = await res.json();
+  const fieldsKey = Array.isArray(collection.fields) ? "fields" : "schema";
+  const fields = collection[fieldsKey] || [];
+  const wanted = [["pro_expires_at", "number"], ["message_bonus_granted", "number"], ["message_bonus_used", "number"], ["bonus_orders", "text"]];
+  const missing = wanted.filter(([name]) => !fields.some((f) => f.name === name))
+    .map(([name, type]) => fieldsKey === "fields" ? { name, type, required: false } : { name, type, required: false, options: {} });
+  if (!missing.length) {
+    return new Response(JSON.stringify({ success: true, alreadyExists: true }), { headers: cors });
+  }
+  const patchRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants`, {
+    method: "PATCH",
+    headers: { Authorization: pbToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ [fieldsKey]: [...fields, ...missing] })
+  });
+  if (!patchRes.ok) {
+    return new Response(JSON.stringify({ error: `Không thêm được field billing (${patchRes.status})` }), { status: 502, headers: cors });
+  }
+  return new Response(JSON.stringify({ success: true, added: missing.map((f) => f.name) }), { headers: cors });
+}
+__name(handleTenantsAddBillingFields, "handleTenantsAddBillingFields");
+
 async function handleTenantsAddLinkedPhonesField(env, cors) {
   const pbToken = await getPbToken(env);
   const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenants`, {
@@ -4710,14 +4778,15 @@ async function handleApiBilling(env, cors, cfg) {
   }
   if (!record) return new Response(JSON.stringify({ error: "Không tìm thấy tài khoản." }), { status: 404, headers: cors });
 
-  const planId = record.plan_id === "pro" ? "pro" : "free";
+  const planId = effectivePlan(record);
   const limit = messageLimit(record);
   let used = Number(record.message_used) || 0;
   // Reset "lười" theo tháng giống hệt logic frontend cũ: chỉ tính lại khi có người đọc,
   // không cần cron riêng để xoá message_used mỗi đầu tháng.
   const currentMonth = (/* @__PURE__ */ new Date()).toISOString().slice(0, 7);
   if (record.last_reset_month !== currentMonth) used = 0;
-  const remaining = Math.max(0, limit - used);
+  const bonus = bonusRemaining(record);
+  const remaining = Math.max(0, limit - used) + bonus;
   const usedPercent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const resetAt = new Date(`${currentMonth}-01T00:00:00.000Z`);
   resetAt.setUTCMonth(resetAt.getUTCMonth() + 1);
@@ -4725,6 +4794,7 @@ async function handleApiBilling(env, cors, cfg) {
     total: limit,
     used,
     remaining,
+    bonus_remaining: bonus,
     reset_at: resetAt.toISOString(),
     plan: planId,
     status: remaining > 0 ? "active" : "exhausted"
@@ -4736,6 +4806,7 @@ async function handleApiBilling(env, cors, cfg) {
     message_limit: limit,
     message_used: used,
     message_remaining: remaining,
+    message_bonus_remaining: bonus,
     used_percent: usedPercent,
     reset_at: quota.reset_at,
     status: quota.status,
