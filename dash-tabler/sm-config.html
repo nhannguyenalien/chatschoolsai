@@ -304,6 +304,27 @@
         }
     }
 
+    // Hỏi Facebook token của kênh có những quyền nào, báo rõ quyền còn thiếu (đăng bài cần pages_manage_posts + pages_read_engagement).
+    async function checkPagePermissions(pc, button) {
+        button.disabled = true;
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/page-permissions?id=${encodeURIComponent(pc.id)}`, { headers: { Authorization: PB.authStore.token }, cache: 'no-store' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            if (!data.checked) { alert(data.reason); return; }
+            if (!data.valid) { alert(`Token không dùng được: ${data.reason || 'đã hết hạn hoặc bị thu hồi'}. Hãy tạo lại Page token.`); return; }
+            const missing = data.missing || [];
+            const lines = [`Token hợp lệ (loại: ${data.type || '?'}).`, `Quyền đang có: ${(data.scopes || []).join(', ') || '(không có)'}`];
+            if (missing.length) lines.push('', 'THIẾU quyền:', ...missing.map(m => `- ${m.name}: ${m.why}`), '', 'Cấp thêm quyền cho Meta App rồi tạo lại Page token và dán vào kênh này.');
+            else lines.push('', 'Đủ các quyền cần thiết.');
+            alert(lines.join('\n'));
+        } catch (err) {
+            alert('Không kiểm tra được quyền: ' + err.message);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     function renderPages() {
         const tbody = document.getElementById('pages-table-body');
         tbody.innerHTML = '';
@@ -320,8 +341,9 @@
               <td class="text-secondary">${escHtml(pc.page_id||'')}</td>
               <td class="token-mask">••••••••${escHtml((pc.access_token||'').slice(-6))}</td>
               <td>${pc.is_active ? '<span class="badge bg-green-lt">Hoạt động</span>' : '<span class="badge bg-secondary-lt">Tạm dừng</span>'}</td>
-              <td><button class="btn btn-sm btn-outline-secondary edit-page-btn">Sửa</button></td>`;
+              <td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary edit-page-btn">Sửa</button>${pc.platform === 'facebook' ? ' <button class="btn btn-sm btn-outline-primary check-perm-btn" title="Xem token đang có những quyền nào">Kiểm tra quyền</button>' : ''}</td>`;
             tr.querySelector('.edit-page-btn').addEventListener('click', () => openPageModal(pc));
+            tr.querySelector('.check-perm-btn')?.addEventListener('click', (event) => checkPagePermissions(pc, event.currentTarget));
             tbody.appendChild(tr);
         });
     }

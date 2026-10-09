@@ -302,6 +302,10 @@ var index_default = {
         const limited = enforceRateLimit(request, "publish-now", 30, 60 * 60 * 1000);
         return limited || await handleAccountPublishNow(request, env2, cors);
       }
+      if (url.pathname === "/api/account/page-permissions" && request.method === "GET") {
+        const limited = enforceRateLimit(request, "page-permissions", 30, 60 * 60 * 1000);
+        return limited || await handleAccountPagePermissions(request, env2, cors, url);
+      }
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
@@ -2508,6 +2512,48 @@ async function handleAccountPagesConfig(request, env, cors, url) {
   return json({ success: true, record: out }, existing ? 200 : 201);
 }
 
+// Kiểm tra token của kênh Facebook đang được cấp những quyền nào (debug_token) để biết thiếu quyền gì khi đăng bài/trả lời.
+// Cần app_secret của Meta App trong extra_config của kênh (cùng chỗ dùng để ký webhook).
+const FACEBOOK_PAGE_PERMISSIONS = {
+  pages_manage_posts: "Đăng bài lên fanpage",
+  pages_read_engagement: "Đọc dữ liệu fanpage (Facebook bắt buộc khi đăng bài)",
+  pages_messaging: "Nhận và trả lời tin nhắn Messenger",
+  pages_manage_engagement: "Trả lời bình luận"
+};
+async function handleAccountPagePermissions(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const id = String(url.searchParams.get("id") || "");
+  if (!/^[A-Za-z0-9]{1,40}$/.test(id)) return json({ error: "Thiếu id kênh" }, 400);
+  const token = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records/${id}`, { headers: { Authorization: token } });
+  if (!res.ok) return json({ error: "Không tìm thấy kênh" }, res.status === 404 ? 404 : 503);
+  const page = await res.json();
+  const access = await resolveMediaTenantAccess(request, env, page.tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  if (page.platform !== "facebook") return json({ error: "Chỉ kiểm tra được kênh Facebook" }, 400);
+  const appSecret = (() => { try { return String(JSON.parse(page.extra_config || "{}").app_secret || ""); } catch { return ""; } })();
+  if (!appSecret) return json({ checked: false, reason: 'Thêm "app_secret" của Meta App vào ô Cấu hình thêm của kênh để kiểm tra quyền.' });
+  try {
+    const graph = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;
+    const appRes = await fetchWithTimeout(`${graph}/app?fields=id`, { headers: { Authorization: `Bearer ${page.access_token}` } });
+    const app = await appRes.json().catch(() => ({}));
+    if (!appRes.ok || !app.id) return json({ checked: true, valid: false, reason: app.error?.message || "Token không hợp lệ hoặc đã hết hạn" });
+    const dbgRes = await fetchWithTimeout(`${graph}/debug_token?input_token=${encodeURIComponent(page.access_token)}`, { headers: { Authorization: `Bearer ${app.id}|${appSecret}` } });
+    const info = (await dbgRes.json().catch(() => ({}))).data;
+    if (!dbgRes.ok || !info) return json({ checked: false, reason: "app_secret không khớp với Meta App của token này" });
+    const scopes = Array.isArray(info.scopes) ? info.scopes : [];
+    return json({
+      checked: true, valid: info.is_valid !== false, type: info.type || "", scopes,
+      expires_at: info.expires_at || 0,
+      missing: Object.entries(FACEBOOK_PAGE_PERMISSIONS).filter(([name]) => !scopes.includes(name)).map(([name, why]) => ({ name, why }))
+    });
+  } catch (err) {
+    console.error("[Page Permissions] Lỗi:", err);
+    return json({ error: "Không gọi được Facebook để kiểm tra" }, 502);
+  }
+}
+__name(handleAccountPagePermissions, "handleAccountPagePermissions");
+
 async function handleServeMedia(env, cors, key) {
   if (!env.MEDIA_BUCKET || !key || key.includes("..")) return new Response("Not found", { status: 404 });
   const object = await env.MEDIA_BUCKET.get(key);
@@ -3292,7 +3338,8 @@ async function processMetaMessagingEvent(env, pbToken, platform, pageId, senderI
   } catch (err) {
     console.error("[Meta Handoff] Không kiểm tra được trạng thái phiên; tiếp tục AI để tránh bỏ sót khách:", err);
   }
-  await replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta);
+  // Tin khách đã lưu ở trên; handleChat không được lưu thêm lần nữa (trước đây mỗi tin xuất hiện 2 lần trong Chat Logs).
+  await replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta, { skipUserStore: true });
 }
 async function replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta, { skipUserStore = false } = {}) {
   const chatRequest = new Request("https://internal/chat", {
@@ -3334,6 +3381,7 @@ async function processMetaCommentEvent(env, pbToken, platform, pageId, commentId
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tenant: page.tenant, session, question: text, client_meta: clientMeta })
   });
+  SKIP_USER_MESSAGE_STORE.add(chatRequest); // đã lưu bình luận ở trên
   let reply = "Cảm ơn bạn đ\xE3 quan t\xE2m, để lại th\xF4ng tin li\xEAn hệ để được hỗ trợ th\xEAm nh\xE9!";
   try {
     const chatRes = await handleChat(chatRequest, env, { "Content-Type": "application/json" });
