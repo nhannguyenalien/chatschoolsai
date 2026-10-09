@@ -10,7 +10,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
-    <script src="_shared/config.js"></script>
+    <script src="_shared/config.js?v=20260906-google-connect"></script>
     <script src="_shared/auth.js"></script>
     <script src="_shared/ui.js"></script>
     <script src="_shared/i18n.js?v=20261007-3"></script>
@@ -80,6 +80,24 @@
                             <button id="cp-analytics-refresh" class="btn btn-sm btn-primary">Tải insights</button>
                         </div>
                         <div class="card-body">
+                            <div class="border rounded p-3 mb-3">
+                                <div class="d-flex align-items-center flex-wrap gap-2">
+                                    <i class="ti ti-brand-google fs-2 text-primary"></i>
+                                    <div><div class="fw-semibold">Kết nối Google</div><div id="cp-google-status" class="text-secondary fs-6">Đang kiểm tra…</div></div>
+                                    <button id="cp-google-connect" class="btn btn-sm btn-outline-primary ms-auto">Kết nối Google</button>
+                                    <button id="cp-google-sync" class="btn btn-sm btn-success d-none">Đồng bộ 30 ngày</button>
+                                </div>
+                                <div id="cp-google-config" class="row g-2 mt-2">
+                                    <div class="col-md-5"><label class="form-label">Google OAuth Client ID</label><input id="cp-google-client-id" class="form-control form-control-sm" autocomplete="off" placeholder="…apps.googleusercontent.com"></div>
+                                    <div class="col-md-5"><label class="form-label">Google OAuth Client Secret</label><input id="cp-google-client-secret" type="password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Chỉ lưu mã hóa, không hiển thị lại"></div>
+                                    <div class="col-md-2 d-flex align-items-end"><button id="cp-google-config-save" class="btn btn-sm btn-outline-primary w-100">Lưu OAuth</button></div>
+                                </div>
+                                <div id="cp-google-properties" class="row g-2 mt-2 d-none">
+                                    <div class="col-md-5"><label class="form-label">GA4 property</label><select id="cp-ga4-property" class="form-select form-select-sm"><option value="">Không dùng GA4</option></select></div>
+                                    <div class="col-md-5"><label class="form-label">Search Console property</label><select id="cp-gsc-property" class="form-select form-select-sm"><option value="">Không dùng Search Console</option></select></div>
+                                    <div class="col-md-2 d-flex align-items-end"><button id="cp-google-save" class="btn btn-sm btn-primary w-100">Lưu</button></div>
+                                </div>
+                            </div>
                             <div id="cp-analytics-alert"></div>
                             <div class="row row-cards mb-3">
                                 <div class="col-6 col-lg-2"><div class="card card-sm bg-azure-lt"><div class="card-body"><div class="subheader">Clicks</div><div class="h2" id="cp-clicks">—</div></div></div></div>
@@ -88,6 +106,21 @@
                                 <div class="col-6 col-lg-2"><div class="card card-sm bg-green-lt"><div class="card-body"><div class="subheader">Sessions</div><div class="h2" id="cp-sessions">—</div></div></div></div>
                                 <div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">Engagement</div><div class="h2" id="cp-engagement">—</div></div></div></div>
                                 <div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">Conversions</div><div class="h2" id="cp-conversions">—</div></div></div></div>
+                            </div>
+                            <div id="cp-research-alert"></div>
+                            <div class="row row-cards mb-3" id="cp-research-summary"></div>
+                            <div class="row row-cards mb-3">
+                                <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h3 class="card-title">Cơ hội từ khóa SEO</h3><div class="card-subtitle">Ưu tiên impression cao, CTR thấp hoặc vị trí 4–20</div></div><div class="table-responsive"><table class="table table-sm table-vcenter card-table"><thead><tr><th>Từ khóa</th><th>Trang</th><th class="text-end">Clicks</th><th class="text-end">Impressions</th><th class="text-end">CTR</th><th class="text-end">Vị trí</th></tr></thead><tbody id="cp-seo-opportunities"><tr><td colspan="6" class="text-secondary">Đang tải…</td></tr></tbody></table></div></div></div>
+                                <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h3 class="card-title">Trang đích GA4</h3><div class="card-subtitle">Traffic, mức tương tác và chuyển đổi theo trang</div></div><div class="table-responsive"><table class="table table-sm table-vcenter card-table"><thead><tr><th>Trang đích</th><th class="text-end">Sessions</th><th class="text-end">Users</th><th class="text-end">Engagement</th><th class="text-end">Key events</th></tr></thead><tbody id="cp-ga4-pages"><tr><td colspan="5" class="text-secondary">Đang tải…</td></tr></tbody></table></div></div></div>
+                            </div>
+                            <div class="row row-cards mb-3">
+                                <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h3 class="card-title">Từ khóa hàng đầu</h3></div><div class="table-responsive"><table class="table table-sm table-vcenter card-table"><thead><tr><th>Từ khóa</th><th class="text-end">Clicks</th><th class="text-end">Impressions</th><th class="text-end">CTR</th><th class="text-end">Vị trí</th></tr></thead><tbody id="cp-top-queries"></tbody></table></div></div></div>
+                                <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h3 class="card-title">Kênh truy cập GA4</h3></div><div class="table-responsive"><table class="table table-sm table-vcenter card-table"><thead><tr><th>Kênh</th><th class="text-end">Sessions</th><th class="text-end">Users</th><th class="text-end">Engagement</th><th class="text-end">Key events</th></tr></thead><tbody id="cp-ga4-channels"></tbody></table></div></div></div>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-header"><div><h3 class="card-title"><i class="ti ti-brand-facebook me-2"></i>Facebook Page Insights</h3><div class="card-subtitle" id="cp-facebook-status">Đang tải fanpage đã kết nối…</div></div></div>
+                                <div class="card-body"><div class="row row-cards mb-3" id="cp-facebook-summary"></div></div>
+                                <div class="table-responsive"><table class="table table-sm table-vcenter card-table"><thead><tr><th>Bài đăng</th><th>Ngày</th><th class="text-end">Reach</th><th class="text-end">Impressions</th><th class="text-end">Engaged</th><th class="text-end">Clicks</th><th class="text-end">Reactions</th></tr></thead><tbody id="cp-facebook-posts"><tr><td colspan="7" class="text-secondary">Đang tải…</td></tr></tbody></table></div>
                             </div>
                             <details><summary class="text-primary cursor-pointer">Import snapshot JSON đã chuẩn hóa</summary><div class="mt-3"><textarea id="cp-analytics-json" class="form-control mb-2" rows="5" placeholder='[{"source":"gsc", "externalKey":"...", "windowStart":"...", "windowEnd":"...", "metrics":{...}}]'></textarea><button id="cp-analytics-import" class="btn btn-outline-primary">Import snapshots</button><span class="text-secondary fs-6 ms-2">Dữ liệu chỉ dùng tư vấn; không tự đổi kế hoạch.</span></div></details>
                         </div>
@@ -218,6 +251,7 @@
     let filteredTargets = [];
     let timeChart, statusChart, platformChart;
     let contentPlanningApiKey = '';
+    let contentPlanningApiKeyPromise = null;
 
     // ═══════════════════════════════════════
     // BOOT
@@ -226,16 +260,32 @@
         await requireAuth();
         renderSidebar(window.AUTH_USER);
         await loadContentPerformanceSites();
+        await completeGoogleOAuthCallback();
+        await loadGoogleConnection();
         await loadData();
         await loadContentPerformance();
     })();
 
-    async function contentPlanningFetch(path, options = {}) {
-        if (!contentPlanningApiKey) {
-            const configs = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
-            if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
-            contentPlanningApiKey = configs.items[0].api_key;
+    // Cache chung 1 promise đang chạy (không chỉ giá trị cuối) — tránh 2 lượt gọi đồng thời
+    // cùng bắn trùng PB.collection('bot_configs').getList() rồi bị PocketBase SDK auto-cancel
+    // 1 trong 2 (xem giải thích đầy đủ ở composer.html, nơi bug này thực sự lộ ra qua Promise.all).
+    async function getContentPlanningApiKey() {
+        if (contentPlanningApiKey) return contentPlanningApiKey;
+        if (!contentPlanningApiKeyPromise) {
+            contentPlanningApiKeyPromise = PB.collection('bot_configs')
+                .getList(1, 2, { filter: `tenant = "${window.TENANT}"` })
+                .then(configs => {
+                    if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+                    contentPlanningApiKey = configs.items[0].api_key;
+                    return contentPlanningApiKey;
+                })
+                .catch(error => { contentPlanningApiKeyPromise = null; throw error; });
         }
+        return contentPlanningApiKeyPromise;
+    }
+
+    async function contentPlanningFetch(path, options = {}) {
+        await getContentPlanningApiKey();
         const response = await fetch(`${WORKER_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${contentPlanningApiKey}`, ...(options.headers || {}) } });
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body.error || `Analytics trả về HTTP ${response.status}`);
@@ -243,8 +293,74 @@
     }
 
     async function loadContentPerformanceSites() {
-        const sites = await PB.collection('pages_config').getFullList({ filter: `tenant = "${window.TENANT}"`, sort: 'label' });
+        const sites = await listPagesConfig(window.TENANT);
         document.getElementById('cp-analytics-site').innerHTML = sites.map(site => `<option value="${escHtml(site.id)}">${escHtml(site.label || site.page_id || site.id)}</option>`).join('') || '<option value="">Chưa cấu hình website</option>';
+    }
+
+    async function completeGoogleOAuthCallback() {
+        const params = new URLSearchParams(location.search);
+        const code = params.get('code'); const state = params.get('state'); const error = params.get('error');
+        if (!code && !error) return;
+        try {
+            if (error) throw new Error(`Google từ chối cấp quyền: ${error}`);
+            await contentPlanningFetch('/api/v1/content-planning/analytics/google/complete', { method:'POST', body:JSON.stringify({ code, state }) });
+            showToast('Đã kết nối Google thành công.');
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { history.replaceState({}, document.title, location.pathname); }
+    }
+
+    async function loadGoogleConnection() {
+        const siteId = document.getElementById('cp-analytics-site').value;
+        const statusEl = document.getElementById('cp-google-status');
+        const propertiesEl = document.getElementById('cp-google-properties');
+        const syncBtn = document.getElementById('cp-google-sync');
+        if (!siteId) { statusEl.textContent = 'Chưa chọn website.'; return; }
+        try {
+            const status = await contentPlanningFetch(`/api/v1/content-planning/analytics/google/status?siteId=${encodeURIComponent(siteId)}`);
+            document.getElementById('cp-google-config').classList.toggle('d-none', status.configured);
+            if (!status.configured) { statusEl.textContent = 'Chưa nhập OAuth client riêng cho website này.'; propertiesEl.classList.add('d-none'); syncBtn.classList.add('d-none'); return; }
+            if (!status.connected) { statusEl.textContent = 'Chưa kết nối.'; propertiesEl.classList.add('d-none'); syncBtn.classList.add('d-none'); return; }
+            statusEl.textContent = status.lastSyncedAt ? `Đã kết nối · đồng bộ ${fmtDt(status.lastSyncedAt)}` : 'Đã kết nối · chưa đồng bộ';
+            syncBtn.classList.remove('d-none');
+            const data = await contentPlanningFetch(`/api/v1/content-planning/analytics/google/properties?siteId=${encodeURIComponent(siteId)}`);
+            const ga4 = document.getElementById('cp-ga4-property'); const gsc = document.getElementById('cp-gsc-property');
+            ga4.innerHTML = '<option value="">Không dùng GA4</option>' + data.ga4.map(x => `<option value="${escHtml(x.id)}">${escHtml(x.name)} — ${escHtml(x.account||'')}</option>`).join('');
+            gsc.innerHTML = '<option value="">Không dùng Search Console</option>' + data.searchConsole.map(x => `<option value="${escHtml(x.id)}">${escHtml(x.id)}</option>`).join('');
+            ga4.value = data.selected.ga4Property || ''; gsc.value = data.selected.searchConsoleSite || ''; propertiesEl.classList.remove('d-none');
+        } catch (err) { statusEl.textContent = err.message; propertiesEl.classList.add('d-none'); syncBtn.classList.add('d-none'); }
+    }
+
+    async function startGoogleConnection() {
+        try {
+            const result = await contentPlanningFetch('/api/v1/content-planning/analytics/google/start', { method:'POST', body:JSON.stringify({ siteId:document.getElementById('cp-analytics-site').value }) });
+            location.assign(result.authorizationUrl);
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function configureGoogleClient() {
+        const clientId = document.getElementById('cp-google-client-id').value.trim();
+        const clientSecret = document.getElementById('cp-google-client-secret').value.trim();
+        try {
+            await contentPlanningFetch('/api/v1/content-planning/analytics/google/configure', { method:'POST', body:JSON.stringify({ siteId:document.getElementById('cp-analytics-site').value, clientId, clientSecret }) });
+            document.getElementById('cp-google-client-secret').value = '';
+            showToast('Đã lưu OAuth client riêng cho website.'); await loadGoogleConnection();
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function saveGoogleProperties() {
+        try {
+            await contentPlanningFetch('/api/v1/content-planning/analytics/google/select', { method:'POST', body:JSON.stringify({ siteId:document.getElementById('cp-analytics-site').value, ga4Property:document.getElementById('cp-ga4-property').value, searchConsoleSite:document.getElementById('cp-gsc-property').value }) });
+            showToast('Đã lưu nguồn dữ liệu Google.');
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function syncGoogle() {
+        const end = new Date(); end.setDate(end.getDate() - 1); const start = new Date(end); start.setDate(start.getDate() - 29);
+        const day = value => value.toISOString().slice(0,10);
+        try {
+            const result = await contentPlanningFetch('/api/v1/content-planning/analytics/google/sync', { method:'POST', body:JSON.stringify({ siteId:document.getElementById('cp-analytics-site').value, startDate:day(start), endDate:day(end) }) });
+            showToast(`Đã đồng bộ ${result.fetched} snapshots.`); await Promise.all([loadGoogleConnection(), loadContentPerformance()]);
+        } catch (err) { showToast(err.message, 'error'); }
     }
 
     async function loadContentPerformance() {
@@ -262,6 +378,56 @@
             setEl('cp-conversions', Number(result.totals.conversions || 0).toLocaleString('vi-VN'));
             alert.innerHTML = `<div class="text-secondary fs-6 mb-3">${result.snapshotCount} snapshots · advisory-only, không tự động sửa plan.</div>`;
         } catch (err) { alert.innerHTML = `<div class="alert alert-danger">${escHtml(err.message)}</div>`; }
+        await loadGoogleResearch();
+        await loadFacebookResearch();
+    }
+
+    async function loadGoogleResearch() {
+        const alert = document.getElementById('cp-research-alert');
+        const empty = (id, cols, message) => { document.getElementById(id).innerHTML = `<tr><td colspan="${cols}" class="text-secondary">${escHtml(message)}</td></tr>`; };
+        try {
+            const siteId = document.getElementById('cp-analytics-site').value;
+            const end = new Date(); end.setDate(end.getDate() - 1); const start = new Date(end); start.setDate(start.getDate() - 29);
+            const day = value => value.toISOString().slice(0,10);
+            const result = await contentPlanningFetch(`/api/v1/content-planning/analytics/google/research?siteId=${encodeURIComponent(siteId)}&startDate=${day(start)}&endDate=${day(end)}&limit=50`);
+            const gsc = result.searchConsole; const ga4 = result.ga4; const n = value => Number(value || 0).toLocaleString('vi-VN'); const pct = value => `${(Number(value || 0) * 100).toFixed(1)}%`;
+            alert.innerHTML = `<div class="text-secondary fs-6 mb-2">Dữ liệu trực tiếp 30 ngày · cập nhật ${new Date(result.generatedAt).toLocaleString('vi-VN')}</div>`;
+            const gs = gsc?.summary || {}; const as = ga4?.summary?.metrics || {};
+            document.getElementById('cp-research-summary').innerHTML = [
+                ['Vị trí TB', Number(gs.position || 0).toFixed(1)], ['Users', n(as.totalUsers)], ['New users', n(as.newUsers)],
+                ['Page views', n(as.screenPageViews)], ['Thời gian TB', `${Number(as.averageSessionDuration || 0).toFixed(0)} giây`], ['Events', n(as.eventCount)]
+            ].map(([label,value]) => `<div class="col-6 col-lg-2"><div class="card card-sm"><div class="card-body"><div class="subheader">${label}</div><div class="h3 mb-0">${value}</div></div></div></div>`).join('');
+            const opportunities = (gsc?.queryPageOpportunities || []).filter(row => row.impressions >= 5 && (row.ctr < .05 || (row.position >= 4 && row.position <= 20))).sort((a,b) => b.impressions-a.impressions).slice(0,15);
+            document.getElementById('cp-seo-opportunities').innerHTML = opportunities.map(row => `<tr><td>${escHtml(row.dimensions.query || '—')}</td><td class="text-truncate" style="max-width:180px" title="${escHtml(row.dimensions.page || '')}">${escHtml((row.dimensions.page || '—').replace(/^https?:\/\/[^/]+/,''))}</td><td class="text-end">${n(row.clicks)}</td><td class="text-end">${n(row.impressions)}</td><td class="text-end">${pct(row.ctr)}</td><td class="text-end">${Number(row.position || 0).toFixed(1)}</td></tr>`).join('') || `<tr><td colspan="6" class="text-secondary">Chưa có cơ hội đủ dữ liệu trong kỳ.</td></tr>`;
+            document.getElementById('cp-top-queries').innerHTML = (gsc?.topQueries || []).slice(0,15).map(row => `<tr><td>${escHtml(row.dimensions.query || '—')}</td><td class="text-end">${n(row.clicks)}</td><td class="text-end">${n(row.impressions)}</td><td class="text-end">${pct(row.ctr)}</td><td class="text-end">${Number(row.position || 0).toFixed(1)}</td></tr>`).join('') || `<tr><td colspan="5" class="text-secondary">Search Console chưa có dữ liệu.</td></tr>`;
+            const gaRow = row => `<tr><td class="text-truncate" style="max-width:260px" title="${escHtml(Object.values(row.dimensions || {})[0] || '')}">${escHtml(Object.values(row.dimensions || {})[0] || '—')}</td><td class="text-end">${n(row.metrics.sessions)}</td><td class="text-end">${n(row.metrics.totalUsers)}</td><td class="text-end">${pct(row.metrics.engagementRate)}</td><td class="text-end">${n(row.metrics.keyEvents)}</td></tr>`;
+            document.getElementById('cp-ga4-pages').innerHTML = (ga4?.landingPages || []).slice(0,15).map(gaRow).join('') || `<tr><td colspan="5" class="text-secondary">GA4 chưa có dữ liệu trang đích.</td></tr>`;
+            document.getElementById('cp-ga4-channels').innerHTML = (ga4?.channels || []).slice(0,15).map(gaRow).join('') || `<tr><td colspan="5" class="text-secondary">GA4 chưa có dữ liệu kênh.</td></tr>`;
+        } catch (err) {
+            alert.innerHTML = `<div class="alert alert-warning">Chưa tải được dữ liệu nghiên cứu: ${escHtml(err.message)}</div>`;
+            empty('cp-seo-opportunities', 6, 'Chưa có dữ liệu'); empty('cp-top-queries', 5, 'Chưa có dữ liệu'); empty('cp-ga4-pages', 5, 'Chưa có dữ liệu'); empty('cp-ga4-channels', 5, 'Chưa có dữ liệu');
+        }
+    }
+
+    async function loadFacebookResearch() {
+        const status = document.getElementById('cp-facebook-status'); const summary = document.getElementById('cp-facebook-summary'); const tbody = document.getElementById('cp-facebook-posts');
+        try {
+            const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - 29); const day = value => value.toISOString().slice(0,10);
+            const result = await contentPlanningFetch(`/api/v1/content-planning/analytics/facebook/research?since=${day(start)}&until=${day(end)}&limit=25`);
+            const page = result.pages.find(item => !item.error) || result.pages[0];
+            if (!page) throw new Error('Chưa có fanpage Facebook đang hoạt động.');
+            if (page.error) throw new Error(`${page.label}: ${page.error}. Token cần quyền read_insights và pages_read_engagement.`);
+            const n = value => Number(value || 0).toLocaleString('vi-VN'); const s = page.summary || {};
+            status.textContent = `${page.profile.name || page.label} · dữ liệu trực tiếp 30 ngày`;
+            summary.innerHTML = [
+                ['Followers', page.profile.followers_count], ['Fans', page.profile.fan_count], ['Impressions', s.page_impressions],
+                ['Reach', s.page_impressions_unique], ['Engagements', s.page_post_engagements], ['Page views', s.page_views_total]
+            ].map(([label,value]) => `<div class="col-6 col-lg-2"><div class="card card-sm bg-blue-lt"><div class="card-body"><div class="subheader">${label}</div><div class="h3 mb-0">${n(value)}</div></div></div></div>`).join('');
+            const reactionCount = value => typeof value === 'object' && value ? Object.values(value).reduce((total,item) => total + Number(item || 0), 0) : Number(value || 0);
+            tbody.innerHTML = (page.posts || []).map(post => { const m = post.metrics || {}; return `<tr><td class="text-truncate" style="max-width:360px"><a href="${escHtml(post.permalinkUrl || '#')}" target="_blank" rel="noopener">${escHtml(post.message || '(Bài đăng không có nội dung chữ)')}</a></td><td>${post.createdTime ? new Date(post.createdTime).toLocaleDateString('vi-VN') : '—'}</td><td class="text-end">${n(m.post_impressions_unique)}</td><td class="text-end">${n(m.post_impressions)}</td><td class="text-end">${n(m.post_engaged_users)}</td><td class="text-end">${n(m.post_clicks)}</td><td class="text-end">${n(reactionCount(m.post_reactions_by_type_total))}</td></tr>`; }).join('') || `<tr><td colspan="7" class="text-secondary">Chưa có bài đăng trong 30 ngày.</td></tr>`;
+        } catch (err) {
+            status.textContent = err.message; summary.innerHTML = ''; tbody.innerHTML = `<tr><td colspan="7" class="text-warning">${escHtml(err.message)}</td></tr>`;
+        }
     }
 
     async function importContentPerformance() {
@@ -275,6 +441,11 @@
     document.getElementById('cp-analytics-refresh').addEventListener('click', loadContentPerformance);
     document.getElementById('cp-analytics-source').addEventListener('change', loadContentPerformance);
     document.getElementById('cp-analytics-import').addEventListener('click', importContentPerformance);
+    document.getElementById('cp-analytics-site').addEventListener('change', async () => { await loadGoogleConnection(); await loadContentPerformance(); });
+    document.getElementById('cp-google-connect').addEventListener('click', startGoogleConnection);
+    document.getElementById('cp-google-config-save').addEventListener('click', configureGoogleClient);
+    document.getElementById('cp-google-save').addEventListener('click', saveGoogleProperties);
+    document.getElementById('cp-google-sync').addEventListener('click', syncGoogle);
 
     async function loadData() {
         try {
