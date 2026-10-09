@@ -495,6 +495,10 @@ var SYSTEM_CONFIG_OVERRIDABLE_KEYS = {
   pixverse_api_key: "PIXVERSE_API_KEY",
   pixverse_base_url: "PIXVERSE_BASE_URL",
   pixverse_video_model: "PIXVERSE_VIDEO_MODEL",
+  // Cloudinary dùng chung cho mọi tenant (cấu hình 1 lần ở system-config.html) — tenant chỉ bật/tắt logo, chữ.
+  cloudinary_cloud_name: "CLOUDINARY_CLOUD_NAME",
+  cloudinary_api_key: "CLOUDINARY_API_KEY",
+  cloudinary_api_secret: "CLOUDINARY_API_SECRET",
   admin_secret: "ADMIN_SECRET",
   dashboard_url: "DASHBOARD_URL",
   // Gọi thoại AI (STT/TTS) — chọn provider qua system-config.html, không cần sửa code/deploy lại.
@@ -2986,9 +2990,10 @@ async function markTargetError(env, pbToken, targetId, message) {
 }
 __name(markTargetError, "markTargetError");
 
-// ================= [CLOUDINARY: chèn logo/thương hiệu lên ảnh trước khi đăng] =================
-// Mỗi tenant dùng tài khoản Cloudinary riêng (nhập ở config.html). Nếu tenant chưa cấu hình
-// đủ 4 thứ (cloud_name/api_key/api_secret/brand_logo_url) thì bỏ qua, dùng ảnh gốc — không chặn đăng bài.
+// ================= [CLOUDINARY: chèn logo/chữ lên ảnh trước khi đăng] =================
+// Tài khoản Cloudinary là của hệ thống (system-config.html, cấu hình 1 lần). Mỗi tenant chỉ chọn
+// bật/tắt logo, chữ, vị trí, cỡ. Nếu hệ thống chưa cấu hình Cloudinary hoặc tenant không bật gì
+// thì bỏ qua, dùng ảnh gốc — không chặn đăng bài.
 async function cloudinarySignature(params, apiSecret) {
   const sorted = Object.keys(params).sort().map((k) => `${k}=${params[k]}`).join("&");
   const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(sorted + apiSecret));
@@ -2996,16 +3001,16 @@ async function cloudinarySignature(params, apiSecret) {
 }
 __name(cloudinarySignature, "cloudinarySignature");
 
-async function cloudinaryUpload(cfg, fileUrl, extraParams = {}) {
+async function cloudinaryUpload(cloud, fileUrl, extraParams = {}) {
   const timestamp = Math.floor(Date.now() / 1e3);
-  const signature = await cloudinarySignature({ timestamp, ...extraParams }, cfg.cloudinary_api_secret);
+  const signature = await cloudinarySignature({ timestamp, ...extraParams }, cloud.apiSecret);
   const form = new FormData();
   form.append("file", fileUrl);
-  form.append("api_key", cfg.cloudinary_api_key);
+  form.append("api_key", cloud.apiKey);
   form.append("timestamp", String(timestamp));
   form.append("signature", signature);
   Object.entries(extraParams).forEach(([k, v]) => form.append(k, String(v)));
-  const res = await fetchWithTimeout(`https://api.cloudinary.com/v1_1/${cfg.cloudinary_cloud_name}/image/upload`, {
+  const res = await fetchWithTimeout(`https://api.cloudinary.com/v1_1/${cloud.cloudName}/image/upload`, {
     method: "POST",
     body: form,
     timeout: 3e4
@@ -3017,35 +3022,96 @@ async function cloudinaryUpload(cfg, fileUrl, extraParams = {}) {
 __name(cloudinaryUpload, "cloudinaryUpload");
 
 // Upload logo lên Cloudinary 1 lần rồi cache public_id vào bot_configs — chỉ upload lại nếu
-// tenant đổi link logo (brand_logo_url khác brand_logo_cached_url).
-async function ensureLogoUploaded(env, pbToken, cfg) {
-  if (cfg.brand_logo_public_id && cfg.brand_logo_cached_url === cfg.brand_logo_url) {
+// tenant đổi link logo hoặc hệ thống đổi tài khoản Cloudinary (key cache gồm cả cloud name).
+async function ensureLogoUploaded(env, pbToken, cloud, cfg) {
+  const cacheKey = `${cloud.cloudName}|${cfg.brand_logo_url}`;
+  if (cfg.brand_logo_public_id && cfg.brand_logo_cached_url === cacheKey) {
     return cfg.brand_logo_public_id;
   }
-  const data = await cloudinaryUpload(cfg, cfg.brand_logo_url, {});
+  const data = await cloudinaryUpload(cloud, cfg.brand_logo_url, {});
   await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records/${cfg.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: pbToken },
-    body: JSON.stringify({ brand_logo_public_id: data.public_id, brand_logo_cached_url: cfg.brand_logo_url })
+    body: JSON.stringify({ brand_logo_public_id: data.public_id, brand_logo_cached_url: cacheKey })
   });
   cfg.brand_logo_public_id = data.public_id;
-  cfg.brand_logo_cached_url = cfg.brand_logo_url;
+  cfg.brand_logo_cached_url = cacheKey;
   return data.public_id;
 }
 __name(ensureLogoUploaded, "ensureLogoUploaded");
 
-async function applyBranding(env, pbToken, cfg, imageUrl) {
-  if (!imageUrl) return imageUrl;
-  if (!cfg?.cloudinary_cloud_name || !cfg?.cloudinary_api_key || !cfg?.cloudinary_api_secret || !cfg?.brand_logo_url) {
-    return imageUrl;
+var BRAND_GRAVITY = {
+  bottom_right: "south_east", bottom_left: "south_west", top_right: "north_east", top_left: "north_west",
+  bottom_center: "south", top_center: "north", center: "center"
+};
+var BRAND_LOGO_WIDTH = { small: 100, medium: 150, large: 220 };
+var BRAND_TEXT_SIZE = { small: 28, medium: 40, large: 56 };
+
+// Cloudinary yêu cầu text trong URL transformation được mã hoá 2 lớp cho dấu , và /.
+function cloudinaryTextEscape(text) {
+  return encodeURIComponent(text).replace(/%2C/gi, "%252C").replace(/%2F/gi, "%252F");
+}
+__name(cloudinaryTextEscape, "cloudinaryTextEscape");
+
+function brandTextColor(value) {
+  const c = String(value || "white").toLowerCase();
+  return c === "black" ? "black" : "white";
+}
+__name(brandTextColor, "brandTextColor");
+
+var BRAND_OPACITY = { "100": 100, "80": 80, "60": 60, "40": 40 };
+var BRAND_BORDER = { none: 0, thin: 2, thick: 5 };
+var BRAND_TEXT_BG = { none: "", dark: "000000", light: "ffffff" };
+
+function brandOpacity(value) {
+  return BRAND_OPACITY[String(value)] || 100;
+}
+__name(brandOpacity, "brandOpacity");
+
+// Ghép chuỗi transformation từ lựa chọn của tenant. Trả "" nếu tenant không bật gì.
+// Viền: logo viền trắng; chữ viền màu ngược với màu chữ (trắng <-> đen) để luôn nhìn thấy.
+function buildBrandTransformation(cfg, logoPublicId) {
+  const parts = [];
+  const borderPx = BRAND_BORDER[cfg.brand_border] || 0;
+  if (logoPublicId) {
+    const g = BRAND_GRAVITY[cfg.brand_logo_position] || "south_east";
+    const w = BRAND_LOGO_WIDTH[cfg.brand_logo_size] || BRAND_LOGO_WIDTH.medium;
+    const o = brandOpacity(cfg.brand_logo_opacity);
+    const bo = borderPx ? `,bo_${borderPx}px_solid_white` : "";
+    parts.push(`l_${logoPublicId},g_${g},x_20,y_20,w_${w}${bo}${o < 100 ? `,o_${o}` : ""},fl_layer_apply`);
   }
+  const text = String(cfg.brand_text || "").trim().slice(0, 80);
+  if (cfg.brand_text_enabled && text) {
+    const g = BRAND_GRAVITY[cfg.brand_text_position] || "south_west";
+    const size = BRAND_TEXT_SIZE[cfg.brand_text_size] || BRAND_TEXT_SIZE.medium;
+    const color = brandTextColor(cfg.brand_text_color);
+    const o = brandOpacity(cfg.brand_text_opacity);
+    const bgHex = BRAND_TEXT_BG[cfg.brand_text_bg] || "";
+    // Lớp nền mờ: nền + viền trong suốt cùng màu nền để tạo đệm quanh chữ.
+    const bg = bgHex ? `,b_rgb:${bgHex}99,bo_8px_solid_rgb:${bgHex}99` : "";
+    const outline = borderPx && !bgHex ? `,bo_${borderPx}px_solid_${color === "white" ? "black" : "white"}` : "";
+    parts.push(`l_text:Arial_${size}_bold:${cloudinaryTextEscape(text)},co_${color}${bg}${outline}${o < 100 ? `,o_${o}` : ""},g_${g},x_20,y_20,fl_layer_apply`);
+  }
+  return parts.join("/");
+}
+__name(buildBrandTransformation, "buildBrandTransformation");
+
+async function applyBranding(env, pbToken, cfg, imageUrl) {
+  if (!imageUrl || !cfg) return imageUrl;
+  const useLogo = !!(cfg.brand_logo_enabled && cfg.brand_logo_url);
+  const useText = !!(cfg.brand_text_enabled && String(cfg.brand_text || "").trim());
+  if (!useLogo && !useText) return imageUrl;
   try {
-    const logoPublicId = await ensureLogoUploaded(env, pbToken, cfg);
-    const transformation = `l_${logoPublicId},g_south_east,x_20,y_20,w_150,fl_layer_apply`;
-    const data = await cloudinaryUpload(cfg, imageUrl, { transformation });
+    const sys = await getSystemConfig(env);
+    const cloud = { cloudName: sys.CLOUDINARY_CLOUD_NAME, apiKey: sys.CLOUDINARY_API_KEY, apiSecret: sys.CLOUDINARY_API_SECRET };
+    if (!cloud.cloudName || !cloud.apiKey || !cloud.apiSecret) return imageUrl;
+    const logoPublicId = useLogo ? await ensureLogoUploaded(env, pbToken, cloud, cfg) : "";
+    const transformation = buildBrandTransformation(cfg, logoPublicId);
+    if (!transformation) return imageUrl;
+    const data = await cloudinaryUpload(cloud, imageUrl, { transformation });
     return data.secure_url || imageUrl;
   } catch (err) {
-    console.error("[Branding] Lỗi chèn logo Cloudinary:", err);
+    console.error("[Branding] Lỗi chèn logo/chữ Cloudinary:", err);
     return imageUrl;
   }
 }
@@ -5353,13 +5419,14 @@ var CONFIG_READABLE_FIELDS = [
   "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
   "response_language",
   "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
-  "cloudinary_cloud_name", "brand_logo_url"
+  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size", "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color", "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border"
 ];
 var CONFIG_WRITABLE_FIELDS = [
   "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
   "response_language",
   "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
-  "cloudinary_cloud_name", "cloudinary_api_key", "cloudinary_api_secret", "brand_logo_url", "pixverse_api_key"
+  "pixverse_api_key",
+  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size", "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color"
 ];
 // Field bí mật trong bot_configs — KHÔNG bao giờ đưa giá trị thật vào snapshot cho model,
 // chỉ đưa cờ "<field>_set" (true/false) để model biết đã có hay chưa mà tư vấn.
@@ -5376,11 +5443,27 @@ var CONFIG_SNAPSHOT_SKIP_FIELDS = [
 function validateConfigPatch(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "Payload config kh\xF4ng h\u1EE3p l\u1EC7" };
   const patch = {};
-  const stringFields = CONFIG_WRITABLE_FIELDS.filter((field) => !["temperature", "max_tokens", "streaming"].includes(field));
+  const boolFields = ["streaming", "brand_logo_enabled", "brand_text_enabled"];
+  const stringFields = CONFIG_WRITABLE_FIELDS.filter((field) => !["temperature", "max_tokens", ...boolFields].includes(field));
   for (const field of stringFields) {
     if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
     if (typeof body[field] !== "string") return { error: `${field} ph\u1EA3i l\xE0 chu\u1ED7i` };
     patch[field] = body[field].trim();
+  }
+  const brandEnums = {
+    brand_logo_position: Object.keys(BRAND_GRAVITY), brand_text_position: Object.keys(BRAND_GRAVITY),
+    brand_logo_size: Object.keys(BRAND_LOGO_WIDTH), brand_text_size: Object.keys(BRAND_TEXT_SIZE),
+    brand_text_color: ["white", "black"],
+    brand_logo_opacity: Object.keys(BRAND_OPACITY), brand_text_opacity: Object.keys(BRAND_OPACITY),
+    brand_text_bg: Object.keys(BRAND_TEXT_BG), brand_border: Object.keys(BRAND_BORDER)
+  };
+  for (const [field, allowed] of Object.entries(brandEnums)) {
+    if (patch[field] && !allowed.includes(patch[field])) return { error: `${field} ph\u1EA3i l\xE0 m\u1ED9t trong: ${allowed.join(", ")}` };
+  }
+  for (const field of ["brand_logo_enabled", "brand_text_enabled"]) {
+    if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+    if (typeof body[field] !== "boolean") return { error: `${field} ph\u1EA3i l\xE0 boolean` };
+    patch[field] = body[field];
   }
   if (Object.prototype.hasOwnProperty.call(body, "temperature")) {
     if (typeof body.temperature !== "number" || !Number.isFinite(body.temperature) || body.temperature < 0 || body.temperature > 2) {
@@ -5438,7 +5521,7 @@ var CONFIG_CHAT_TOOLS = [
     type: "function",
     function: {
       name: "update_bot_config",
-      description: "Cập nhật cấu h\xECnh bot: t\xEAn bot, m\xE0u, webhook, lời ch\xE0o, system prompt, model, temperature, max_tokens, streaming, Telegram chat id của chủ, Cloudinary. Chỉ truyền field n\xE0o khách thực sự muốn đổi.",
+      description: "Cập nhật cấu h\xECnh bot: t\xEAn bot, m\xE0u, webhook, lời ch\xE0o, system prompt, model, temperature, max_tokens, streaming, Telegram chat id của chủ, chèn logo/chữ lên ảnh. Chỉ truyền field n\xE0o khách thực sự muốn đổi.",
       parameters: {
         type: "object",
         properties: {
@@ -5453,11 +5536,20 @@ var CONFIG_CHAT_TOOLS = [
           max_tokens: { type: "number" },
           streaming: { type: "boolean" },
           owner_telegram_chat_id: { type: "string", description: "Chat ID Telegram của chủ để nhận cảnh b\xE1o/handoff" },
-          cloudinary_cloud_name: { type: "string" },
-          cloudinary_api_key: { type: "string" },
-          cloudinary_api_secret: { type: "string" },
           pixverse_api_key: { type: "string", description: "API key PixVerse của chính khách, dùng để sinh video từ video_prompt" },
-          brand_logo_url: { type: "string" }
+          brand_logo_url: { type: "string" },
+          brand_logo_enabled: { type: "boolean", description: "Bật/tắt chèn logo lên ảnh trước khi đăng" },
+          brand_logo_position: { type: "string", enum: Object.keys(BRAND_GRAVITY) },
+          brand_logo_size: { type: "string", enum: ["small", "medium", "large"] },
+          brand_text_enabled: { type: "boolean", description: "Bật/tắt chèn chữ lên ảnh trước khi đăng" },
+          brand_text: { type: "string", description: "Nội dung chữ chèn lên ảnh, vd tên thương hiệu/website/hotline" },
+          brand_text_position: { type: "string", enum: Object.keys(BRAND_GRAVITY) },
+          brand_text_size: { type: "string", enum: ["small", "medium", "large"] },
+          brand_text_color: { type: "string", enum: ["white", "black"] },
+          brand_logo_opacity: { type: "string", enum: ["100", "80", "60", "40"], description: "Độ đậm logo (%)" },
+          brand_text_opacity: { type: "string", enum: ["100", "80", "60", "40"], description: "Độ đậm chữ (%)" },
+          brand_text_bg: { type: "string", enum: ["none", "dark", "light"], description: "Lớp nền mờ phía sau chữ" },
+          brand_border: { type: "string", enum: ["none", "thin", "thick"], description: "Viền quanh logo/chữ" }
         },
         required: []
       }
@@ -7431,7 +7523,10 @@ async function handleSystemConfigAddVoiceFields(env, cors) {
     "gemini_model",
     "pixverse_api_key",
     "pixverse_base_url",
-    "pixverse_video_model"
+    "pixverse_video_model",
+    "cloudinary_cloud_name",
+    "cloudinary_api_key",
+    "cloudinary_api_secret"
   ];
   const missingNames = wantedNames.filter((name) => !fields.some((f) => f.name === name));
   if (missingNames.length === 0) {

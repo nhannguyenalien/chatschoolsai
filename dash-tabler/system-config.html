@@ -108,6 +108,48 @@
                 <small class="form-hint text-warning"><i class="ti ti-alert-triangle"></i> Cần bạn tự điền — lấy lại từ @BotFather trên Telegram nếu không nhớ token cũ.</small>
               </div>
             </div>
+
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-photo-edit me-2"></i>Cloudinary (chèn logo/chữ lên ảnh)</h3></div>
+              <div class="card-body">
+                <div class="text-secondary mb-3">Cấu hình 1 lần cho cả hệ thống. Từng workspace chỉ cần bật/tắt logo, chữ và chọn vị trí trong trang Cấu hình. Lấy ở <code>cloudinary.com/console</code> → Dashboard.</div>
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <label class="form-label">CLOUDINARY_CLOUD_NAME</label>
+                    <input type="text" id="cfg-cloudinary-name" class="form-control font-monospace" placeholder="dxyz1234">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">CLOUDINARY_API_KEY</label>
+                    <input type="text" id="cfg-cloudinary-key" class="form-control font-monospace" placeholder="123456789012345">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">CLOUDINARY_API_SECRET</label>
+                    <input type="password" id="cfg-cloudinary-secret" class="form-control font-monospace" autocomplete="new-password">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-brand-google me-2"></i>Gemini (tạo nội dung)</h3></div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">GEMINI_API_KEY</label>
+                  <input type="password" id="cfg-gemini-key" class="form-control font-monospace" placeholder="AIza..." autocomplete="new-password">
+                  <small class="form-hint">Dùng để viết nội dung và dịch trong Content Planning. Khi để trống, hệ thống dùng OpenAI như trước.</small>
+                </div>
+                <div class="row g-2">
+                  <div class="col-12 mb-2">
+                    <label class="form-label">GEMINI_BASE_URL</label>
+                    <input type="url" id="cfg-gemini-base" class="form-control font-monospace" placeholder="https://generativelanguage.googleapis.com/v1beta/openai">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">GEMINI_MODEL</label>
+                    <input type="text" id="cfg-gemini-model" class="form-control font-monospace" placeholder="gemini-2.5-flash">
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="col-lg-6">
@@ -131,6 +173,27 @@
                   <div class="col-6">
                     <label class="form-label">Embedding model</label>
                     <input type="text" id="cfg-openai-embed-model" class="form-control font-monospace" placeholder="text-embedding-3-small">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-video me-2"></i>PixVerse (tạo video)</h3></div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">PIXVERSE_API_KEY</label>
+                  <input type="password" id="cfg-pixverse-key" class="form-control font-monospace" placeholder="PixVerse API key" autocomplete="new-password">
+                  <small class="form-hint">Khoá Platform API cho media trong bài viết. PixVerse text-to-video dùng khoá này; ảnh prompt tiếp tục dùng OpenAI vì Platform API hiện chỉ hỗ trợ ảnh theo template.</small>
+                </div>
+                <div class="row g-2">
+                  <div class="col-12 mb-2">
+                    <label class="form-label">PIXVERSE_BASE_URL</label>
+                    <input type="url" id="cfg-pixverse-base" class="form-control font-monospace" placeholder="https://app-api.pixverse.ai/openapi/v2">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">PIXVERSE_VIDEO_MODEL</label>
+                    <input type="text" id="cfg-pixverse-video-model" class="form-control font-monospace" placeholder="v6">
                   </div>
                 </div>
               </div>
@@ -208,6 +271,9 @@
    SCHEMA CẦN TẠO MỚI TRONG POCKETBASE (collection "system_config"):
      anythingllm_url, anythingllm_api_key, telegram_bot_token, openai_key,
      openai_base_url, openai_chat_model, openai_embedding_model,
+     gemini_api_key, gemini_base_url, gemini_model,
+     pixverse_api_key, pixverse_base_url, pixverse_video_model,
+     cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret,
      admin_secret, dashboard_url (đều là text)
    Rule: listRule/viewRule/createRule/updateRule/deleteRule = null (CHỈ superuser PocketBase
    mới đọc/ghi được — không có tenant nào được phép động vào, kể cả khi đã đăng nhập).
@@ -293,10 +359,19 @@ async function loadConfig() {
         setVal('cfg-anythingllm-url', r.anythingllm_url);
         setVal('cfg-anythingllm-key', r.anythingllm_api_key);
         setVal('cfg-telegram-token', r.telegram_bot_token);
+        setVal('cfg-cloudinary-name', r.cloudinary_cloud_name);
+        setVal('cfg-cloudinary-key', r.cloudinary_api_key);
+        setVal('cfg-cloudinary-secret', r.cloudinary_api_secret);
         setVal('cfg-openai-key', r.openai_key);
         setVal('cfg-openai-base', r.openai_base_url);
         setVal('cfg-openai-chat-model', r.openai_chat_model);
         setVal('cfg-openai-embed-model', r.openai_embedding_model);
+        setVal('cfg-gemini-key', r.gemini_api_key);
+        setVal('cfg-gemini-base', r.gemini_base_url);
+        setVal('cfg-gemini-model', r.gemini_model);
+        setVal('cfg-pixverse-key', r.pixverse_api_key);
+        setVal('cfg-pixverse-base', r.pixverse_base_url);
+        setVal('cfg-pixverse-video-model', r.pixverse_video_model);
         setVal('cfg-admin-secret', r.admin_secret);
         setVal('cfg-dashboard-url', r.dashboard_url);
         setVal('cfg-stt-provider', r.stt_provider);
@@ -312,6 +387,10 @@ async function loadConfig() {
         setVal('cfg-openai-base', 'https://v98store.com/v1');
         setVal('cfg-openai-chat-model', 'gpt-4o-mini');
         setVal('cfg-openai-embed-model', 'text-embedding-3-small');
+        setVal('cfg-gemini-base', 'https://generativelanguage.googleapis.com/v1beta/openai');
+        setVal('cfg-gemini-model', 'gemini-2.5-flash');
+        setVal('cfg-pixverse-base', 'https://app-api.pixverse.ai/openapi/v2');
+        setVal('cfg-pixverse-video-model', 'v6');
         setVal('cfg-admin-secret', 'baa8bb99ccfb0540d51bf6fdc83cc75f89260af9a42d7184');
         setVal('cfg-dashboard-url', '');
     }
@@ -331,10 +410,19 @@ async function saveConfig() {
         anythingllm_url: document.getElementById('cfg-anythingllm-url').value.trim(),
         anythingllm_api_key: document.getElementById('cfg-anythingllm-key').value.trim(),
         telegram_bot_token: document.getElementById('cfg-telegram-token').value.trim(),
+        cloudinary_cloud_name: document.getElementById('cfg-cloudinary-name').value.trim(),
+        cloudinary_api_key: document.getElementById('cfg-cloudinary-key').value.trim(),
+        cloudinary_api_secret: document.getElementById('cfg-cloudinary-secret').value.trim(),
         openai_key: document.getElementById('cfg-openai-key').value.trim(),
         openai_base_url: document.getElementById('cfg-openai-base').value.trim(),
         openai_chat_model: document.getElementById('cfg-openai-chat-model').value.trim(),
         openai_embedding_model: document.getElementById('cfg-openai-embed-model').value.trim(),
+        gemini_api_key: document.getElementById('cfg-gemini-key').value.trim(),
+        gemini_base_url: document.getElementById('cfg-gemini-base').value.trim(),
+        gemini_model: document.getElementById('cfg-gemini-model').value.trim(),
+        pixverse_api_key: document.getElementById('cfg-pixverse-key').value.trim(),
+        pixverse_base_url: document.getElementById('cfg-pixverse-base').value.trim(),
+        pixverse_video_model: document.getElementById('cfg-pixverse-video-model').value.trim(),
         admin_secret: document.getElementById('cfg-admin-secret').value.trim(),
         dashboard_url: document.getElementById('cfg-dashboard-url').value.trim(),
         stt_provider: document.getElementById('cfg-stt-provider').value,

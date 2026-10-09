@@ -161,31 +161,39 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0">
                                         <h3 class="card-title d-flex align-items-center gap-2">
-                                            <i class="ti ti-photo-edit text-primary fs-2"></i> Thương hiệu &amp; Cloudinary
+                                            <i class="ti ti-photo-edit text-primary fs-2"></i> Chèn logo &amp; chữ lên ảnh
                                         </h3>
                                     </div>
                                     <div class="card-body pt-2">
-                                        <div class="text-secondary fs-5 mb-3">Dùng để tự động chèn logo/thương hiệu lên ảnh trước khi đăng lên mạng xã hội hoặc website. Cần tài khoản Cloudinary của riêng bạn (có free tier) — lấy Cloud Name/API Key/API Secret tại <code>cloudinary.com/console</code> → Dashboard.</div>
-                                        <div class="row g-3 mb-3">
-                                            <div class="col-md-4">
-                                                <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Cloud Name</label>
-                                                <input type="text" class="form-control" id="cloudinaryCloudName" placeholder="VD: dxyz1234">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label text-uppercase tracking-wide text-secondary fs-5">API Key</label>
-                                                <input type="text" class="form-control font-monospace" id="cloudinaryApiKey" placeholder="123456789012345">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label text-uppercase tracking-wide text-secondary fs-5">API Secret</label>
-                                                <input type="password" class="form-control font-monospace" id="cloudinaryApiSecret" placeholder="••••••••••••••">
+                                        <div class="text-secondary fs-5 mb-3">Tự động chèn logo và/hoặc dòng chữ (tên thương hiệu, website, hotline...) lên ảnh trước khi đăng lên mạng xã hội hoặc website. Ảnh gốc không bị thay đổi.</div>
+                                        <label class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="brandLogoEnabled" onchange="toggleBrandOptions()">
+                                            <span class="form-check-label fw-medium">Chèn logo</span>
+                                        </label>
+                                        <div id="brandLogoOptions" class="mb-4 ps-4">
+                                            <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Link ảnh logo</label>
+                                            <input type="url" class="form-control mb-1" id="brandLogoUrl" placeholder="https://... (PNG nền trong suốt cho đẹp)" oninput="previewBrandLogo()">
+                                            <img id="brandLogoPreview" src="" alt="" class="d-none rounded border bg-light p-2 mb-2" style="max-height:60px;max-width:160px;object-fit:contain">
+                                            <div class="row g-3 mt-0">
+                                                <div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Vị trí</label><select class="form-select" id="brandLogoPosition"><option value="bottom_right">Góc dưới phải</option><option value="bottom_left">Góc dưới trái</option><option value="top_right">Góc trên phải</option><option value="top_left">Góc trên trái</option><option value="bottom_center">Giữa phía dưới</option><option value="top_center">Giữa phía trên</option><option value="center">Chính giữa</option></select></div>
+                                                <div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Kích thước</label><select class="form-select" id="brandLogoSize"><option value="small">Nhỏ</option><option value="medium">Vừa</option><option value="large">Lớn</option></select></div><div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Độ đậm</label><select class="form-select" id="brandLogoOpacity"><option value="100">100%</option><option value="80">80%</option><option value="60">60%</option><option value="40">40%</option></select></div>
                                             </div>
                                         </div>
-                                        <div class="mb-2">
-                                            <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Link ảnh logo thương hiệu</label>
-                                            <input type="url" class="form-control" id="brandLogoUrl" placeholder="https://... (ảnh nền trong suốt PNG cho đẹp)" oninput="previewBrandLogo()">
-                                            <small class="form-hint mt-1">Logo sẽ tự động được ghim ở góc dưới bên phải mỗi ảnh trước khi đăng. Đổi link này thì lần đăng tiếp theo sẽ tự upload lại logo mới.</small>
+                                        <label class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="brandTextEnabled" onchange="toggleBrandOptions()">
+                                            <span class="form-check-label fw-medium">Chèn chữ</span>
+                                        </label>
+                                        <div id="brandTextOptions" class="ps-4">
+                                            <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Nội dung chữ</label>
+                                            <input type="text" class="form-control mb-2" id="brandText" maxlength="80" placeholder="VD: www.tenban.com · Hotline 0900 000 000">
+                                            <div class="row g-3">
+                                                <div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Vị trí</label><select class="form-select" id="brandTextPosition"><option value="bottom_right">Góc dưới phải</option><option value="bottom_left">Góc dưới trái</option><option value="top_right">Góc trên phải</option><option value="top_left">Góc trên trái</option><option value="bottom_center">Giữa phía dưới</option><option value="top_center">Giữa phía trên</option><option value="center">Chính giữa</option></select></div>
+                                                <div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Cỡ chữ</label><select class="form-select" id="brandTextSize"><option value="small">Nhỏ</option><option value="medium">Vừa</option><option value="large">Lớn</option></select></div>
+                                                <div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Màu chữ</label><select class="form-select" id="brandTextColor"><option value="white">Trắng</option><option value="black">Đen</option></select></div></div><div class="row g-3 mt-0"><div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Độ đậm</label><select class="form-select" id="brandTextOpacity"><option value="100">100%</option><option value="80">80%</option><option value="60">60%</option><option value="40">40%</option></select></div><div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Nền mờ sau chữ</label><select class="form-select" id="brandTextBg"><option value="none">Không</option><option value="dark">Nền tối</option><option value="light">Nền sáng</option></select></div>
+                                            </div>
                                         </div>
-                                        <img id="brandLogoPreview" src="" alt="" class="d-none rounded border bg-light p-2" style="max-height:60px;max-width:160px;object-fit:contain">
+                                        <div class="row g-3 mt-2"><div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Viền (logo &amp; chữ)</label><select class="form-select" id="brandBorder"><option value="none">Không viền</option><option value="thin">Viền mỏng</option><option value="thick">Viền dày</option></select></div></div>
+                                        <small class="form-hint mt-3 d-block">Nếu chèn cả logo và chữ, nên chọn hai vị trí khác nhau để không đè lên nhau.</small>
                                     </div>
                                 </div>
 
@@ -457,10 +465,13 @@
     /* =========================================================
        SCHEMA MỚI CẦN THÊM VÀO COLLECTION "bot_configs" (PocketBase admin):
        - owner_telegram_chat_id (text) — nơi worker gửi cảnh báo khi AI trả lời không chắc chắn.
-       - cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret (text) — tài khoản Cloudinary
+       - (Cloudinary đã chuyển lên system_config — cấu hình 1 lần ở system-config.html)
          riêng của tenant, dùng để chèn logo lên ảnh trước khi đăng.
        - pixverse_api_key (text) — API key PixVerse riêng của tenant (sinh video từ video_prompt).
        - brand_logo_url (text) — link ảnh logo do tenant nhập.
+       - brand_logo_enabled, brand_text_enabled (bool); brand_logo_position, brand_logo_size, brand_text,
+         brand_text_position, brand_text_size, brand_text_color, brand_logo_opacity, brand_text_opacity,
+         brand_text_bg, brand_border (text) — tuỳ chọn chèn logo/chữ lên ảnh.
        - brand_logo_public_id, brand_logo_cached_url (text) — cache nội bộ do worker tự ghi, KHÔNG hiển thị
          trên UI (worker dùng để biết đã upload logo lên Cloudinary chưa, tránh upload lại mỗi lần đăng bài).
        - api_key (text) — API key riêng của tenant để hệ thống ngoài gọi /api/v1/... (xem docs/API.md).
@@ -537,10 +548,8 @@
             document.getElementById("botColor").value    = r.color       || "#007f9d";
             document.getElementById("greetingMsg").value = r.greeting    || "";
             document.getElementById("ownerTelegramChatId").value = r.owner_telegram_chat_id || "";
-            document.getElementById("cloudinaryCloudName").value = r.cloudinary_cloud_name || "";
-            document.getElementById("cloudinaryApiKey").value = r.cloudinary_api_key || "";
-            document.getElementById("cloudinaryApiSecret").value = r.cloudinary_api_secret || "";
             document.getElementById("brandLogoUrl").value = r.brand_logo_url || "";
+            fillBrandOptions(r);
             document.getElementById("pixverseApiKey").value = r.pixverse_api_key || "";
             previewBrandLogo();
             document.getElementById("apiKeyDisplay").value = r.api_key || "";
@@ -590,6 +599,25 @@
         document.getElementById("preview-greeting").style.background = color;
     }
 
+    function fillBrandOptions(r) {
+        document.getElementById("brandLogoEnabled").checked = !!r.brand_logo_enabled;
+        document.getElementById("brandLogoPosition").value = r.brand_logo_position || "bottom_right";
+        document.getElementById("brandLogoSize").value = r.brand_logo_size || "medium";
+        document.getElementById("brandTextEnabled").checked = !!r.brand_text_enabled;
+        document.getElementById("brandText").value = r.brand_text || "";
+        document.getElementById("brandTextPosition").value = r.brand_text_position || "bottom_left";
+        document.getElementById("brandTextSize").value = r.brand_text_size || "medium";
+        document.getElementById("brandTextColor").value = r.brand_text_color || "white";
+        document.getElementById("brandLogoOpacity").value = r.brand_logo_opacity || "100";
+        document.getElementById("brandTextOpacity").value = r.brand_text_opacity || "100";
+        document.getElementById("brandTextBg").value = r.brand_text_bg || "none";
+        document.getElementById("brandBorder").value = r.brand_border || "none";
+        toggleBrandOptions();
+    }
+    function toggleBrandOptions() {
+        document.getElementById("brandLogoOptions").classList.toggle("d-none", !document.getElementById("brandLogoEnabled").checked);
+        document.getElementById("brandTextOptions").classList.toggle("d-none", !document.getElementById("brandTextEnabled").checked);
+    }
     function previewBrandLogo() {
         const url = document.getElementById("brandLogoUrl").value.trim();
         const img = document.getElementById("brandLogoPreview");
@@ -1013,10 +1041,19 @@
             webhook:       DEFAULT_WEBHOOK_URL,
             greeting:      document.getElementById("greetingMsg").value.trim(),
             owner_telegram_chat_id: document.getElementById("ownerTelegramChatId").value.trim(),
-            cloudinary_cloud_name: document.getElementById("cloudinaryCloudName").value.trim(),
-            cloudinary_api_key: document.getElementById("cloudinaryApiKey").value.trim(),
-            cloudinary_api_secret: document.getElementById("cloudinaryApiSecret").value.trim(),
             brand_logo_url: document.getElementById("brandLogoUrl").value.trim(),
+            brand_logo_enabled: document.getElementById("brandLogoEnabled").checked,
+            brand_logo_position: document.getElementById("brandLogoPosition").value,
+            brand_logo_size: document.getElementById("brandLogoSize").value,
+            brand_text_enabled: document.getElementById("brandTextEnabled").checked,
+            brand_text: document.getElementById("brandText").value.trim(),
+            brand_text_position: document.getElementById("brandTextPosition").value,
+            brand_text_size: document.getElementById("brandTextSize").value,
+            brand_text_color: document.getElementById("brandTextColor").value,
+            brand_logo_opacity: document.getElementById("brandLogoOpacity").value,
+            brand_text_opacity: document.getElementById("brandTextOpacity").value,
+            brand_text_bg: document.getElementById("brandTextBg").value,
+            brand_border: document.getElementById("brandBorder").value,
             pixverse_api_key: document.getElementById("pixverseApiKey").value.trim(),
             system_prompt: document.getElementById("systemPrompt").value.trim(),
             response_language: document.getElementById("responseLanguage").value,
@@ -1075,10 +1112,8 @@
         document.getElementById("botColor").value      = originalData.color         || "#007f9d";
         document.getElementById("greetingMsg").value   = originalData.greeting      || "";
         document.getElementById("ownerTelegramChatId").value = originalData.owner_telegram_chat_id || "";
-        document.getElementById("cloudinaryCloudName").value = originalData.cloudinary_cloud_name || "";
-        document.getElementById("cloudinaryApiKey").value = originalData.cloudinary_api_key || "";
-        document.getElementById("cloudinaryApiSecret").value = originalData.cloudinary_api_secret || "";
         document.getElementById("brandLogoUrl").value = originalData.brand_logo_url || "";
+        fillBrandOptions(originalData);
         document.getElementById("pixverseApiKey").value = originalData.pixverse_api_key || "";
         previewBrandLogo();
         document.getElementById("systemPrompt").value  = originalData.system_prompt || "";

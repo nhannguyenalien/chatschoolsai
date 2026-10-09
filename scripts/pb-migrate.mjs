@@ -143,6 +143,18 @@ async function migrateBotConfigs(token) {
   schema = ensureField(schema, { name: "brand_logo_url", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_logo_public_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_logo_cached_url", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_logo_enabled", type: "bool", required: false, options: {} });
+  schema = ensureField(schema, { name: "brand_text_enabled", type: "bool", required: false, options: {} });
+  schema = ensureField(schema, { name: "brand_logo_position", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_logo_size", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_text", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_text_position", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_text_size", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_text_color", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_logo_opacity", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_text_opacity", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_text_bg", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "brand_border", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "api_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }
