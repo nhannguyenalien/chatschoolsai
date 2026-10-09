@@ -310,6 +310,10 @@ var index_default = {
         const limited = enforceRateLimit(request, "page-token-exchange", 10, 60 * 60 * 1000);
         return limited || await handleAccountPageTokenExchange(request, env2, cors);
       }
+      if (url.pathname === "/api/account/page-subscribe" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "page-subscribe", 10, 60 * 60 * 1000);
+        return limited || await handleAccountPageSubscribe(request, env2, cors);
+      }
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
@@ -2546,8 +2550,14 @@ async function handleAccountPagePermissions(request, env, cors, url) {
     const info = (await dbgRes.json().catch(() => ({}))).data;
     if (!dbgRes.ok || !info) return json({ checked: false, app_id: app.id, reason: `app_secret trong cấu hình không khớp với Meta App của token này (App ID: ${app.id}). Hãy dùng đúng App Secret của app đó.` });
     const scopes = Array.isArray(info.scopes) ? info.scopes : [];
+    let subscribedFields = null;
+    if (info.type === "PAGE") {
+      const subRes = await fetchWithTimeout(`${graph}/${encodeURIComponent(page.page_id)}/subscribed_apps`, { headers: { Authorization: `Bearer ${page.access_token}` } });
+      const sub = await subRes.json().catch(() => ({}));
+      if (subRes.ok) subscribedFields = (sub.data || []).find((entry) => String(entry.id) === String(app.id))?.subscribed_fields || [];
+    }
     return json({
-      checked: true, valid: info.is_valid !== false, type: info.type || "", app_id: app.id, scopes,
+      checked: true, valid: info.is_valid !== false, type: info.type || "", app_id: app.id, scopes, subscribed_fields: subscribedFields,
       expires_at: info.expires_at || 0,
       missing: Object.entries(FACEBOOK_PAGE_PERMISSIONS).filter(([name]) => !scopes.includes(name)).map(([name, why]) => ({ name, why }))
     });
@@ -2603,6 +2613,30 @@ async function handleAccountPageTokenExchange(request, env, cors) {
   }
 }
 __name(handleAccountPageTokenExchange, "handleAccountPageTokenExchange");
+
+// Đăng ký fanpage nhận sự kiện của Meta App (tin nhắn + bình luận): POST /{page_id}/subscribed_apps với Page token.
+const FACEBOOK_PAGE_SUBSCRIBED_FIELDS = ["messages", "messaging_postbacks", "feed"];
+async function handleAccountPageSubscribe(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || "");
+  if (!/^[A-Za-z0-9]{1,40}$/.test(id)) return json({ error: "Thiếu id kênh" }, 400);
+  const token = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records/${id}`, { headers: { Authorization: token } });
+  if (!res.ok) return json({ error: "Không tìm thấy kênh" }, res.status === 404 ? 404 : 503);
+  const page = await res.json();
+  const access = await resolveMediaTenantAccess(request, env, page.tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  if (page.platform !== "facebook") return json({ error: "Chỉ áp dụng cho kênh Facebook" }, 400);
+  const r = await fetchWithTimeout(`https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(page.page_id)}/subscribed_apps`, {
+    method: "POST", headers: { Authorization: `Bearer ${page.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ subscribed_fields: FACEBOOK_PAGE_SUBSCRIBED_FIELDS.join(",") })
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.success === false) return json({ error: data.error?.message || "Facebook từ chối đăng ký (cần Page token và quyền pages_manage_metadata)" }, 400);
+  return json({ success: true, fields: FACEBOOK_PAGE_SUBSCRIBED_FIELDS });
+}
+__name(handleAccountPageSubscribe, "handleAccountPageSubscribe");
 
 async function handleServeMedia(env, cors, key) {
   if (!env.MEDIA_BUCKET || !key || key.includes("..")) return new Response("Not found", { status: 404 });

@@ -321,13 +321,37 @@
             let html = `<b>Token hợp lệ</b> — loại: <b>${escHtml(data.type || '?')}</b>, Meta App ID: ${escHtml(data.app_id || '?')}<br>Quyền đang có: ${escHtml((data.scopes || []).join(', ') || '(không có)')}`;
             if (missing.length) html += `<br><b>THIẾU quyền:</b><ul class="mb-0">${missing.map(m => `<li>${escHtml(m.name)} — ${escHtml(m.why)}</li>`).join('')}</ul>Cấp thêm quyền cho Meta App rồi tạo lại token.`;
             else html += '<br><b>Đủ các quyền cần thiết.</b>';
+            let needSubscribe = false;
+            if (data.type === 'PAGE' && Array.isArray(data.subscribed_fields)) {
+                const wanted = ['messages', 'feed'];
+                const lacking = wanted.filter(f => !data.subscribed_fields.includes(f));
+                html += `<br>Fanpage đang nhận sự kiện: ${escHtml(data.subscribed_fields.join(', ') || '(chưa đăng ký)')}`;
+                if (lacking.length) { needSubscribe = true; html += `<div class="mt-2"><b>Chưa nhận: ${escHtml(lacking.join(', '))}</b> (tin nhắn/bình luận sẽ không về hệ thống). <button class="btn btn-sm btn-primary" id="subscribe-page-btn">Đăng ký nhận tin nhắn &amp; bình luận</button></div>`; }
+            }
             if (data.type === 'USER') html += '<div class="mt-2"><b>Đây là User token — chưa dùng để đăng bài được.</b> <button class="btn btn-sm btn-primary" id="exchange-token-btn">Đổi sang Page token dài hạn</button></div>';
-            show(missing.length || data.type === 'USER' ? 'warning' : 'success', html);
+            show(missing.length || data.type === 'USER' || needSubscribe ? 'warning' : 'success', html);
+            document.getElementById('subscribe-page-btn')?.addEventListener('click', () => subscribePage(pc, show));
             document.getElementById('exchange-token-btn')?.addEventListener('click', () => exchangePageToken(pc, show));
         } catch (err) {
             show('danger', 'Không kiểm tra được quyền: ' + escHtml(err.message));
         } finally {
             button.disabled = false;
+        }
+    }
+
+    async function subscribePage(pc, show) {
+        show('info', 'Đang đăng ký fanpage với Meta App...');
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/page-subscribe`, {
+                method: 'POST', cache: 'no-store',
+                headers: { Authorization: PB.authStore.token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: pc.id })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            show('success', `Đã đăng ký nhận: ${escHtml((data.fields || []).join(', '))}. Bấm "Kiểm tra quyền" để xác nhận.`);
+        } catch (err) {
+            show('danger', 'Không đăng ký được: ' + escHtml(err.message));
         }
     }
 
