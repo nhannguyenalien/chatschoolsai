@@ -79,3 +79,12 @@ test("lastResponderOf: AI mặc định, nhân viên chỉ chiếm phiên khi h�
   assert.equal(lastResponderOf([customer, staff, ai, customer]), "staff");
   assert.equal(lastResponderOf([ai, staff]), "ai");
 });
+
+test("planFacebookPublish: nhiều ảnh gộp 1 bài, video tách riêng, tối đa 10 ảnh", async () => {
+  const { planFacebookPublish } = await import("../src/index.js");
+  const img = (n) => ({ type: "image", url: `https://x/${n}.jpg` });
+  const vid = { type: "video", url: "https://x/v.mp4" };
+  assert.deepEqual(planFacebookPublish([img(1), img(2), vid, { type: "image", url: "" }]), { images: [img(1), img(2)], videos: [vid] });
+  assert.equal(planFacebookPublish(Array.from({ length: 14 }, (_, i) => img(i))).images.length, 10);
+  assert.deepEqual(planFacebookPublish(null), { images: [], videos: [] });
+});

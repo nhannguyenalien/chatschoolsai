@@ -2983,30 +2983,47 @@ async function applyBranding(env, pbToken, cfg, imageUrl) {
 }
 __name(applyBranding, "applyBranding");
 
-async function publishToFacebook(page, post, media) {
+const FACEBOOK_MAX_PHOTOS = 10;
+// Facebook: nhiều ảnh = 1 bài có attached_media (mỗi ảnh upload published=false trước); video không gộp được với ảnh
+// nên mỗi video là 1 bài video riêng. Caption đầy đủ đi cùng ảnh (hoặc video đầu nếu không có ảnh).
+function planFacebookPublish(mediaItems) {
+  const usable = (mediaItems || []).filter((item) => item?.url);
+  return {
+    images: usable.filter((item) => item.type !== "video").slice(0, FACEBOOK_MAX_PHOTOS),
+    videos: usable.filter((item) => item.type === "video")
+  };
+}
+__name(planFacebookPublish, "planFacebookPublish");
+
+async function publishToFacebook(page, post, media, mediaItems = media ? [media] : []) {
   const base = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.page_id}`;
-  if (media && media.url) {
-    const endpoint = media.type === "video" ? `${base}/videos` : `${base}/photos`;
-    const bodyParams = media.type === "video"
-      ? { file_url: media.url, description: post.content, access_token: page.access_token }
-      : { url: media.url, caption: post.content, access_token: page.access_token };
-    const res = await fetchWithTimeout(endpoint, {
+  const send = async (endpoint, params) => {
+    const res = await fetchWithTimeout(`${base}/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyParams)
+      body: JSON.stringify({ ...params, access_token: page.access_token })
     });
     const data = await res.json();
     if (!res.ok || data.error) throw metaApiError(res, data, `Facebook API lỗi ${res.status}`);
-    return data.post_id || data.id;
+    return data;
+  };
+  const { images, videos } = planFacebookPublish(mediaItems);
+  let primaryId;
+  if (images.length >= 2) {
+    const attached = [];
+    for (const image of images) attached.push({ media_fbid: (await send("photos", { url: image.url, published: false })).id });
+    primaryId = (await send("feed", { message: post.content, attached_media: attached })).id;
+  } else if (images.length === 1) {
+    const data = await send("photos", { url: images[0].url, caption: post.content });
+    primaryId = data.post_id || data.id;
   }
-  const res = await fetchWithTimeout(`${base}/feed`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: post.content, access_token: page.access_token })
-  });
-  const data = await res.json();
-  if (!res.ok || data.error) throw metaApiError(res, data, `Facebook API lỗi ${res.status}`);
-  return data.id;
+  for (const [index, video] of videos.entries()) {
+    const description = index === 0 && images.length === 0 ? post.content : (post.title || "");
+    const data = await send("videos", { file_url: video.url, description });
+    primaryId = primaryId || data.post_id || data.id;
+  }
+  if (primaryId) return primaryId;
+  return (await send("feed", { message: post.content })).id;
 }
 __name(publishToFacebook, "publishToFacebook");
 
@@ -3851,13 +3868,14 @@ async function publishOneTarget(env, pbToken, target) {
     }
 
     const mediaRes = await fetchWithTimeout(
-      `${env.PB_URL}/api/collections/media/records?perPage=1&sort=order&filter=${encodeURIComponent(`post_id='${post.id}'`)}`,
+      `${env.PB_URL}/api/collections/media/records?perPage=30&sort=order&filter=${encodeURIComponent(`post_id='${post.id}'`)}`,
       { headers: { Authorization: pbToken } }
     );
     const mediaData = await mediaRes.json();
-    let media = mediaData.items?.[0];
+    let mediaItems = mediaData.items || [];
+    let media = mediaItems[0];
 
-    if (media && media.url && media.type === "image") {
+    if (mediaItems.some((item) => item.url && item.type === "image")) {
       const cfgRes = await fetchWithTimeout(
         `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&filter=${encodeURIComponent(`tenant='${target.tenant}'`)}`,
         { headers: { Authorization: pbToken } }
@@ -3865,14 +3883,18 @@ async function publishOneTarget(env, pbToken, target) {
       const cfgData = await cfgRes.json();
       const cfg = cfgData.items?.[0];
       if (cfg) {
-        const brandedUrl = await applyBranding(env, pbToken, cfg, media.url);
-        if (brandedUrl !== media.url) media = { ...media, url: brandedUrl };
+        mediaItems = await Promise.all(mediaItems.map(async (item) => {
+          if (!item.url || item.type !== "image") return item;
+          const brandedUrl = await applyBranding(env, pbToken, cfg, item.url);
+          return brandedUrl !== item.url ? { ...item, url: brandedUrl } : item;
+        }));
+        media = mediaItems[0];
       }
     }
 
     let publishedId;
     if (target.platform === "facebook") {
-      publishedId = await publishToFacebook(page, post, media);
+      publishedId = await publishToFacebook(page, post, media, mediaItems);
     } else if (target.platform === "instagram") {
       publishedId = await publishToInstagram(page, post, media);
     } else if (target.platform === "wordpress") {
@@ -8134,6 +8156,7 @@ export {
   extractOutboundMediaFromText,
   hasPendingHumanHandoff,
   lastResponderOf,
+  planFacebookPublish,
   parseMessageClientMeta,
   validateAgentChatMessages,
   validateOperatorChatRequest,
