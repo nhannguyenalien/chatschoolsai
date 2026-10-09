@@ -2,6 +2,7 @@ import { AccountQuotaStore, bonusRemaining, effectivePlan, messageLimit, storage
 import { createMediaStore, MediaError } from "./domain/media/mediaStore.js";
 import { checkTargetPreflight, PREFLIGHT_MARKER, PREFLIGHT_WINDOW_MINUTES, preflightNotice } from "./domain/publishing/preflight.js";
 import { classifyPublishError, failureNotice, metaApiError, nextRetryAt } from "./domain/publishing/retryPolicy.js";
+import { MEDIA_INSTRUCTION, detectMediaRequest, extractMediaFromSources } from "./domain/chat/productMedia.js";
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain/billing/costs.js";
 import { handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
@@ -974,7 +975,7 @@ async function handleChat(request, env, cors, reservedQuota = null) {
     const languageInstruction = languageNames[responseLanguage]
       ? `\n\nLANGUAGE: Always answer in ${languageNames[responseLanguage]}, regardless of the customer's input language.`
       : "\n\nLANGUAGE: Detect the language used by the customer and answer in that same language.";
-    const systemPrompt = (botConfig.system_prompt || "") + languageInstruction + HANDOFF_INSTRUCTION;
+    const systemPrompt = (botConfig.system_prompt || "") + languageInstruction + MEDIA_INSTRUCTION + HANDOFF_INSTRUCTION;
     const configuredTemperature = botConfig.temperature !== void 0 ? botConfig.temperature : 0.7;
     const userMessageCreate = SKIP_USER_MESSAGE_STORE.has(request) ? { token: pbToken } : await createPbRecord(env, "messages", {
       tenant, session, username, text: question, is_bot: false, client_meta: clientMeta, via_voice: viaVoice
@@ -1074,7 +1075,13 @@ Tenant: ${tenant}`;
       }
     }
 
-    return new Response(JSON.stringify({ success: true, reply, needsHuman }), { headers: cors });
+    // Khách xin xem hình/video: gắn link ảnh/video nằm trong các đoạn tài liệu AI vừa dùng (độc lập với việc AI có viết link hay không).
+    const alreadyInReply = extractOutboundMediaFromText(reply).map((item) => item.url);
+    const media = extractMediaFromSources(aiData.sources, detectMediaRequest(question), {
+      exclude: alreadyInReply,
+      isSafeUrl: (url) => { try { assertSafeExternalUrl(url); return true; } catch { return false; } }
+    });
+    return new Response(JSON.stringify({ success: true, reply, needsHuman, media }), { headers: cors });
   } catch (err) {
     if (err.code === "MONTHLY_QUOTA_EXCEEDED") return monthlyQuotaExceeded(cors, err.quota);
     console.error("L\u1ED7i h\u1EC7 th\u1ED1ng Chat:", err);
@@ -3238,17 +3245,18 @@ __name(sendZaloMessage, "sendZaloMessage");
 
 // Trả lời bình luận công khai — khác endpoint với nhắn tin riêng: Facebook trả lời qua
 // {comment_id}/comments, Instagram qua {comment_id}/replies.
-async function replyToMetaComment(pageAccessToken, commentId, text, platform) {
+async function replyToMetaComment(pageAccessToken, commentId, text, platform, imageUrl = "") {
   const path = platform === "instagram" ? "replies" : "comments";
-  const res = await fetchWithTimeout(
-    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${commentId}/${path}?access_token=${encodeURIComponent(pageAccessToken)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text })
-    }
-  );
-  const data = await res.json().catch(() => ({}));
+  const send = async (payload) => {
+    const res = await fetchWithTimeout(
+      `https://graph.facebook.com/${FB_GRAPH_VERSION}/${commentId}/${path}?access_token=${encodeURIComponent(pageAccessToken)}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+    );
+    return { res, data: await res.json().catch(() => ({})) };
+  };
+  // Facebook cho đính kèm 1 ảnh vào phản hồi bình luận (attachment_url); Instagram thì không. Ảnh lỗi -> vẫn trả lời bằng chữ.
+  let { res, data } = await send(imageUrl && platform !== "instagram" ? { message: text, attachment_url: imageUrl } : { message: text });
+  if (!res.ok && imageUrl && platform !== "instagram") ({ res, data } = await send({ message: text }));
   if (!res.ok) {
     const detail = data.error?.message || `Meta HTTP ${res.status}`;
     console.error("[Meta Comment Reply] Lỗi trả lời b\xECnh luận:", detail);
@@ -3450,14 +3458,17 @@ async function replyToMetaWithAi(env, page, platform, session, senderId, display
   });
   if (skipUserStore) SKIP_USER_MESSAGE_STORE.add(chatRequest);
   let reply = "Xin lỗi, hiện tại m\xECnh chưa thể trả lời c\xE2u n\xE0y.";
+  let autoMedia = [];
   try {
     const chatRes = await handleChat(chatRequest, env, { "Content-Type": "application/json" });
     const chatData = await chatRes.json().catch(() => ({}));
     if (chatData.reply) reply = chatData.reply;
+    if (Array.isArray(chatData.media)) autoMedia = chatData.media;
   } catch (err) {
     console.error("[Meta Messaging] AI không khả dụng, dùng phản hồi dự phòng:", err);
   }
-  await sendMetaMessage(page.access_token, senderId, reply, extractOutboundMediaFromText(reply), platform);
+  const outboundMedia = [...extractOutboundMediaFromText(reply), ...autoMedia].slice(0, 10);
+  await sendMetaMessage(page.access_token, senderId, reply, outboundMedia, platform);
 }
 __name(replyToMetaWithAi, "replyToMetaWithAi");
 __name(processMetaMessagingEvent, "processMetaMessagingEvent");
@@ -3484,14 +3495,20 @@ async function processMetaCommentEvent(env, pbToken, platform, pageId, commentId
   });
   SKIP_USER_MESSAGE_STORE.add(chatRequest); // đã lưu bình luận ở trên
   let reply = "Cảm ơn bạn đ\xE3 quan t\xE2m, để lại th\xF4ng tin li\xEAn hệ để được hỗ trợ th\xEAm nh\xE9!";
+  let commentMedia = [];
   try {
     const chatRes = await handleChat(chatRequest, env, { "Content-Type": "application/json" });
     const chatData = await chatRes.json().catch(() => ({}));
     if (chatData.reply) reply = chatData.reply;
+    if (Array.isArray(chatData.media)) commentMedia = chatData.media;
   } catch (err) {
     console.error("[Meta Comment] AI không khả dụng, dùng phản hồi dự phòng:", err);
   }
-  await replyToMetaComment(page.access_token, commentId, reply, platform);
+  // Bình luận chỉ đính kèm được ảnh; video thì để link trong câu trả lời.
+  const commentImage = commentMedia.find((item) => item.type === "image")?.url || "";
+  const commentVideoLinks = commentMedia.filter((item) => item.type === "video").map((item) => item.url);
+  if (commentVideoLinks.length) reply = `${reply}\n\nVideo: ${commentVideoLinks.join("\n")}`;
+  await replyToMetaComment(page.access_token, commentId, reply, platform, commentImage);
 }
 __name(processMetaCommentEvent, "processMetaCommentEvent");
 
