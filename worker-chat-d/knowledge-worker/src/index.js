@@ -5539,7 +5539,8 @@ Cấu h\xECnh HIỆN TẠI của tenant n\xE0y (dữ liệu thật lấy từ DB
 ${JSON.stringify(snapshot)}
 Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\xE3 kết nối trang n\xE0o...), dựa v\xE0o dữ liệu tr\xEAn để trả lời — vẫn c\xF3 thể gọi lại get_current_config nếu cần dữ liệu mới nhất sau khi vừa ghi thay đổi. Với trang: has_access_token=false nghĩa l\xE0 c\xF3 khai b\xE1o nhưng THIẾU token n\xEAn chưa d\xF9ng được; is_active=false l\xE0 đang tạm tắt. Dữ liệu khách h\xE0ng (số dư điểm, lịch sử, hồ sơ) KH\xD4NG c\xF3 sẵn ở tr\xEAn — phải gọi tool find_customers/get_customer để lấy số thật, tuyệt đối kh\xF4ng tự bịa số điểm. Khi vừa cộng/trừ điểm hoặc sửa hồ sơ khách, n\xF3i r\xF5 thay đổi vừa thực hiện v\xE0 số dư mới. Nếu thiếu th\xF4ng tin bắt buộc khi ghi (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. Trả lời ngắn gọn, tiếng Việt.`;
   const messages = [{ role: "system", content: systemPrompt }, ...history];
-  const tools = [...CONFIG_CHAT_TOOLS, ...customTools.map(customToolToOpenAiSchema)];
+  const builtinToolNames = new Set(CONFIG_CHAT_TOOLS.map((t) => t.function?.name));
+  const tools = [...CONFIG_CHAT_TOOLS, ...customTools.filter((t) => isValidCustomToolName(t.name) && !builtinToolNames.has(t.name)).map(customToolToOpenAiSchema)];
   try {
     const meteredFetch = createMeteredAiFetch(env, cfg.tenant, pbToken);
     const res1 = await meteredFetch(`${env.OPENAI_BASE_URL}/chat/completions`, {
@@ -5550,7 +5551,7 @@ Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\x
     });
     const data1 = await res1.json().catch(() => ({}));
     if (!res1.ok) {
-      console.error("[Agent Chat] Upstream lỗi lượt 1:", res1.status);
+      console.error("[Agent Chat] Upstream lỗi lượt 1:", res1.status, JSON.stringify(data1?.error || data1).slice(0, 500));
       return new Response(JSON.stringify({ error: `Dịch vụ AI trả lỗi (${res1.status})` }), { status: 502, headers: cors });
     }
     const msg1 = data1.choices?.[0]?.message || {};
@@ -7537,10 +7538,17 @@ async function loadCustomAgentTools(env, pbToken, tenant) {
 }
 __name(loadCustomAgentTools, "loadCustomAgentTools");
 
+// OpenAI trả 400 cho cả request nếu 1 tool có tên sai định dạng hoặc parameters không phải JSON-schema object —
+// một tool tùy chỉnh hỏng của khách không được làm sập cả trợ lý cấu hình.
+function isValidCustomToolName(name) {
+  return /^[a-zA-Z0-9_-]{1,64}$/.test(String(name || ""));
+}
+
 function customToolToOpenAiSchema(t) {
   let parameters;
   try {
     parameters = JSON.parse(t.parameters_schema || "");
+    if (!parameters || typeof parameters !== "object" || Array.isArray(parameters) || parameters.type !== "object") throw new Error("bad schema");
   } catch {
     parameters = { type: "object", properties: {}, required: [] };
   }

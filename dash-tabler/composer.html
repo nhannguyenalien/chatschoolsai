@@ -701,10 +701,7 @@
 
     async function loadPagesConfigForTargets() {
         try {
-            pagesConfigCache = await PB.collection('pages_config').getFullList({
-                sort: 'platform',
-                filter: `tenant = "${window.TENANT}" && is_active = true`
-            });
+            pagesConfigCache = await listPagesConfig(window.TENANT, { activeOnly: true });
             populateSchedulePageSelect();
         } catch (err) {
             pagesConfigCache = [];
@@ -830,7 +827,7 @@
     }
 
     async function loadContentPlanningSites() {
-        const sites = await PB.collection('pages_config').getFullList({ filter: `tenant = "${window.TENANT}"`, sort: 'label' });
+        const sites = await listPagesConfig(window.TENANT);
         const options = sites.map(site => `<option value="${escHtml(site.id)}">${escHtml(site.label || site.page_id || site.id)}</option>`).join('');
         document.getElementById('cp-trend-site').innerHTML = options || '<option value="">Chưa cấu hình website</option>';
         document.getElementById('cp-plan-site').innerHTML = options || '<option value="">Chưa cấu hình website</option>';
