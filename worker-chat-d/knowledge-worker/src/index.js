@@ -3240,16 +3240,40 @@ async function processMetaCommentEvent(env, pbToken, platform, pageId, commentId
 }
 __name(processMetaCommentEvent, "processMetaCommentEvent");
 
-async function handleMetaWebhookEvent(request, env, ctx) {
-  if (!env.META_APP_SECRET) {
-    console.error("[Meta Webhook] META_APP_SECRET is not configured");
-    return new Response("Webhook not configured", { status: 503 });
+// Mỗi tenant có thể dùng Meta App riêng: app_secret nằm trong extra_config của kênh (pages_config).
+// Chữ ký được kiểm với app_secret của các kênh có trong payload; META_APP_SECRET toàn hệ thống chỉ là fallback.
+async function metaAppSecretsForPayload(env, body, platform) {
+  const secrets = [];
+  const ids = [...new Set((body?.entry || []).map((entry) => String(entry?.id || "")).filter((id) => /^[0-9A-Za-z_.:-]{1,64}$/.test(id)))].slice(0, 20);
+  if (ids.length) {
+    try {
+      const pbToken = await getPbToken(env);
+      const filter = `platform='${platform}' && is_active=true && (${ids.map((id) => `page_id='${escFilterValue(id)}'`).join(" || ")})`;
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&fields=extra_config&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+      for (const page of (await res.json().catch(() => ({}))).items || []) {
+        try { const secret = JSON.parse(page.extra_config || "{}").app_secret; if (secret) secrets.push(String(secret)); } catch {}
+      }
+    } catch (err) {
+      console.error("[Meta Webhook] Không đọc được app_secret của kênh:", err);
+    }
   }
+  if (env.META_APP_SECRET) secrets.push(env.META_APP_SECRET);
+  return secrets;
+}
+__name(metaAppSecretsForPayload, "metaAppSecretsForPayload");
+
+async function handleMetaWebhookEvent(request, env, ctx) {
   const signature = request.headers.get("X-Hub-Signature-256") || "";
   const rawBody = await request.clone().arrayBuffer();
-  if (!await verifyMetaSignature(rawBody, signature, env.META_APP_SECRET)) {
-    return new Response("Unauthorized", { status: 401 });
+  const parsed = await request.clone().json().catch(() => null);
+  const secrets = await metaAppSecretsForPayload(env, parsed, parsed?.object === "instagram" ? "instagram" : "facebook");
+  if (!secrets.length) {
+    console.error("[Meta Webhook] Không có app_secret (kênh hoặc META_APP_SECRET) để xác thực chữ ký");
+    return new Response("Webhook not configured", { status: 503 });
   }
+  let verified = false;
+  for (const secret of secrets) if (await verifyMetaSignature(rawBody, signature, secret)) { verified = true; break; }
+  if (!verified) return new Response("Unauthorized", { status: 401 });
   const body = await request.json().catch(() => null);
   const job = (async () => {
     try {
