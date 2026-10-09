@@ -5546,7 +5546,7 @@ Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\x
     const res1 = await meteredFetch(`${env.OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages, tools, tool_choice: "auto" }),
+      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages, tools, tool_choice: "auto", ...toolCallReasoning(env.OPENAI_CHAT_MODEL) }),
       timeout: 3e4
     });
     const data1 = await res1.json().catch(() => ({}));
@@ -5780,7 +5780,7 @@ async function handleApiMarketplaceChat(request, env, cors, cfg) {
   // system prompt, đây là hành vi alignment ở tầng model. Đặt env MARKETPLACE_CHAT_MODEL để đổi.
   const marketplaceChatModel = env.MARKETPLACE_CHAT_MODEL || "gpt-4o-mini";
   const chatBody1 = { model: marketplaceChatModel, messages, max_tokens: 1000 };
-  if (tools.length > 0) { chatBody1.tools = tools; chatBody1.tool_choice = "auto"; }
+  if (tools.length > 0) { chatBody1.tools = tools; chatBody1.tool_choice = "auto"; Object.assign(chatBody1, toolCallReasoning(marketplaceChatModel)); }
 
   try {
     const reservedQuota = await recordAiUsage(env, cfg.tenant, 1, pbToken);
@@ -6051,7 +6051,7 @@ async function handleApiOperatorChat(request, env, cors, cfg) {
     const aiResponse = await meteredFetch(`${env.OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages: state.modelMessages, ...(tools.length ? { tools, tool_choice: "auto" } : {}) }),
+      body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages: state.modelMessages, ...(tools.length ? { tools, tool_choice: "auto", ...toolCallReasoning(env.OPENAI_CHAT_MODEL) } : {}) }),
       timeout: 3e4,
       signal: request.signal
     });
@@ -7538,6 +7538,12 @@ async function loadCustomAgentTools(env, pbToken, tenant) {
 }
 __name(loadCustomAgentTools, "loadCustomAgentTools");
 
+// Model reasoning (gpt-5+/o-series, vd gpt-6-luna đặt trong system_config) trả 400 khi gọi function tools
+// ở /chat/completions mà không tắt reasoning_effort. Model cũ (gpt-4o...) lại từ chối tham số này nên chỉ thêm khi cần.
+function toolCallReasoning(model) {
+  return /^(gpt-[5-9]|o\d)/i.test(String(model || "")) ? { reasoning_effort: "none" } : {};
+}
+
 // OpenAI trả 400 cho cả request nếu 1 tool có tên sai định dạng hoặc parameters không phải JSON-schema object —
 // một tool tùy chỉnh hỏng của khách không được làm sập cả trợ lý cấu hình.
 function isValidCustomToolName(name) {
@@ -7750,7 +7756,8 @@ async function runAgentForTenant(env, pbToken, tenant) {
         model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userMessage }],
         tools,
-        tool_choice: "auto"
+        tool_choice: "auto",
+        ...toolCallReasoning(env.OPENAI_CHAT_MODEL)
       }),
       timeout: 3e4
     });
