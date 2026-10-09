@@ -281,14 +281,23 @@
     // ═══════════════════════════════════════
     // PAGES CONFIG
     // ═══════════════════════════════════════
+    // Ghi qua Worker (kiểm tenant_memberships) — PocketBase rule chỉ cho workspace gốc của tài khoản.
+    async function pagesConfigApi(method, query, body) {
+        const res = await fetch(`${WORKER_URL}/api/account/pages-config${query}`, {
+            method, cache: 'no-store',
+            headers: { Authorization: PB.authStore.token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+            body: body ? JSON.stringify(body) : undefined
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+        return out;
+    }
+
     async function loadPages() {
         const tbody = document.getElementById('pages-table-body');
         tbody.innerHTML = '<tr><td colspan="6" class="text-secondary">Đang tải...</td></tr>';
         try {
-            pagesConfigCache = await PB.collection('pages_config').getFullList({
-                sort: 'platform',
-                filter: `tenant = "${window.TENANT}"`
-            });
+            pagesConfigCache = (await pagesConfigApi('GET', `?tenant=${encodeURIComponent(window.TENANT)}`)).items;
             renderPages();
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="6"><div class="alert alert-danger mb-0">Lỗi tải pages_config: ${escHtml(err.message)}<br><span class="fs-6">Kiểm tra collection "pages_config" đã được tạo trong PocketBase chưa (kèm field tenant).</span></div></td></tr>`;
@@ -391,8 +400,7 @@
         };
         btnLoading('save-page-btn', 'Đang lưu...');
         try {
-            if (id) await PB.collection('pages_config').update(id, data);
-            else await PB.collection('pages_config').create(data);
+            await pagesConfigApi(id ? 'PATCH' : 'POST', '', id ? { ...data, id } : data);
             bootstrap.Modal.getInstance(document.getElementById('page-modal')).hide();
             showToast('Đã lưu kênh', 'success');
             loadPages();
@@ -407,7 +415,7 @@
         const id = document.getElementById('page-id-hidden').value;
         if (!id || !confirm('Xóa kênh này?')) return;
         try {
-            await PB.collection('pages_config').delete(id);
+            await pagesConfigApi('DELETE', `?id=${encodeURIComponent(id)}`);
             bootstrap.Modal.getInstance(document.getElementById('page-modal')).hide();
             showToast('Đã xóa', 'success');
             loadPages();

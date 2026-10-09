@@ -295,6 +295,9 @@ var index_default = {
       if (accountMediaDeleteMatch && request.method === "PATCH") {
         return await handleAccountMediaUpdate(request, env2, cors, accountMediaDeleteMatch[1]);
       }
+      if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
+        return await handleAccountPagesConfig(request, env2, cors, url);
+      }
       if (url.pathname === "/api/account/workspaces" && request.method === "GET") {
         return await handleAccountListWorkspaces(request, env2, cors);
       }
@@ -2454,6 +2457,47 @@ async function handleAccountMediaUpdate(request, env, cors, id) {
   });
   if (!patch.ok) return Response.json({ error: "Không cập nhật được media" }, { status: 502, headers: cors });
   return Response.json({ success: true, media: { id, label } }, { headers: cors });
+}
+
+// CRUD kênh (pages_config) qua Worker: rule PocketBase chỉ so với account.tenant (workspace gốc),
+// nên workspace thứ 2+ (tenant_memberships) bị "Failed to create record". Ở đây kiểm membership rồi ghi bằng token admin.
+const PAGES_CONFIG_FIELDS = ["platform", "label", "page_id", "access_token", "default_language", "extra_config", "is_active"];
+async function handleAccountPagesConfig(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = request.method === "GET" || request.method === "DELETE" ? {} : await request.json().catch(() => ({}));
+  const id = url.searchParams.get("id") || body.id || "";
+  const pb = (path, init = {}) => fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records${path}`, init);
+  let token, tenant = String(url.searchParams.get("tenant") || body.tenant || "");
+  let existing = null;
+  if (id) {
+    token = await getPbToken(env);
+    const res = await pb(`/${encodeURIComponent(id)}`, { headers: { Authorization: token } });
+    if (res.status === 404) return json({ error: "Not found" }, 404);
+    if (!res.ok) return json({ error: "pages_config unavailable" }, 503);
+    existing = await res.json();
+    tenant = existing.tenant;
+  }
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  token = access.token;
+  const headers = { Authorization: token, "Content-Type": "application/json" };
+  if (request.method === "GET") {
+    const res = await pb(`?perPage=200&sort=platform&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers });
+    if (!res.ok) return json({ error: "Không tải được danh sách kênh" }, 502);
+    return json({ items: (await res.json()).items || [] });
+  }
+  if (request.method === "DELETE") {
+    if (!existing) return json({ error: "Thiếu id" }, 400);
+    const res = await pb(`/${encodeURIComponent(id)}`, { method: "DELETE", headers });
+    return res.ok ? json({ success: true }) : json({ error: "Không xóa được kênh" }, 502);
+  }
+  const data = {};
+  for (const key of PAGES_CONFIG_FIELDS) if (key in body) data[key] = body[key];
+  if (request.method === "POST") data.tenant = tenant;
+  const res = await pb(existing ? `/${encodeURIComponent(id)}` : "", { method: existing ? "PATCH" : "POST", headers, body: JSON.stringify(data) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) return json({ error: out.message || "Không lưu được kênh", details: out.data }, res.status === 400 ? 400 : 502);
+  return json({ success: true, record: out }, existing ? 200 : 201);
 }
 
 async function handleServeMedia(env, cors, key) {
