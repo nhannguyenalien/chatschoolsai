@@ -295,6 +295,9 @@ var index_default = {
       if (accountMediaDeleteMatch && request.method === "PATCH") {
         return await handleAccountMediaUpdate(request, env2, cors, accountMediaDeleteMatch[1]);
       }
+      if (url.pathname === "/api/account/session-ai" && (request.method === "GET" || request.method === "PUT")) {
+        return await handleAccountSessionAi(request, env2, cors, url);
+      }
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
@@ -337,6 +340,7 @@ var index_default = {
         return;
       }
       ctx.waitUntil(handlePublishDispatch(env2).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
+      ctx.waitUntil(handleStaffTimeoutSweep(env2).catch((err) => console.error("[Staff Timeout] Lỗi tổng:", err)));
       // Free plan chỉ cho 5 cron/tài khoản nên không tạo cron riêng cho ping — lồng vào đây,
       // tự lọc còn mỗi 30 phút (phút :00 và :30) để không ping quá thường xuyên.
       if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 0) {
@@ -956,7 +960,7 @@ async function handleChat(request, env, cors, reservedQuota = null) {
       : "\n\nLANGUAGE: Detect the language used by the customer and answer in that same language.";
     const systemPrompt = (botConfig.system_prompt || "") + languageInstruction + HANDOFF_INSTRUCTION;
     const configuredTemperature = botConfig.temperature !== void 0 ? botConfig.temperature : 0.7;
-    const userMessageCreate = await createPbRecord(env, "messages", {
+    const userMessageCreate = SKIP_USER_MESSAGE_STORE.has(request) ? { token: pbToken } : await createPbRecord(env, "messages", {
       tenant, session, username, text: question, is_bot: false, client_meta: clientMeta, via_voice: viaVoice
     }, pbToken);
     userMessageStored = true;
@@ -3155,20 +3159,106 @@ function hasPendingHumanHandoff(messages) {
 }
 __name(hasPendingHumanHandoff, "hasPendingHumanHandoff");
 
-async function sessionHasPendingHumanHandoff(env, pbToken, page, session) {
-  const filter = `tenant='${escFilterValue(page.tenant)}' && session='${escFilterValue(session)}' && needs_human=true && escalation_resolved=false`;
-  const res = await fetchWithTimeout(
-    `${env.PB_URL}/api/collections/messages/records?perPage=1&filter=${encodeURIComponent(filter)}`,
-    { headers: { Authorization: pbToken } }
-  );
-  if (!res.ok) {
-    console.error(`[Meta Handoff] Không kiểm tra được trạng thái phiên ${session} (${res.status}); tiếp tục AI để tránh bỏ sót khách`);
-    return false;
+// ===== AI vs nhân viên trong 1 phiên chat =====
+// Mặc định AI luôn trả lời (kể cả khi AI gắn [NEED_HUMAN] — đó chỉ là cảnh báo cho chủ). AI chỉ im khi:
+//  1) nhân viên bấm "Tắt AI" cho phiên (cờ lưu trong session_summaries, date = AI_PAUSE_DATE), hoặc
+//  2) nhân viên đã trả lời từ dashboard (tin username "Admin") và AI chưa nói gì sau đó — nếu khách nhắn mà
+//     nhân viên không trả lời trong STAFF_TAKEOVER_TIMEOUT_MS thì AI trả lời thay (quét ở cron */15).
+const AI_PAUSE_DATE = "__AI_PAUSED__";
+const STAFF_TAKEOVER_TIMEOUT_MS = 10 * 60 * 1000;
+const STAFF_SENDER_NAME = "Admin";
+const SKIP_USER_MESSAGE_STORE = /* @__PURE__ */ new WeakSet();
+
+// messagesDesc: tin mới nhất trước. Trả "staff" nếu lần lên tiếng gần nhất (không tính khách) là nhân viên.
+function lastResponderOf(messagesDesc) {
+  for (const message of messagesDesc || []) {
+    if (!message?.is_bot) continue;
+    return message.username === STAFF_SENDER_NAME ? "staff" : "ai";
   }
-  const data = await res.json().catch(() => ({}));
-  return hasPendingHumanHandoff(data.items);
+  return "none";
 }
-__name(sessionHasPendingHumanHandoff, "sessionHasPendingHumanHandoff");
+__name(lastResponderOf, "lastResponderOf");
+
+async function fetchSessionMessagesDesc(env, pbToken, tenant, session, limit = 30) {
+  const filter = `tenant='${escFilterValue(tenant)}' && session='${escFilterValue(session)}'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records?perPage=${limit}&sort=-created&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+  if (!res.ok) throw new Error(`Không đọc được phiên ${session} (${res.status})`);
+  return (await res.json()).items || [];
+}
+__name(fetchSessionMessagesDesc, "fetchSessionMessagesDesc");
+
+async function findSessionPauseRecord(env, pbToken, tenant, session) {
+  const filter = `tenant='${escFilterValue(tenant)}' && session_id='${escFilterValue(session)}' && date='${AI_PAUSE_DATE}'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/session_summaries/records?perPage=1&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+  if (!res.ok) throw new Error(`Không đọc được cờ tắt AI (${res.status})`);
+  return (await res.json()).items?.[0] || null;
+}
+__name(findSessionPauseRecord, "findSessionPauseRecord");
+
+async function isSessionAiPaused(env, pbToken, tenant, session) {
+  return (await findSessionPauseRecord(env, pbToken, tenant, session))?.summary === "1";
+}
+__name(isSessionAiPaused, "isSessionAiPaused");
+
+async function setSessionAiPaused(env, pbToken, tenant, session, paused) {
+  const existing = await findSessionPauseRecord(env, pbToken, tenant, session);
+  const body = JSON.stringify({ summary: paused ? "1" : "0" });
+  const res = existing
+    ? await fetchWithTimeout(`${env.PB_URL}/api/collections/session_summaries/records/${existing.id}`, { method: "PATCH", headers: { Authorization: pbToken, "Content-Type": "application/json" }, body })
+    : await fetchWithTimeout(`${env.PB_URL}/api/collections/session_summaries/records`, { method: "POST", headers: { Authorization: pbToken, "Content-Type": "application/json" }, body: JSON.stringify({ tenant, session_id: session, date: AI_PAUSE_DATE, summary: paused ? "1" : "0" }) });
+  if (!res.ok) throw new Error(`Không lưu được cờ tắt AI (${res.status})`);
+}
+__name(setSessionAiPaused, "setSessionAiPaused");
+
+async function handleAccountSessionAi(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = request.method === "PUT" ? await request.json().catch(() => ({})) : {};
+  const tenant = String(url.searchParams.get("tenant") || body.tenant || "");
+  const session = String(url.searchParams.get("session") || body.session || "");
+  if (!session || session.length > 200) return json({ error: "Thiếu session" }, 400);
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  try {
+    if (request.method === "PUT") await setSessionAiPaused(env, access.token, tenant, session, body.paused === true);
+    return json({ paused: await isSessionAiPaused(env, access.token, tenant, session) });
+  } catch (err) {
+    console.error("[Session AI] Lỗi:", err);
+    return json({ error: "Không xử lý được trạng thái AI của phiên" }, 502);
+  }
+}
+__name(handleAccountSessionAi, "handleAccountSessionAi");
+
+// Cron: khách nhắn sau khi nhân viên đã trả lời, quá STAFF_TAKEOVER_TIMEOUT_MS mà chưa ai đáp -> AI trả lời thay.
+async function handleStaffTimeoutSweep(env) {
+  const pbToken = await getPbToken(env);
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString().replace("T", " ");
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records?perPage=200&sort=-created&fields=tenant,session&filter=${encodeURIComponent(`username='${STAFF_SENDER_NAME}' && created >= '${since}'`)}`, { headers: { Authorization: pbToken } });
+  if (!res.ok) return;
+  const seen = /* @__PURE__ */ new Set();
+  for (const row of (await res.json()).items || []) {
+    const key = `${row.tenant}\u0000${row.session}`;
+    if (seen.has(key) || !/^(facebook|instagram):(?!comment:)/.test(row.session || "")) continue;
+    seen.add(key);
+    if (seen.size > 50) break;
+    try {
+      const messages = await fetchSessionMessagesDesc(env, pbToken, row.tenant, row.session);
+      const latest = messages[0];
+      if (!latest || latest.is_bot || lastResponderOf(messages) !== "staff") continue;
+      if (Date.now() - new Date(String(latest.created).replace(" ", "T")).getTime() < STAFF_TAKEOVER_TIMEOUT_MS) continue;
+      if (await isSessionAiPaused(env, pbToken, row.tenant, row.session)) continue;
+      const meta = parseMessageClientMeta(latest.client_meta);
+      const platform = row.session.startsWith("instagram:") ? "instagram" : "facebook";
+      const page = await findPageConfigByPageId(env, pbToken, String(meta.page_id || ""), platform);
+      const senderId = String(meta.customer_id || row.session.split(":")[1] || "");
+      if (!page || !senderId) continue;
+      console.log(`[Staff Timeout] ${row.session}: nhân viên chưa đáp sau 10 phút, AI trả lời thay`);
+      await replyToMetaWithAi(env, page, platform, row.session, senderId, latest.text, meta, { skipUserStore: true });
+    } catch (err) {
+      console.error(`[Staff Timeout] Lỗi phiên ${row.session}:`, err);
+    }
+  }
+}
+__name(handleStaffTimeoutSweep, "handleStaffTimeoutSweep");
 
 async function processMetaMessagingEvent(env, pbToken, platform, pageId, senderId, text, attachments = []) {
   const page = await findPageConfigByPageId(env, pbToken, pageId, platform);
@@ -3185,17 +3275,28 @@ async function processMetaMessagingEvent(env, pbToken, platform, pageId, senderI
     customer_id: senderId, conversation_type: "message", attachments: normalizedAttachments
   };
   await storeMetaIncomingMessage(env, pbToken, page, session, senderId, displayText, clientMeta);
-  // Khi AI đã yêu cầu bàn giao, tiếp tục lưu mọi tin khách gửi vào Chat nhưng không để AI
-  // chen vào nữa. Nhân viên trả lời từ SchoolsAI sẽ resolve cờ và mở lại AI cho phiên này.
-  if (await sessionHasPendingHumanHandoff(env, pbToken, page, session)) {
-    console.log(`[Meta Handoff] Phiên ${session} đang chờ nhân viên; đã lưu tin mới và tạm dừng AI`);
-    return;
+  // Tin khách luôn được lưu. AI im nếu nhân viên tắt AI cho phiên, hoặc nhân viên đang trực (đã trả lời, AI chưa nói lại).
+  try {
+    if (await isSessionAiPaused(env, pbToken, page.tenant, session)) {
+      console.log(`[Meta Handoff] Phiên ${session}: nhân viên đã tắt AI; đã lưu tin mới`);
+      return;
+    }
+    if (lastResponderOf(await fetchSessionMessagesDesc(env, pbToken, page.tenant, session)) === "staff") {
+      console.log(`[Meta Handoff] Phiên ${session}: nhân viên đang trực; AI chỉ trả lời nếu sau 10 phút chưa ai đáp`);
+      return;
+    }
+  } catch (err) {
+    console.error("[Meta Handoff] Không kiểm tra được trạng thái phiên; tiếp tục AI để tránh bỏ sót khách:", err);
   }
+  await replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta);
+}
+async function replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta, { skipUserStore = false } = {}) {
   const chatRequest = new Request("https://internal/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tenant: page.tenant, session, question: displayText, client_meta: clientMeta })
   });
+  if (skipUserStore) SKIP_USER_MESSAGE_STORE.add(chatRequest);
   let reply = "Xin lỗi, hiện tại m\xECnh chưa thể trả lời c\xE2u n\xE0y.";
   try {
     const chatRes = await handleChat(chatRequest, env, { "Content-Type": "application/json" });
@@ -3206,6 +3307,7 @@ async function processMetaMessagingEvent(env, pbToken, platform, pageId, senderI
   }
   await sendMetaMessage(page.access_token, senderId, reply, extractOutboundMediaFromText(reply), platform);
 }
+__name(replyToMetaWithAi, "replyToMetaWithAi");
 __name(processMetaMessagingEvent, "processMetaMessagingEvent");
 
 // Tự động trả lời bình luận công khai trên bài đăng qua cùng AI Agent như Messenger.
@@ -7893,6 +7995,7 @@ export {
   formatOutboundMessageText,
   extractOutboundMediaFromText,
   hasPendingHumanHandoff,
+  lastResponderOf,
   parseMessageClientMeta,
   validateAgentChatMessages,
   validateOperatorChatRequest,

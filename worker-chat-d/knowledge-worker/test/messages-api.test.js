@@ -67,3 +67,15 @@ test("pauses Meta AI while a human handoff is unresolved", () => {
   ]), false);
   assert.equal(hasPendingHumanHandoff([]), false);
 });
+
+test("lastResponderOf: AI mặc định, nhân viên chỉ chiếm phiên khi họ là người lên tiếng gần nhất", async () => {
+  const { lastResponderOf } = await import("../src/index.js");
+  const customer = { is_bot: false, username: "123" };
+  const ai = { is_bot: true, username: "Alien Bot", needs_human: true, escalation_resolved: false };
+  const staff = { is_bot: true, username: "Admin" };
+  assert.equal(lastResponderOf([]), "none");
+  assert.equal(lastResponderOf([customer, ai]), "ai");
+  assert.equal(lastResponderOf([customer, staff, customer, ai]), "staff");
+  assert.equal(lastResponderOf([customer, staff, ai, customer]), "staff");
+  assert.equal(lastResponderOf([ai, staff]), "ai");
+});

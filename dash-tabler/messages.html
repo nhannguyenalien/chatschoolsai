@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     
     <script src="_shared/config.js"></script>
-    <script src="_shared/auth.js"></script>
+    <script src="_shared/auth.js?v=quota-20260927"></script>
     <script src="_shared/ui.js"></script>
     <script src="_shared/i18n.js?v=20261007-3"></script>
     <script src="_shared/sidebar.js"></script>
@@ -131,6 +131,9 @@
                             </div>
                         </div>
                         <div class="d-flex gap-2 flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-success" id="btn-ai-toggle" onclick="toggleSessionAi()" title="AI đang tự trả lời phiên này. Bấm để tắt AI và tự xử lý.">
+                                <i class="ti ti-robot me-1"></i><span id="ai-toggle-label">AI: Bật</span>
+                            </button>
                             <button class="btn btn-icon btn-ghost-secondary" id="btn-call" onclick="startCall()" title="Gọi thoại cho khách">
                                 <i class="ti ti-phone"></i>
                             </button>
@@ -166,6 +169,19 @@
                         </div>
 
                     <div class="p-3 bg-white border-top flex-shrink-0">
+                        <div class="row g-2 mb-2">
+                            <div class="col-auto">
+                                <select id="admin-media-type" class="form-select" aria-label="Loại media">
+                                    <option value="image">Ảnh</option>
+                                    <option value="video">Video</option>
+                                    <option value="audio">Âm thanh</option>
+                                    <option value="file">Tệp</option>
+                                </select>
+                            </div>
+                            <div class="col">
+                                <input type="url" id="admin-media-url" class="form-control" placeholder="URL HTTPS của media (không bắt buộc)">
+                            </div>
+                        </div>
                         <div class="input-group">
                             <input type="text" id="admin-message-input" class="form-control form-control-lg bg-light border-light" placeholder="Nhập tin nhắn hỗ trợ khách..." style="border-radius: 8px 0 0 8px;">
                             <button class="btn btn-primary btn-lg" id="send-admin-message" onclick="sendAdminMessage()" style="border-radius: 0 8px 8px 0;">
@@ -248,6 +264,7 @@
     let verifiedUsers = {};
     let sessionFilter = "all"; // 'all' | 'needs_human'
     let ringingSessions = new Set(); // session id đang có cuộc gọi ringing/active — để hiện badge
+    let messagesApiKey = "";
 
     const sessionListItemsEl = document.getElementById("session-list-items");
     const messagesArea = document.getElementById("messages-area");
@@ -269,7 +286,11 @@
             // if (window.requireAuth) await window.requireAuth();
             if (window.requireAuth) await window.requireAuth();
 
-            CURRENT_TENANT = pb.authStore.model?.tenant || window.TENANT || new URLSearchParams(window.location.search).get("bot") || "bds";
+            // window.TENANT (workspace đang active, do requireAuth()/switchTenant() set) phải ưu
+            // tiên hơn pb.authStore.model.tenant (tenant GỐC/legacy cố định trên record tài khoản)
+            // — nếu đảo ngược thứ tự, trang này sẽ luôn kẹt ở workspace đầu tiên bất kể admin đã
+            // chuyển sang workspace khác ở sidebar, âm thầm cho xem/trả lời nhầm hội thoại.
+            CURRENT_TENANT = window.TENANT || pb.authStore.model?.tenant || new URLSearchParams(window.location.search).get("bot") || "bds";
             
             const tenantLabel = document.getElementById("nav-tenant-id");
             if (tenantLabel) tenantLabel.textContent = CURRENT_TENANT;
@@ -291,7 +312,21 @@
                 }
             
             await loadMessages();
-            await subscribeRealtime();
+            await subscribeRealtime().catch(err => console.warn("Realtime unavailable", err));
+            let refreshingMessages = false;
+            setInterval(async () => {
+                if (document.hidden || refreshingMessages) return;
+                refreshingMessages = true;
+                try {
+                    const selected = activeSession?.session;
+                    await loadMessages();
+                    if (selected) {
+                        activeSession = sessions.find(s => s.session === selected);
+                        renderMessages();
+                    }
+                } catch (err) { console.error("Không cập nhật được tin nhắn", err); }
+                finally { refreshingMessages = false; }
+            }, 15000);
             renderSidebar(window.AUTH_USER);
 
             adminInput.addEventListener("keypress", e => {
@@ -314,13 +349,10 @@
     // ═══════════════════════════════════════
     async function loadMessages() {
         const [msgResult, verifyResult] = await Promise.all([
-            pb.collection("messages").getList(1, 1000, {
-                sort: "-created",
-                filter: `tenant="${CURRENT_TENANT}"` 
-            }),
+            loadWorkspaceMessages(CURRENT_TENANT),
             pb.collection("verifications").getList(1, 1000, {
-                filter: `tenant="${CURRENT_TENANT}"` 
-            })
+                filter: `tenant="${CURRENT_TENANT}"`
+            }).catch(() => ({ items: [] }))
         ]);
 
         verifiedUsers = {};
@@ -392,6 +424,32 @@
         }
     }
 
+    function parseClientMeta(value) {
+        if (value && typeof value === "object") return value;
+        if (typeof value === "string") { try { return JSON.parse(value) || {}; } catch (_) {} }
+        return {};
+    }
+
+    function sessionChannel(session) {
+        const meta = parseClientMeta(session.clientMeta);
+        const prefix = String(session.session || "").split(":")[0];
+        const platform = meta.platform || (["facebook", "instagram", "whatsapp", "zalo"].includes(prefix) ? prefix : "web");
+        const isComment = meta.conversation_type === "comment" || String(session.session).includes(":comment:");
+        const labels = { facebook: "Facebook", instagram: "Instagram", whatsapp: "WhatsApp", zalo: "Zalo", web: "Web/API" };
+        const icons = { facebook: "ti-brand-facebook", instagram: "ti-brand-instagram", whatsapp: "ti-brand-whatsapp", zalo: "ti-message-circle", web: "ti-world" };
+        return { platform, isComment, label: `${labels[platform] || platform}${isComment ? " · Bình luận" : ""}`, icon: icons[platform] || "ti-message" };
+    }
+
+    function sessionMetaBadges(session) {
+        const meta = parseClientMeta(session.clientMeta);
+        const channel = sessionChannel(session);
+        const page = meta.page_label || meta.page_id || "";
+        const customer = meta.customer_id || "";
+        return `<span class="badge bg-blue-lt me-1"><i class="ti ${channel.icon} me-1"></i>${escapeHtml(channel.label)}</span>` +
+            (page ? `<span class="badge bg-secondary-lt me-1" title="Page ID: ${escapeHtml(meta.page_id || '')}">${escapeHtml(page)}</span>` : '') +
+            (customer ? `<span class="badge bg-azure-lt" title="Tài khoản khách"><i class="ti ti-user me-1"></i>${escapeHtml(customer)}</span>` : '');
+    }
+
     // ═══════════════════════════════════════
     // LỌC PHIÊN (Tất cả / Cần xử lý)
     // ═══════════════════════════════════════
@@ -444,12 +502,53 @@
                                 <span class="text-secondary fs-6 whitespace-nowrap">${time}</span>
                             </div>
                             <div class="text-secondary fs-6 text-truncate" style="max-width: 200px;">${previewText}</div>
+                            <div class="mt-1">${sessionMetaBadges(session)}</div>
                         </div>
                     </div>
                 </div>
             `;
         }
         sessionListItemsEl.innerHTML = html;
+    }
+
+    // Bật/tắt AI cho từng phiên: tắt = AI không tự trả lời nữa cho tới khi bật lại.
+    let aiPausedForSession = false;
+    function renderAiToggle() {
+        const button = document.getElementById("btn-ai-toggle");
+        if (!button) return;
+        document.getElementById("ai-toggle-label").textContent = aiPausedForSession ? "AI: Tắt" : "AI: Bật";
+        button.classList.toggle("btn-outline-success", !aiPausedForSession);
+        button.classList.toggle("btn-outline-danger", aiPausedForSession);
+        button.title = aiPausedForSession
+            ? "AI đang tắt cho phiên này (chỉ nhân viên trả lời). Bấm để bật lại AI."
+            : "AI đang tự trả lời phiên này. Bấm để tắt AI và tự xử lý.";
+    }
+    async function sessionAiRequest(method, paused) {
+        const query = `?tenant=${encodeURIComponent(CURRENT_TENANT)}&session=${encodeURIComponent(activeSession.session)}`;
+        const response = await fetch(`${WORKER_URL}/api/account/session-ai${method === "GET" ? query : ""}`, {
+            method, cache: "no-store",
+            headers: { Authorization: pb.authStore.token, ...(method === "PUT" ? { "Content-Type": "application/json" } : {}) },
+            body: method === "PUT" ? JSON.stringify({ tenant: CURRENT_TENANT, session: activeSession.session, paused }) : undefined
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        return data.paused === true;
+    }
+    async function loadSessionAi() {
+        if (!activeSession) return;
+        const session = activeSession.session;
+        aiPausedForSession = false; renderAiToggle();
+        try {
+            const paused = await sessionAiRequest("GET");
+            if (activeSession?.session === session) { aiPausedForSession = paused; renderAiToggle(); }
+        } catch (err) { console.warn("[AI toggle]", err); }
+    }
+    async function toggleSessionAi() {
+        if (!activeSession) return;
+        try {
+            aiPausedForSession = await sessionAiRequest("PUT", !aiPausedForSession);
+            renderAiToggle();
+        } catch (err) { alert(`Không đổi được trạng thái AI: ${err.message || err}`); }
     }
 
     function openChat(sessionId) {
@@ -462,11 +561,12 @@
         const verifyIcon = activeSession.isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue fs-3 ms-1 align-middle" title="Đã xác thực"></i>` : '';
         const phoneBadge = activeSession.phone ? `<span class="badge bg-green-lt ms-2 py-1"><i class="ti ti-phone me-1"></i> ${activeSession.phone}</span>` : '';
         
-        chatTitleEl.innerHTML = `${escapeHtml(activeSession.username)}${verifyIcon}${phoneBadge}`;
+        chatTitleEl.innerHTML = `${escapeHtml(activeSession.username)}${verifyIcon}${phoneBadge}<span class="ms-2">${sessionMetaBadges(activeSession)}</span>`;
         chatAvatarEl.textContent = (activeSession.username || "KH").slice(0, 2).toUpperCase();
 
         const banner = document.getElementById("escalation-banner");
         if (banner) banner.classList.toggle("d-none", !activeSession.needsHuman);
+        loadSessionAi();
 
         // Chuyển phiên: ẩn thanh gọi thoại trừ khi cuộc gọi đang biết tới đúng là của phiên này
         if (!activeCallRecord || activeCallRecord.session !== sessionId) {
@@ -534,31 +634,36 @@
     // ═══════════════════════════════════════
     async function sendAdminMessage() {
         const text = adminInput.value.trim();
-        if (!text || !activeSession) return;
+        const mediaUrlInput = document.getElementById("admin-media-url");
+        const mediaTypeInput = document.getElementById("admin-media-type");
+        const mediaUrl = mediaUrlInput.value.trim();
+        if ((!text && !mediaUrl) || !activeSession) return;
+        const media = mediaUrl ? [{ type: mediaTypeInput.value, url: mediaUrl }] : [];
 
         adminInput.value = "";
+        mediaUrlInput.value = "";
         adminInput.disabled = true;
 
         try {
-            await pb.collection("messages").create({
-                session: activeSession.session, tenant: CURRENT_TENANT, username: "Admin", text: text, is_bot: true
-            });
-
-            // Chủ đã trả lời -> đánh dấu các câu hỏi "cần xử lý" của phiên này là đã xong
-            const pending = activeSession.messages.filter(m => m.needs_human && !m.escalation_resolved);
-            if (pending.length) {
-                await Promise.all(pending.map(m =>
-                    pb.collection("messages").update(m.id, { escalation_resolved: true }).catch(() => {})
-                ));
-                pending.forEach(m => { m.escalation_resolved = true; });
-                activeSession.needsHuman = false;
-                const banner = document.getElementById("escalation-banner");
-                if (banner) banner.classList.add("d-none");
-                buildSessions();
-                renderSessionList();
+            if (!messagesApiKey) {
+                const configs = await pb.collection("bot_configs").getList(1, 2, { filter: `tenant="${CURRENT_TENANT}"` });
+                if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error("Tenant chưa có API key trong Cấu hình bot");
+                messagesApiKey = configs.items[0].api_key;
             }
+            const response = await fetch(`${WORKER_URL}/api/v1/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${messagesApiKey}` },
+                body: JSON.stringify({ session: activeSession.session, text, media })
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+            activeSession.needsHuman = false;
+            const banner = document.getElementById("escalation-banner");
+            if (banner) banner.classList.add("d-none");
         } catch (err) {
-            alert("Lỗi khi gửi tin nhắn!");
+            adminInput.value = text;
+            mediaUrlInput.value = mediaUrl;
+            alert(`Lỗi khi gửi tin nhắn: ${err.message || err}`);
         } finally {
             adminInput.disabled = false; adminInput.focus();
         }
@@ -678,7 +783,7 @@
     function callRtc(path, body) {
         return fetch(`${WORKER_URL}${path}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${messagesApiKey}` },
             body: JSON.stringify(body || {})
         }).then(r => r.json());
     }
@@ -906,7 +1011,7 @@
         const infoEl = document.getElementById("admin-user-info");
         if (!infoEl) return;
 
-        const meta = activeSession?.clientMeta;
+        const meta = parseClientMeta(activeSession?.clientMeta);
         
         if (!meta || Object.keys(meta).length === 0) {
             infoEl.innerHTML = '<div class="text-center text-secondary py-3 bg-light border border-dashed rounded-3 fs-5">Chưa có thông tin</div>';
