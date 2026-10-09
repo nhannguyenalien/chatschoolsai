@@ -314,7 +314,7 @@
             if (!data.checked) { alert(data.reason); return; }
             if (!data.valid) { alert(`Token không dùng được: ${data.reason || 'đã hết hạn hoặc bị thu hồi'}. Hãy tạo lại Page token.`); return; }
             const missing = data.missing || [];
-            const lines = [`Token hợp lệ (loại: ${data.type || '?'}).`, `Quyền đang có: ${(data.scopes || []).join(', ') || '(không có)'}`];
+            const lines = [`Token hợp lệ (loại: ${data.type || '?'}, Meta App ID: ${data.app_id || '?'}).`, `Quyền đang có: ${(data.scopes || []).join(', ') || '(không có)'}`];
             if (missing.length) lines.push('', 'THIẾU quyền:', ...missing.map(m => `- ${m.name}: ${m.why}`), '', 'Cấp thêm quyền cho Meta App rồi tạo lại Page token và dán vào kênh này.');
             else lines.push('', 'Đủ các quyền cần thiết.');
             alert(lines.join('\n'));

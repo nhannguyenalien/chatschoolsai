@@ -2543,7 +2543,7 @@ async function handleAccountPagePermissions(request, env, cors, url) {
     if (!dbgRes.ok || !info) return json({ checked: false, reason: "app_secret không khớp với Meta App của token này" });
     const scopes = Array.isArray(info.scopes) ? info.scopes : [];
     return json({
-      checked: true, valid: info.is_valid !== false, type: info.type || "", scopes,
+      checked: true, valid: info.is_valid !== false, type: info.type || "", app_id: app.id, scopes,
       expires_at: info.expires_at || 0,
       missing: Object.entries(FACEBOOK_PAGE_PERMISSIONS).filter(([name]) => !scopes.includes(name)).map(([name, why]) => ({ name, why }))
     });
