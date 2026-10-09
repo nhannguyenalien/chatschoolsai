@@ -745,6 +745,7 @@
 
         filtered.forEach(p => {
             const targets = p.expand?.post_targets_via_post_id || [];
+            const publishable = targets.filter(t => ['pending', 'approved', 'scheduled', 'error'].includes(t.status));
             const pills = targets.map(t =>
                 `<span class="target-pill status-${t.status} me-1">${t.platform}: ${STATUS_LABEL[t.status]||t.status}</span>`
             ).join('');
@@ -756,11 +757,40 @@
                   <h3 class="card-title">${escHtml(p.title || '(chưa có tiêu đề)')}</h3>
                   <p class="text-secondary fs-5 mb-2">${escHtml((p.content||'').slice(0,140))}${(p.content||'').length>140?'…':''}</p>
                   <div>${pills || '<span class="text-secondary fs-6">Chưa gắn nền tảng nào</span>'}</div>
+                  ${publishable.length ? '<div class="mt-2"><button type="button" class="btn btn-sm btn-primary publish-now-btn"><i class="ti ti-send me-1"></i>Đăng ngay</button></div>' : ''}
                 </div>
               </div>`;
             col.querySelector('.post-card').addEventListener('click', () => openPostModal(p.id));
+            col.querySelector('.publish-now-btn')?.addEventListener('click', (event) => {
+                event.stopPropagation();
+                publishPostNow(publishable, event.currentTarget);
+            });
             list.appendChild(col);
         });
+    }
+
+    // "Đăng ngay": bấm = duyệt + đăng ngay các kênh chưa đăng của bài, không chờ cron 15 phút.
+    async function publishPostNow(targets, button) {
+        if (!confirm(`Đăng ngay bài này lên ${targets.length} kênh?`)) return;
+        button.disabled = true;
+        const results = [];
+        for (const target of targets) {
+            try {
+                const res = await fetch(`${WORKER_URL}/api/account/publish-now`, {
+                    method: 'POST', cache: 'no-store',
+                    headers: { Authorization: PB.authStore.token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tenant: window.TENANT, target_id: target.id })
+                });
+                const data = await res.json().catch(() => ({}));
+                results.push({ platform: target.platform, ok: res.ok && data.success, message: data.error || data.error_log || data.status });
+            } catch (err) {
+                results.push({ platform: target.platform, ok: false, message: err.message });
+            }
+        }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length) showToast('Đăng chưa thành công: ' + failed.map(r => `${r.platform} — ${r.message}`).join('; '), 'error');
+        else showToast('Đã đăng bài', 'success');
+        loadPosts();
     }
 
     document.getElementById('filter-status').addEventListener('change', loadPosts);

@@ -298,6 +298,10 @@ var index_default = {
       if (url.pathname === "/api/account/session-ai" && (request.method === "GET" || request.method === "PUT")) {
         return await handleAccountSessionAi(request, env2, cors, url);
       }
+      if (url.pathname === "/api/account/publish-now" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "publish-now", 30, 60 * 60 * 1000);
+        return limited || await handleAccountPublishNow(request, env2, cors);
+      }
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
@@ -3815,6 +3819,41 @@ __name(notifyOwnerPublishFailure, "notifyOwnerPublishFailure");
 
 // Lỗi tạm thời (rate limit, 5xx của Meta) -> xếp lại lịch với độ trễ tăng dần, dispatcher tự nhặt lại.
 // Lỗi vĩnh viễn hoặc không rõ bài đã lên chưa (timeout) -> "error" + báo Telegram cho chủ, không tự thử lại.
+// Nút "Đăng ngay" trên Composer: người dùng bấm = duyệt, đăng 1 target ngay thay vì chờ cron 15 phút.
+async function handleAccountPublishNow(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const targetId = String(body.target_id || "");
+  if (!/^[A-Za-z0-9]{1,40}$/.test(targetId)) return json({ error: "Thiếu target_id" }, 400);
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const { token } = access;
+  const load = async () => {
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records/${targetId}?expand=post_id`, { headers: { Authorization: token } });
+    return res.ok ? await res.json() : null;
+  };
+  let target = await load();
+  if (!target || target.tenant !== tenant) return json({ error: "Không tìm thấy bài đăng" }, 404);
+  if (target.status === "published") return json({ error: "Bài này đã được đăng rồi" }, 409);
+  if (target.status === "publishing") return json({ error: "Hệ thống đang đăng bài này, vui lòng chờ" }, 409);
+  if (target.status !== "approved" && target.status !== "scheduled") {
+    const patch = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records/${targetId}`, {
+      method: "PATCH", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved", error_log: "" })
+    });
+    if (!patch.ok) return json({ error: "Không chuyển được bài sang trạng thái đã duyệt" }, 502);
+    target = await load();
+  }
+  try {
+    await publishOneTarget(env, token, target);
+  } catch (err) {
+    console.error("[Publish Now] Lỗi:", err);
+  }
+  const after = await load();
+  return json({ success: after?.status === "published", status: after?.status || "unknown", error_log: after?.error_log || "", published_post_id: after?.published_post_id || "" });
+}
+__name(handleAccountPublishNow, "handleAccountPublishNow");
+
 async function handlePublishFailure(env, pbToken, target, err) {
   const { kind, reason } = classifyPublishError(err);
   const attempts = Number(target.attempts) || 0;
@@ -3956,6 +3995,7 @@ async function handlePublishDispatch(env, tenantFilter) {
   );
   const data = await res.json();
   const targets = data.items || [];
+  console.log(`[Publish] ${targets.length} target đến hạn đăng${tenantFilter ? ` (tenant ${tenantFilter})` : ""}`);
 
   for (const target of targets) {
     try {
