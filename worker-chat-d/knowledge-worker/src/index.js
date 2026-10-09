@@ -3549,6 +3549,7 @@ async function handleMetaWebhookEvent(request, env, ctx) {
         const changes = entry.changes || [];
         for (const change of changes) {
           const value = change.value || {};
+          console.log(`[Meta Webhook] change page=${pageId} field=${change.field} item=${value.item || ""} verb=${value.verb || ""} from=${value.from?.id || ""} parent=${value.parent_id || ""}`);
           if (platform === "facebook") {
             if (change.field !== "feed" || value.item !== "comment" || value.verb !== "add") continue;
             await processMetaCommentEvent(env, pbToken, platform, pageId, value.comment_id, value.from?.id, value.message, value.post_id || "");
