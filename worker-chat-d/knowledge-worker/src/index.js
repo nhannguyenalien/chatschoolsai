@@ -926,6 +926,27 @@ async function workspaceTemperature(env, workspace, temperature) {
 }
 __name(workspaceTemperature, "workspaceTemperature");
 
+// Tra tài liệu (mode "query", sessionId riêng để không lẫn vào hội thoại chính) bằng vài câu hỏi trước đó của khách + câu hiện tại.
+async function lookupSourcesWithHistory(env, pbToken, tenant, session, question) {
+  try {
+    const filter = `tenant='${escFilterValue(tenant)}' && session='${escFilterValue(session)}' && is_bot=false`;
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records?perPage=6&sort=-created&fields=text&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+    if (!res.ok) return [];
+    const previous = ((await res.json()).items || []).map((item) => String(item.text || "").slice(0, 300)).filter((text) => text && text !== question);
+    if (!previous.length) return [];
+    const lookup = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}/chat`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.ANYTHINGLLM_API_KEY}`, "Content-Type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ message: `${previous.reverse().join(" | ")} | ${question}`, mode: "query", sessionId: `media-lookup:${session}` })
+    });
+    return lookup.ok ? (await lookup.json()).sources || [] : [];
+  } catch (err) {
+    console.error("[Chat] Tra media theo ngữ cảnh lỗi:", err);
+    return [];
+  }
+}
+__name(lookupSourcesWithHistory, "lookupSourcesWithHistory");
+
 async function handleChat(request, env, cors, reservedQuota = null) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";
@@ -1077,10 +1098,16 @@ Tenant: ${tenant}`;
 
     // Khách xin xem hình/video: gắn link ảnh/video nằm trong các đoạn tài liệu AI vừa dùng (độc lập với việc AI có viết link hay không).
     const alreadyInReply = extractOutboundMediaFromText(reply).map((item) => item.url);
-    const media = extractMediaFromSources(aiData.sources, detectMediaRequest(question), {
+    const mediaRequest = detectMediaRequest(question);
+    const mediaOptions = {
       exclude: alreadyInReply,
       isSafeUrl: (url) => { try { assertSafeExternalUrl(url); return true; } catch { return false; } }
-    });
+    };
+    let media = extractMediaFromSources(aiData.sources, mediaRequest, mediaOptions);
+    // "Gửi lại hình đi" không nhắc tên sản phẩm nên tìm tài liệu không ra: tra lại bằng các câu khách vừa hỏi trước đó.
+    if (mediaRequest.any && media.length === 0) {
+      media = extractMediaFromSources(await lookupSourcesWithHistory(env, pbToken, tenant, session, question), mediaRequest, mediaOptions);
+    }
     return new Response(JSON.stringify({ success: true, reply, needsHuman, media }), { headers: cors });
   } catch (err) {
     if (err.code === "MONTHLY_QUOTA_EXCEEDED") return monthlyQuotaExceeded(cors, err.quota);
@@ -3172,19 +3199,53 @@ async function metaSendRequest(pageAccessToken, recipientId, message) {
 }
 __name(metaSendRequest, "metaSendRequest");
 
+const META_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+// Messenger không tải được một số nguồn qua link (#100 "Không tải lên được"): tự tải file rồi upload thẳng lên Meta (multipart).
+async function metaUploadAttachment(pageAccessToken, recipientId, item) {
+  const source = await fetchWithTimeout(item.url, { timeout: 20000 });
+  if (!source.ok) throw new Error(`Không tải được file (${source.status})`);
+  const bytes = await source.arrayBuffer();
+  if (bytes.byteLength > META_UPLOAD_MAX_BYTES) throw new Error("File quá lớn để gửi qua Messenger");
+  const contentType = source.headers.get("content-type") || "application/octet-stream";
+  const filename = decodeURIComponent(new URL(item.url).pathname.split("/").pop() || "file") || "file";
+  const form = new FormData();
+  form.append("recipient", JSON.stringify({ id: recipientId }));
+  form.append("message", JSON.stringify({ attachment: { type: item.type === "file" ? "file" : item.type, payload: { is_reusable: true } } }));
+  form.append("messaging_type", "RESPONSE");
+  form.append("filedata", new Blob([bytes], { type: contentType }), filename);
+  const res = await fetchWithTimeout(`https://graph.facebook.com/${FB_GRAPH_VERSION}/me/messages`, {
+    method: "POST", headers: { Authorization: `Bearer ${pageAccessToken}` }, body: form, timeout: 60000
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error?.message || `Meta HTTP ${res.status}`);
+  return data;
+}
+__name(metaUploadAttachment, "metaUploadAttachment");
+
+// Một tệp lỗi không được làm mất cả tin: thử link -> thử upload -> cuối cùng gửi link dạng chữ để khách vẫn xem được.
+async function sendMetaMediaItem(pageAccessToken, recipientId, item, platform) {
+  const type = item.type === "file" ? "file" : item.type;
+  if (platform === "instagram" && !["image", "video", "audio"].includes(item.type)) {
+    return await metaSendRequest(pageAccessToken, recipientId, { text: item.url });
+  }
+  try {
+    return await metaSendRequest(pageAccessToken, recipientId, { attachment: { type, payload: { url: item.url, is_reusable: true } } });
+  } catch (urlError) {
+    console.error(`[Meta Media] Gửi bằng link lỗi (${urlError.message}), thử upload file:`, item.url);
+  }
+  try {
+    return await metaUploadAttachment(pageAccessToken, recipientId, item);
+  } catch (uploadError) {
+    console.error(`[Meta Media] Upload lỗi (${uploadError.message}), gửi link dạng chữ:`, item.url);
+  }
+  return await metaSendRequest(pageAccessToken, recipientId, { text: item.url });
+}
+__name(sendMetaMediaItem, "sendMetaMediaItem");
+
 async function sendMetaMessage(pageAccessToken, recipientId, text, media = [], platform = "facebook") {
   const results = [];
   if (String(text || "").trim()) results.push(await metaSendRequest(pageAccessToken, recipientId, { text: String(text).trim() }));
-  for (const item of media) {
-    if (platform === "instagram" && !["image", "video", "audio"].includes(item.type)) {
-      results.push(await metaSendRequest(pageAccessToken, recipientId, { text: item.url }));
-      continue;
-    }
-    const attachmentType = item.type === "file" ? "file" : item.type;
-    results.push(await metaSendRequest(pageAccessToken, recipientId, {
-      attachment: { type: attachmentType, payload: { url: item.url, is_reusable: true } }
-    }));
-  }
+  for (const item of media) results.push(await sendMetaMediaItem(pageAccessToken, recipientId, item, platform));
   return results.at(-1) || {};
 }
 __name(sendMetaMessage, "sendMetaMessage");
