@@ -3316,8 +3316,9 @@ async function replyToMetaComment(pageAccessToken, commentId, text, platform, im
     return { res, data: await res.json().catch(() => ({})) };
   };
   // Facebook cho đính kèm 1 ảnh vào phản hồi bình luận (attachment_url); Instagram thì không. Ảnh lỗi -> vẫn trả lời bằng chữ.
-  let { res, data } = await send(imageUrl && platform !== "instagram" ? { message: text, attachment_url: imageUrl } : { message: text });
-  if (!res.ok && imageUrl && platform !== "instagram") ({ res, data } = await send({ message: text }));
+  const withImage = imageUrl && platform !== "instagram";
+  let { res, data } = await send(withImage ? { ...(text ? { message: text } : {}), attachment_url: imageUrl } : { message: text });
+  if (!res.ok && withImage && text) ({ res, data } = await send({ message: text }));
   if (!res.ok) {
     const detail = data.error?.message || `Meta HTTP ${res.status}`;
     console.error("[Meta Comment Reply] Lỗi trả lời b\xECnh luận:", detail);
@@ -3565,11 +3566,21 @@ async function processMetaCommentEvent(env, pbToken, platform, pageId, commentId
   } catch (err) {
     console.error("[Meta Comment] AI không khả dụng, dùng phản hồi dự phòng:", err);
   }
-  // Bình luận chỉ đính kèm được ảnh; video thì để link trong câu trả lời.
-  const commentImage = commentMedia.find((item) => item.type === "image")?.url || "";
+  // Bình luận chỉ đính kèm được 1 ảnh mỗi phản hồi và không đính kèm được video: phản hồi đầu = chữ + ảnh 1,
+  // mỗi ảnh còn lại là 1 phản hồi riêng; video để link trong câu trả lời.
+  const commentImages = commentMedia.filter((item) => item.type === "image").map((item) => item.url);
   const commentVideoLinks = commentMedia.filter((item) => item.type === "video").map((item) => item.url);
   if (commentVideoLinks.length) reply = `${reply}\n\nVideo: ${commentVideoLinks.join("\n")}`;
-  await replyToMetaComment(page.access_token, commentId, reply, platform, commentImage);
+  await replyToMetaComment(page.access_token, commentId, reply, platform, commentImages[0] || "");
+  if (platform !== "instagram") {
+    for (const extraImage of commentImages.slice(1)) {
+      try {
+        await replyToMetaComment(page.access_token, commentId, "", platform, extraImage);
+      } catch (err) {
+        console.error("[Meta Comment] Không gửi được ảnh bổ sung:", err.message);
+      }
+    }
+  }
 }
 __name(processMetaCommentEvent, "processMetaCommentEvent");
 
