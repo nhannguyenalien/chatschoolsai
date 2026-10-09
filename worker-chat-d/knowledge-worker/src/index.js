@@ -2540,7 +2540,7 @@ async function handleAccountPagePermissions(request, env, cors, url) {
     if (!appRes.ok || !app.id) return json({ checked: true, valid: false, reason: app.error?.message || "Token không hợp lệ hoặc đã hết hạn" });
     const dbgRes = await fetchWithTimeout(`${graph}/debug_token?input_token=${encodeURIComponent(page.access_token)}`, { headers: { Authorization: `Bearer ${app.id}|${appSecret}` } });
     const info = (await dbgRes.json().catch(() => ({}))).data;
-    if (!dbgRes.ok || !info) return json({ checked: false, reason: "app_secret không khớp với Meta App của token này" });
+    if (!dbgRes.ok || !info) return json({ checked: false, app_id: app.id, reason: `app_secret trong cấu hình không khớp với Meta App của token này (App ID: ${app.id}). Hãy dùng đúng App Secret của app đó.` });
     const scopes = Array.isArray(info.scopes) ? info.scopes : [];
     return json({
       checked: true, valid: info.is_valid !== false, type: info.type || "", app_id: app.id, scopes,
