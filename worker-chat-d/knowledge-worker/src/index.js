@@ -306,6 +306,10 @@ var index_default = {
         const limited = enforceRateLimit(request, "page-permissions", 30, 60 * 60 * 1000);
         return limited || await handleAccountPagePermissions(request, env2, cors, url);
       }
+      if (url.pathname === "/api/account/page-token-exchange" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "page-token-exchange", 10, 60 * 60 * 1000);
+        return limited || await handleAccountPageTokenExchange(request, env2, cors);
+      }
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
@@ -2553,6 +2557,52 @@ async function handleAccountPagePermissions(request, env, cors, url) {
   }
 }
 __name(handleAccountPagePermissions, "handleAccountPagePermissions");
+
+// Đổi User token (lấy từ Graph API Explorer) thành Page token dài hạn của đúng fanpage: User token -> long-lived user token
+// -> GET /{page_id}?fields=access_token. Page token sinh từ long-lived user token không hết hạn. Lưu thẳng vào pages_config.
+async function handleAccountPageTokenExchange(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || "");
+  if (!/^[A-Za-z0-9]{1,40}$/.test(id)) return json({ error: "Thiếu id kênh" }, 400);
+  const token = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records/${id}`, { headers: { Authorization: token } });
+  if (!res.ok) return json({ error: "Không tìm thấy kênh" }, res.status === 404 ? 404 : 503);
+  const page = await res.json();
+  const access = await resolveMediaTenantAccess(request, env, page.tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  if (page.platform !== "facebook") return json({ error: "Chỉ áp dụng cho kênh Facebook" }, 400);
+  const appSecret = (() => { try { return String(JSON.parse(page.extra_config || "{}").app_secret || ""); } catch { return ""; } })();
+  if (!appSecret) return json({ error: 'Cần "app_secret" của Meta App trong ô Cấu hình thêm' }, 400);
+  const graph = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;
+  const call = async (path, bearer) => {
+    const r = await fetchWithTimeout(`${graph}${path}`, { headers: { Authorization: `Bearer ${bearer}` } });
+    return { ok: r.ok, data: await r.json().catch(() => ({})) };
+  };
+  try {
+    const app = await call("/app?fields=id", page.access_token);
+    if (!app.ok || !app.data.id) return json({ error: app.data.error?.message || "Token không hợp lệ hoặc đã hết hạn" }, 400);
+    const dbg = await call(`/debug_token?input_token=${encodeURIComponent(page.access_token)}`, `${app.data.id}|${appSecret}`);
+    if (!dbg.ok || !dbg.data.data) return json({ error: "app_secret không khớp với Meta App của token" }, 400);
+    if (dbg.data.data.type === "PAGE") return json({ converted: false, message: "Token này đã là Page token" });
+    const longRes = await fetchWithTimeout(`${graph}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(app.data.id)}&client_secret=${encodeURIComponent(appSecret)}&fb_exchange_token=${encodeURIComponent(page.access_token)}`);
+    const long = await longRes.json().catch(() => ({}));
+    const userToken = longRes.ok && long.access_token ? long.access_token : page.access_token;
+    const pageRes = await call(`/${encodeURIComponent(page.page_id)}?fields=access_token,name`, userToken);
+    if (!pageRes.ok || !pageRes.data.access_token) {
+      return json({ error: pageRes.data.error?.message || "Tài khoản của token này không quản trị fanpage đó, hoặc thiếu quyền pages_show_list" }, 400);
+    }
+    const patch = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records/${id}`, {
+      method: "PATCH", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify({ access_token: pageRes.data.access_token })
+    });
+    if (!patch.ok) return json({ error: "Không lưu được Page token" }, 502);
+    return json({ converted: true, name: pageRes.data.name || "", long_lived: Boolean(longRes.ok && long.access_token) });
+  } catch (err) {
+    console.error("[Page Token Exchange] Lỗi:", err);
+    return json({ error: "Không gọi được Facebook" }, 502);
+  }
+}
+__name(handleAccountPageTokenExchange, "handleAccountPageTokenExchange");
 
 async function handleServeMedia(env, cors, key) {
   if (!env.MEDIA_BUCKET || !key || key.includes("..")) return new Response("Not found", { status: 404 });

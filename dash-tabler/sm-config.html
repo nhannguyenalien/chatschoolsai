@@ -99,7 +99,8 @@
                             <button id="new-page-btn" class="btn btn-primary ms-auto"><i class="ti ti-plus me-1"></i> Thêm kênh</button>
                         </div>
                         <div class="table-responsive mt-2">
-                            <table class="table card-table table-vcenter">
+                            <div id="perm-result" class="d-none"></div>
+            <table class="table card-table table-vcenter">
                                 <thead><tr>
                                     <th>Platform</th><th>Tên gợi nhớ</th><th>ID</th><th>Access Token</th><th>Trạng thái</th><th class="w-1"></th>
                                 </tr></thead>
@@ -307,21 +308,45 @@
     // Hỏi Facebook token của kênh có những quyền nào, báo rõ quyền còn thiếu (đăng bài cần pages_manage_posts + pages_read_engagement).
     async function checkPagePermissions(pc, button) {
         button.disabled = true;
+        const box = document.getElementById('perm-result');
+        const show = (type, html) => { box.className = `alert alert-${type} mb-3`; box.innerHTML = html; box.scrollIntoView({ block: 'nearest' }); };
+        show('info', 'Đang kiểm tra token với Facebook...');
         try {
             const res = await fetch(`${WORKER_URL}/api/account/page-permissions?id=${encodeURIComponent(pc.id)}`, { headers: { Authorization: PB.authStore.token }, cache: 'no-store' });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            if (!data.checked) { alert(data.reason); return; }
-            if (!data.valid) { alert(`Token không dùng được: ${data.reason || 'đã hết hạn hoặc bị thu hồi'}. Hãy tạo lại Page token.`); return; }
+            if (!data.checked) { show('warning', escHtml(data.reason)); return; }
+            if (!data.valid) { show('danger', `Token không dùng được: ${escHtml(data.reason || 'đã hết hạn hoặc bị thu hồi')}. Hãy tạo lại token.`); return; }
             const missing = data.missing || [];
-            const lines = [`Token hợp lệ (loại: ${data.type || '?'}, Meta App ID: ${data.app_id || '?'}).`, `Quyền đang có: ${(data.scopes || []).join(', ') || '(không có)'}`];
-            if (missing.length) lines.push('', 'THIẾU quyền:', ...missing.map(m => `- ${m.name}: ${m.why}`), '', 'Cấp thêm quyền cho Meta App rồi tạo lại Page token và dán vào kênh này.');
-            else lines.push('', 'Đủ các quyền cần thiết.');
-            alert(lines.join('\n'));
+            let html = `<b>Token hợp lệ</b> — loại: <b>${escHtml(data.type || '?')}</b>, Meta App ID: ${escHtml(data.app_id || '?')}<br>Quyền đang có: ${escHtml((data.scopes || []).join(', ') || '(không có)')}`;
+            if (missing.length) html += `<br><b>THIẾU quyền:</b><ul class="mb-0">${missing.map(m => `<li>${escHtml(m.name)} — ${escHtml(m.why)}</li>`).join('')}</ul>Cấp thêm quyền cho Meta App rồi tạo lại token.`;
+            else html += '<br><b>Đủ các quyền cần thiết.</b>';
+            if (data.type === 'USER') html += '<div class="mt-2"><b>Đây là User token — chưa dùng để đăng bài được.</b> <button class="btn btn-sm btn-primary" id="exchange-token-btn">Đổi sang Page token dài hạn</button></div>';
+            show(missing.length || data.type === 'USER' ? 'warning' : 'success', html);
+            document.getElementById('exchange-token-btn')?.addEventListener('click', () => exchangePageToken(pc, show));
         } catch (err) {
-            alert('Không kiểm tra được quyền: ' + err.message);
+            show('danger', 'Không kiểm tra được quyền: ' + escHtml(err.message));
         } finally {
             button.disabled = false;
+        }
+    }
+
+    async function exchangePageToken(pc, show) {
+        show('info', 'Đang đổi sang Page token...');
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/page-token-exchange`, {
+                method: 'POST', cache: 'no-store',
+                headers: { Authorization: PB.authStore.token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: pc.id })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            show(data.converted ? 'success' : 'info', data.converted
+                ? `Đã đổi và lưu Page token của "${escHtml(data.name)}" (${data.long_lived ? 'dài hạn, không hết hạn' : 'ngắn hạn'}). Bấm "Kiểm tra quyền" để xác nhận.`
+                : escHtml(data.message || ''));
+            loadPages();
+        } catch (err) {
+            show('danger', 'Không đổi được token: ' + escHtml(err.message));
         }
     }
 
