@@ -368,6 +368,10 @@ var index_default = {
         const limited = costly ? enforceRateLimit(request, "weekly-plan", 60, 60 * 60 * 1000) : null;
         return limited || await handleAccountWeeklyPlan(request, env2, cors, url, action);
       }
+      if (url.pathname === "/api/account/whatsapp/check" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "whatsapp-check", 30, 60 * 60 * 1000);
+        return limited || await handleAccountWhatsAppCheck(request, env2, cors);
+      }
       if (url.pathname === "/api/account/bot-config" && ["GET", "PUT"].includes(request.method)) {
         return await handleAccountBotConfig(request, env2, cors, url);
       }
@@ -3163,6 +3167,43 @@ async function handleAccountWeeklyPlan(request, env, cors, url, action) {
   }
 }
 __name(handleAccountWeeklyPlan, "handleAccountWeeklyPlan");
+
+// Chẩn đoán kênh WhatsApp Cloud API bằng token đã lưu trong kênh (token không bao giờ trả về): token còn hợp lệ không,
+// số điện thoại là số nào, WhatsApp Business Account (waba_id trong extra_config) đã đăng ký nhận webhook cho app chưa.
+// body.subscribe=true: đăng ký WABA nhận webhook cho app (POST /{waba_id}/subscribed_apps).
+async function handleAccountWhatsAppCheck(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=20&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && platform='whatsapp' && is_active=true`)}`, { headers: { Authorization: access.token } });
+  const page = res.ok ? (await res.json()).items?.[0] : null;
+  if (!page) return json({ error: "Workspace chưa có kênh WhatsApp đang hoạt động" }, 404);
+  const extra = parseMessageClientMeta(page.extra_config);
+  const version = String(extra.graph_version || FB_GRAPH_VERSION);
+  const graph = async (path, init = {}) => {
+    const r = await fetchWithTimeout(`https://graph.facebook.com/${version}/${path}`, { ...init, headers: { Authorization: `Bearer ${page.access_token}`, ...(init.headers || {}) }, timeout: 2e4 });
+    const data = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, data };
+  };
+  const out = { channel: { id: page.id, phone_number_id: page.page_id, has_app_secret: !!extra.app_secret, has_verify_token: !!extra.verify_token, waba_id: extra.waba_id || "" } };
+  const phone = await graph(`${encodeURIComponent(page.page_id)}?fields=display_phone_number,verified_name,quality_rating,code_verification_status`);
+  out.phone = phone.ok ? { ok: true, display_phone_number: phone.data.display_phone_number, verified_name: phone.data.verified_name, quality_rating: phone.data.quality_rating } : { ok: false, status: phone.status, error: phone.data?.error?.message || "Meta từ chối token/Phone Number ID" };
+  const waba = String(extra.waba_id || body.waba_id || "");
+  if (/^\d{5,30}$/.test(waba)) {
+    if (body.subscribe === true) {
+      const sub = await graph(`${waba}/subscribed_apps`, { method: "POST" });
+      out.subscribe = { ok: sub.ok && sub.data?.success === true, error: sub.ok ? undefined : sub.data?.error?.message || `HTTP ${sub.status}` };
+    }
+    const apps = await graph(`${waba}/subscribed_apps`);
+    out.subscribed_apps = apps.ok ? { ok: true, apps: (apps.data.data || []).map((a) => ({ id: a.whatsapp_business_api_data?.id || a.id, name: a.whatsapp_business_api_data?.name || a.name })) } : { ok: false, error: apps.data?.error?.message || `HTTP ${apps.status}` };
+  } else {
+    out.subscribed_apps = { ok: false, error: "Chưa có waba_id trong Cấu hình thêm của kênh (thêm \"waba_id\":\"<WhatsApp Business Account ID>\")" };
+  }
+  return json(out);
+}
+__name(handleAccountWhatsAppCheck, "handleAccountWhatsAppCheck");
 
 // Đọc/ghi cấu hình bot qua Worker: rule PocketBase của bot_configs chỉ khớp workspace gốc của tài khoản,
 // workspace phụ sẽ đọc rỗng và không tạo/sửa được. Quyền workspace kiểm tra bằng resolveMediaTenantAccess.
