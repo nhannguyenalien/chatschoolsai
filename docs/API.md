@@ -48,6 +48,7 @@ Tạo bài + tự tạo `post_targets` cho các platform chỉ định (dùng pa
   "image_prompt": "mô tả ảnh (tuỳ chọn, chỉ để tham khảo, không tự sinh ảnh ở bước này)",
   "image_url": "https://... (tuỳ chọn — ảnh có sẵn, worker sẽ gắn vào bài)",
   "video_url": "https://... (tuỳ chọn, dùng thay image_url nếu là video)",
+  "video_prompt": "mô tả video (tuỳ chọn, chỉ sinh nếu bạn đã nhập pixverse_api_key riêng)",
   "platforms": ["facebook", "instagram"],
   "auto_approve": false
 }
@@ -56,6 +57,7 @@ Tạo bài + tự tạo `post_targets` cho các platform chỉ định (dùng pa
 - `title`, `content`: **bắt buộc**.
 - `platforms`: mặc định `["facebook"]` nếu bỏ trống. Platform nào chưa có page/token active trong `pages_config` sẽ bị bỏ qua âm thầm (không tạo target cho platform đó).
 - `auto_approve`: `true` → target tạo ra ở trạng thái `approved` (worker sẽ tự đăng thật trong vòng tối đa 15 phút, KHÔNG cần ai duyệt tay). `false`/bỏ trống → trạng thái `pending`, phải duyệt tay ở `composer.html` hoặc gọi `POST /api/v1/posts/:id/approve`.
+- Mặc định hãy truyền `image_url`/`video_url` có sẵn. `video_prompt` chỉ sinh video khi bạn đã nhập **API key PixVerse của riêng mình** (`pixverse_api_key` ở `config.html` hoặc `PATCH /api/v1/config`); chi phí tính trên tài khoản PixVerse của bạn, không trừ quota tin nhắn. Chưa có key thì bài vẫn được tạo kèm `video_warning`.
 - Instagram bắt buộc phải có `image_url` hoặc `video_url` — thiếu thì target sẽ báo lỗi khi tới lượt đăng (không chặn lúc tạo).
 - Nội dung dài quá 2200 ký tự sẽ đăng Facebook bình thường nhưng lỗi ở Instagram (giới hạn thật của Meta) — target đó sẽ chuyển sang `error` kèm `error_log` giải thích.
 
@@ -298,13 +300,41 @@ Gửi 1 câu hỏi, nhận câu trả lời AI ngay trong response (giống hệ
 
 **Response:** `{"success": true, "reply": "Dạ căn hộ 2PN giá từ..."}`
 
+Khi hết quota, API trả HTTP `429` (không trả `200`) cùng lỗi có cấu trúc:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "MONTHLY_QUOTA_EXCEEDED",
+    "message": "Bạn đã hết lượt chat trong tháng này.",
+    "retryable": false
+  },
+  "quota": {
+    "total": 100,
+    "used": 100,
+    "remaining": 0,
+    "reset_at": "2026-10-01T00:00:00.000Z",
+    "plan": "free",
+    "status": "exhausted"
+  }
+}
+```
+
+Lỗi xử lý/lưu hội thoại trả HTTP `502`, `error.code = "CHAT_PROCESSING_FAILED"` và
+`retryable = true`. Client chỉ nên retry các lỗi có `retryable: true`.
+
 Lưu ý: câu trả lời cũng được lưu vào `messages` như chat thật — sẽ tính vào `message_limit` của gói và có thể kích hoạt cơ chế handoff nếu AI không chắc chắn (xem phần Handoff ở README chính).
+
+## `GET /api/v1/quota` — Kiểm tra quota trước khi chat
+
+Trả `quota.total`, `quota.used`, `quota.remaining`, `quota.reset_at`, `quota.plan` và
+`quota.status` (`active` hoặc `exhausted`). Endpoint dùng cùng Bearer API key như `/api/v1/chat`.
 
 ---
 
 ## `GET /api/v1/config` / `PATCH /api/v1/config` — Cấu hình bot
 
-**GET** trả về cấu hình hiện tại (không trả `api_key`/`cloudinary_api_secret`/`cloudinary_api_key` vì lý do bảo mật — đọc các field đó thì vào `config.html`):
+**GET** trả về cấu hình hiện tại (không trả `api_key`/`cloudinary_api_secret`/`cloudinary_api_key`/`pixverse_api_key` vì lý do bảo mật — đọc các field đó thì vào `config.html`):
 ```json
 {
   "success": true,
@@ -321,8 +351,7 @@ Lưu ý: câu trả lời cũng được lưu vào `messages` như chat thật �
     "max_tokens": 1000,
     "streaming": true,
     "owner_telegram_chat_id": "123456789",
-    "cloudinary_cloud_name": "dxyz1234",
-    "brand_logo_url": "https://..."
+        "brand_logo_url": "https://..."
   }
 }
 ```
@@ -333,9 +362,33 @@ Lưu ý: câu trả lời cũng được lưu vào `messages` như chat thật �
 ```
 Response: `{"success": true, "updated": ["system_prompt", "temperature"]}`
 
-Field được phép sửa: `bot_name, bot_avatar, color, webhook, greeting, system_prompt, model, temperature, max_tokens, streaming, owner_telegram_chat_id, cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret, brand_logo_url`. Không sửa được `tenant`/`api_key` qua endpoint này (đổi API key phải vào `config.html`, để tránh tự thu hồi quyền của chính mình qua API).
+Field được phép sửa: `bot_name, bot_avatar, color, webhook, greeting, system_prompt, model, temperature, max_tokens, streaming, owner_telegram_chat_id, pixverse_api_key, brand_logo_url, brand_logo_enabled, brand_logo_position, brand_logo_size, brand_logo_opacity, brand_text_enabled, brand_text, brand_text_position, brand_text_size, brand_text_color, brand_text_opacity, brand_text_bg, brand_border, image_mode, image_style`. Cloudinary được cấu hình 1 lần ở cấp hệ thống (`system-config.html`), không còn nhập theo tenant. `image_mode`: `ai_only` (mặc định — AI vẽ ảnh khi bài có `image_prompt`), `library_first` (ưu tiên chọn ảnh có nhãn phù hợp trong Thư viện Media, không có thì AI vẽ), `library_only`, `none`; áp dụng khi bài được tạo mà chưa có ảnh (RSS, cụm blog, `POST /api/v1/posts` không truyền `image_url`/`video_url`). `image_style` gắn phong cách vào prompt vẽ ảnh. Không sửa được `tenant`/`api_key` qua endpoint này (đổi API key phải vào `config.html`, để tránh tự thu hồi quyền của chính mình qua API).
 
 ---
+
+## Ads Agent (Meta Ads, chỉ đọc)
+
+Agent đọc số liệu campaign của các ad account Meta, chạy rule engine (SCALE / HOLD / WATCH / PAUSE, cờ `creative_fatigue`, `roas_drop`, `cost_rise`, `spend_no_result`, `cost_over_target`), rồi gửi báo cáo + đề xuất qua Telegram và đưa vào bản tin của Agent tổng. **Không ghi gì vào ad account.** Thiết kế đầy đủ: `docs/ADS_AGENT.md`.
+
+**Khách tự tạo token:** Meta Business Settings → System users → Add assets (ad account, quyền View performance) → Generate token với `ads_read`. Dán token ở `config.html` → card "Ads Agent". Token được kiểm tra với Meta, lưu **mã hóa** (AES-GCM, khóa `ADS_TOKEN_ENCRYPTION_KEY`), không bao giờ trả lại client. Mỗi tenant nhiều token, mỗi token nhiều ad account (tối đa 5 token, 20 account/token).
+
+| Endpoint | Mô tả |
+|---|---|
+| `GET /api/v1/ads/connections` | Danh sách kết nối (không có token) |
+| `POST /api/v1/ads/connections` | `{label, token, account_ids?}` — kiểm tra token, lưu mã hóa |
+| `DELETE /api/v1/ads/connections/:id` | Gỡ kết nối |
+| `GET /api/v1/ads/reports` | 10 báo cáo gần nhất |
+| `POST /api/v1/trigger/ads` | Chạy báo cáo ngay và gửi Telegram |
+
+**Kết quả chính theo mục tiêu campaign:** agent tự nhận từ `objective` của campaign — `sales` (đơn hàng, ROAS), `leads`, `messages`, `traffic` (click), `engagement` (cuộc trò chuyện, hoặc tương tác nếu không có), `awareness` (không đánh giá theo kết quả). Chỉ campaign bán hàng **có giá trị đơn** mới dùng ROAS; còn lại đánh giá theo chi phí mỗi kết quả (so với 7 ngày trước, và `cost_target` nếu khách đặt). Ghi đè bằng `thresholds_json` của kết nối, ví dụ `{"result_kind":"messages"}`.
+
+**Ngưỡng theo tiền tệ:** `min_spend` mặc định là 5 USD, tự quy đổi theo tiền tệ ad account (VND ×25.000, JPY ×150...). Khi khách tự đặt `min_spend` hoặc `cost_target` trong `thresholds_json`, giá trị là theo đúng tiền tệ của account, không quy đổi. Các ngưỡng khác: `max_frequency` (3.5), `roas_scale` (3), `roas_pause` (1), `roas_drop_pct` (20), `cost_rise_pct` (25).
+
+**Lịch chạy:** 07:00 giờ VN mỗi ngày (cron `0 * * * *` lúc 00:00 UTC). Lượt này chạy THAY cho lượt AI Agent của giờ đó (không thêm cron, gói Free chỉ 5 cron); AI Agent chạy lại ở giờ kế tiếp.
+
+**Model:** không có gì đáng chú ý → báo cáo dựng bằng code, **không gọi model**. Có cờ → `ADS_MODEL_CHEAP`; bất thường lớn (≥3 campaign bị cờ, hoặc campaign chi nhiều mà không ra đơn) → `ADS_MODEL_STRONG`. Thiếu biến thì rơi về `OPENAI_CHAT_MODEL`. Chỉ số đã tổng hợp mới gửi cho model, không gửi token.
+
+**Triển khai:** (1) `node scripts/pb-ads-migrate.mjs --apply` (cần `PB_BACKUP_CONFIRMED=yes`) tạo `ads_connections`, `ads_reports`; (2) `wrangler secret put ADS_TOKEN_ENCRYPTION_KEY` (chuỗi ngẫu nhiên dài, mất khóa = khách phải dán lại token); (3) tuỳ chọn đặt `ADS_MODEL_CHEAP`, `ADS_MODEL_STRONG`. Thử với ad account thật mà không ghi gì: `META_ADS_TOKEN=... node scripts/ads-smoke.mjs`.
 
 ## `POST /api/v1/agent-chat` — Chat với Trợ lý cấu hình
 
@@ -367,30 +420,6 @@ Lưu ý bảo mật: nội dung gửi lên (kể cả token/API key nếu khách
 Trả về đúng danh sách tool mà `/api/v1/agent-chat` có thể gọi — lấy trực tiếp từ mảng `CONFIG_CHAT_TOOLS` trong code (nguồn duy nhất), không phải tài liệu viết tay có thể lệch dần theo thời gian. Dùng để hiển thị "Agent có thể làm được gì?" trên UI.
 
 Response:
-## Ads Agent (Meta Ads, chỉ đọc)
-
-Agent đọc số liệu campaign của các ad account Meta, chạy rule engine (SCALE / HOLD / WATCH / PAUSE, cờ `creative_fatigue`, `roas_drop`, `cost_rise`, `spend_no_result`, `cost_over_target`), rồi gửi báo cáo + đề xuất qua Telegram và đưa vào bản tin của Agent tổng. **Không ghi gì vào ad account.** Thiết kế đầy đủ: `docs/ADS_AGENT.md`.
-
-**Khách tự tạo token:** Meta Business Settings → System users → Add assets (ad account, quyền View performance) → Generate token với `ads_read`. Dán token ở `config.html` → card "Ads Agent". Token được kiểm tra với Meta, lưu **mã hóa** (AES-GCM, khóa `ADS_TOKEN_ENCRYPTION_KEY`), không bao giờ trả lại client. Mỗi tenant nhiều token, mỗi token nhiều ad account (tối đa 5 token, 20 account/token).
-
-| Endpoint | Mô tả |
-|---|---|
-| `GET /api/v1/ads/connections` | Danh sách kết nối (không có token) |
-| `POST /api/v1/ads/connections` | `{label, token, account_ids?}` — kiểm tra token, lưu mã hóa |
-| `DELETE /api/v1/ads/connections/:id` | Gỡ kết nối |
-| `GET /api/v1/ads/reports` | 10 báo cáo gần nhất |
-| `POST /api/v1/trigger/ads` | Chạy báo cáo ngay và gửi Telegram |
-
-**Kết quả chính theo mục tiêu campaign:** agent tự nhận từ `objective` của campaign — `sales` (đơn hàng, ROAS), `leads`, `messages`, `traffic` (click), `engagement` (cuộc trò chuyện, hoặc tương tác nếu không có), `awareness` (không đánh giá theo kết quả). Chỉ campaign bán hàng **có giá trị đơn** mới dùng ROAS; còn lại đánh giá theo chi phí mỗi kết quả (so với 7 ngày trước, và `cost_target` nếu khách đặt). Ghi đè bằng `thresholds_json` của kết nối, ví dụ `{"result_kind":"messages"}`.
-
-**Ngưỡng theo tiền tệ:** `min_spend` mặc định là 5 USD, tự quy đổi theo tiền tệ ad account (VND ×25.000, JPY ×150...). Khi khách tự đặt `min_spend` hoặc `cost_target` trong `thresholds_json`, giá trị là theo đúng tiền tệ của account, không quy đổi. Các ngưỡng khác: `max_frequency` (3.5), `roas_scale` (3), `roas_pause` (1), `roas_drop_pct` (20), `cost_rise_pct` (25).
-
-**Lịch chạy:** 07:00 giờ VN mỗi ngày (cron `0 * * * *` lúc 00:00 UTC). Lượt này chạy THAY cho lượt AI Agent của giờ đó (không thêm cron, gói Free chỉ 5 cron); AI Agent chạy lại ở giờ kế tiếp.
-
-**Model:** không có gì đáng chú ý → báo cáo dựng bằng code, **không gọi model**. Có cờ → `ADS_MODEL_CHEAP`; bất thường lớn (≥3 campaign bị cờ, hoặc campaign chi nhiều mà không ra đơn) → `ADS_MODEL_STRONG`. Thiếu biến thì rơi về `OPENAI_CHAT_MODEL`. Chỉ số đã tổng hợp mới gửi cho model, không gửi token.
-
-**Triển khai:** (1) `node scripts/pb-ads-migrate.mjs --apply` (cần `PB_BACKUP_CONFIRMED=yes`) tạo `ads_connections`, `ads_reports`; (2) `wrangler secret put ADS_TOKEN_ENCRYPTION_KEY` (chuỗi ngẫu nhiên dài, mất khóa = khách phải dán lại token); (3) tuỳ chọn đặt `ADS_MODEL_CHEAP`, `ADS_MODEL_STRONG`. Thử với ad account thật mà không ghi gì: `META_ADS_TOKEN=... node scripts/ads-smoke.mjs`.
-
 ```json
 {
   "success": true,
@@ -440,6 +469,8 @@ Response: `{"success": true, "doc_id": "d1", "chunks_count": "Auto"}`
 }
 ```
 `needs_human: true` = câu này AI trả lời không chắc chắn, đang chờ xử lý trong "Cần xử lý" ở `messages.html` (xem cơ chế Handoff).
+
+**POST** `/api/v1/messages` hỗ trợ gửi text và media tới một session đã tồn tại. Body có `session`, `text` (tuỳ chọn) và `media` (tuỳ chọn, tối đa 10 phần tử). Mỗi media có dạng `{ "type": "image|video|audio|file", "url": "https://...", "caption": "...", "filename": "..." }`; phải có ít nhất `text` hoặc `media`. Nếu session thuộc Facebook, Instagram, WhatsApp hoặc Zalo, worker sẽ gọi API gửi tin của đúng nền tảng.
 
 ---
 
@@ -494,5 +525,8 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 ## Lưu ý triển khai
 
 - Cần chạy `scripts/pb-migrate.mjs` (hoặc import `scripts/pb-import.json`) để có field `bot_configs.api_key` trước khi dùng.
+- Kết nối Google Analytics/Search Console cần bật Google Analytics Admin API, Google Analytics Data API và Search Console API; cấu hình OAuth redirect URI về `https://chat.schoolsai.work/analytics.html`; sau đó đặt các Worker secret `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_STATE_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY` và biến `GOOGLE_REDIRECT_URI`.
+- Các endpoint Google gồm `GET /api/v1/content-planning/analytics/google/status`, `POST /start`, `POST /complete`, `GET /properties`, `POST /select` và `POST /sync`. Tất cả đều yêu cầu API key của tenant.
+- `POST /api/v1/wordpress/test` kiểm tra URL, Application Password và quyền xuất bản của tài khoản WordPress trước khi đưa cấu hình vào luồng đăng bài.
 - Tất cả input string đi vào PocketBase filter đều đã qua `escFilterValue()` để chống injection — không cần tự escape phía client.
 - Chưa có rate limiting trên các endpoint `/api/v1/*` — nếu hệ thống ngoài gọi tần suất cao, cân nhắc thêm giới hạn ở tầng Cloudflare (Rate Limiting Rules) theo path `/api/v1/*`.

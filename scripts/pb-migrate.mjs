@@ -155,6 +155,8 @@ async function migrateBotConfigs(token) {
   schema = ensureField(schema, { name: "brand_text_opacity", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_text_bg", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "brand_border", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "image_mode", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "image_style", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "api_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }

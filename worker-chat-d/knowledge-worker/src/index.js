@@ -1,5 +1,9 @@
 import { AccountQuotaStore, bonusRemaining, effectivePlan, messageLimit, storageLimit } from "./domain/billing/accountQuota.js";
 import { createMediaStore, MediaError } from "./domain/media/mediaStore.js";
+import {
+  IMAGE_MODES, allowsAi, buildImagePrompt, buildPickMessages, heuristicPick,
+  normalizeImagePolicy, parsePickedItem, selectLibraryCandidates, usesLibrary
+} from "./domain/media/postImagePolicy.js";
 import { checkTargetPreflight, PREFLIGHT_MARKER, PREFLIGHT_WINDOW_MINUTES, preflightNotice } from "./domain/publishing/preflight.js";
 import { classifyPublishError, failureNotice, metaApiError, nextRetryAt } from "./domain/publishing/retryPolicy.js";
 import { MEDIA_INSTRUCTION, detectMediaRequest, extractMediaFromSources } from "./domain/chat/productMedia.js";
@@ -2449,6 +2453,73 @@ async function uploadImageToMediaLibrary(env, pbToken, tenant, base64Image, labe
 }
 __name(uploadImageToMediaLibrary, "uploadImageToMediaLibrary");
 
+// ================= [CHỌN ẢNH CHO BÀI THEO CHÍNH SÁCH TỪNG TENANT] =================
+// bot_configs.image_mode: ai_only (mặc định, như cũ) | library_first | library_only | none;
+// image_style: phong cách gắn vào prompt vẽ ảnh để ảnh AI của cùng thương hiệu đồng bộ.
+async function loadTenantImageConfig(env, pbToken, tenant) {
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records?perPage=1&sort=-updated&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers: { Authorization: pbToken } });
+  return res.ok ? (await res.json()).items?.[0] || null : null;
+}
+__name(loadTenantImageConfig, "loadTenantImageConfig");
+
+async function pickLibraryImage(env, pbToken, tenant, cfg, { title, content }) {
+  const tenantFilter = `tenant='${escFilterValue(tenant)}'`;
+  const [libRes, recentRes] = await Promise.all([
+    fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records?perPage=100&sort=-created&filter=${encodeURIComponent(`${tenantFilter} && type='image' && status='ready'`)}`, { headers: { Authorization: pbToken } }),
+    fetchWithTimeout(`${env.PB_URL}/api/collections/media/records?perPage=30&sort=-created&filter=${encodeURIComponent(`${tenantFilter} && type='image'`)}`, { headers: { Authorization: pbToken } })
+  ]);
+  if (!libRes.ok) return null;
+  const items = ((await libRes.json()).items || []).map((r) => ({
+    ...r,
+    url: r.url || (r.file ? `${env.PB_URL}/api/files/media_library/${r.id}/${encodeURIComponent(r.file)}` : "")
+  }));
+  const recentUrls = recentRes.ok ? ((await recentRes.json()).items || []).map((r) => r.url) : [];
+  const candidates = selectLibraryCandidates(items, { logoUrl: cfg?.brand_logo_url || "", recentUrls });
+  if (!candidates.length) return null;
+  if (env.OPENAI_KEY) {
+    try {
+      const res = await createMeteredAiFetch(env, tenant, pbToken)(`${env.OPENAI_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages: buildPickMessages(candidates, { title, content }) }),
+        timeout: 2e4
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return parsePickedItem(data.choices?.[0]?.message?.content, candidates);
+      }
+    } catch (err) {
+      console.error("[Image] Lỗi AI chọn ảnh từ thư viện, dùng cách dự phòng:", err);
+    }
+  }
+  return heuristicPick(candidates, { title, content });
+}
+__name(pickLibraryImage, "pickLibraryImage");
+
+// Trả { url, source } — source: "library" | "ai" | "" (không có ảnh). Không bao giờ ném lỗi: bài vẫn được tạo không ảnh.
+async function resolvePostImage(env, pbToken, tenant, { title, content, imagePrompt, cfg }) {
+  try {
+    const config = cfg || await loadTenantImageConfig(env, pbToken, tenant);
+    const policy = normalizeImagePolicy(config);
+    if (policy.mode === "none") return { url: "", source: "" };
+    if (usesLibrary(policy.mode)) {
+      const picked = await pickLibraryImage(env, pbToken, tenant, config, { title, content });
+      if (picked?.url) return { url: picked.url, source: "library" };
+      if (!allowsAi(policy.mode)) return { url: "", source: "" };
+    }
+    const prompt = buildImagePrompt(imagePrompt, policy.style);
+    if (!prompt) return { url: "", source: "" };
+    const b64Image = await generateImageWithDallE(env, prompt, tenant, pbToken);
+    if (!b64Image) return { url: "", source: "" };
+    const url = await uploadImageToMediaLibrary(env, pbToken, tenant, b64Image, title, imagePrompt) || "";
+    return { url, source: url ? "ai" : "" };
+  } catch (err) {
+    console.error("[Image] Lỗi chọn/tạo ảnh cho bài:", err);
+    return { url: "", source: "" };
+  }
+}
+__name(resolvePostImage, "resolvePostImage");
+
 async function resolveMediaTenantAccess(request, env, tenant) {
   const account = await resolveOwnAccountRecord(request, env);
   if (!account) return { status: 401, error: "Unauthorized" };
@@ -2663,7 +2734,8 @@ var ACCOUNT_BOT_CONFIG_FIELDS = [
   "system_prompt", "response_language", "temperature", "api_key",
   "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size",
   "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color",
-  "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border"
+  "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border",
+  "image_mode", "image_style"
 ];
 async function handleAccountBotConfig(request, env, cors, url) {
   const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
@@ -2933,22 +3005,13 @@ async function writeClusterArticles(env, tenant, clusterId, plan) {
       const post = await postRes.json();
       if (!post.id) continue;
 
-      if (article.image_prompt) {
-        try {
-          const b64Image = await generateImageWithDallE(env, article.image_prompt, tenant, pbToken);
-          if (b64Image) {
-            const imageUrl = await uploadImageToMediaLibrary(env, pbToken, tenant, b64Image, item.title, article.image_prompt);
-            if (imageUrl) {
-              await fetchWithTimeout(`${env.PB_URL}/api/collections/media/records`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: pbToken },
-                body: JSON.stringify({ tenant, post_id: post.id, url: imageUrl, type: "image", order: 0 })
-              });
-            }
-          }
-        } catch (err) {
-          console.error(`[ContentCluster] Lỗi tạo ảnh cho "${item.title}":`, err);
-        }
+      const image = await resolvePostImage(env, pbToken, tenant, { title: item.title, content: article.content, imagePrompt: article.image_prompt });
+      if (image.url) {
+        await fetchWithTimeout(`${env.PB_URL}/api/collections/media/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: pbToken },
+          body: JSON.stringify({ tenant, post_id: post.id, url: image.url, type: "image", order: 0 })
+        });
       }
 
       for (const page of activePages) {
@@ -3045,9 +3108,8 @@ async function processOneRssSource(env, pbToken, source) {
         // Ảnh chỉ vẽ 1 lần cho mỗi tin nguồn; các bài riêng của page khác dùng lại cùng ảnh (đỡ tốn phí AI).
         try {
           let imageUrl = sharedImageUrl;
-          if (!imageUrl && generated.image_prompt) {
-            const b64Image = await generateImageWithDallE(env, generated.image_prompt, source.tenant, pbToken);
-            if (b64Image) imageUrl = await uploadImageToMediaLibrary(env, pbToken, source.tenant, b64Image, generated.title || item.title, generated.image_prompt) || "";
+          if (!imageUrl) {
+            imageUrl = (await resolvePostImage(env, pbToken, source.tenant, { title: generated.title || item.title, content: generated.content, imagePrompt: generated.image_prompt })).url;
             sharedImageUrl = imageUrl;
           }
           if (imageUrl) {
@@ -5350,14 +5412,12 @@ async function handleApiCreatePost(request, env, cors, cfg, ctx) {
 
   let resolvedImageUrl = image_url || "";
   let imageWarning = "";
-  if (!resolvedImageUrl && !video_url && image_prompt) {
-    const generatedImage = await generateImageWithDallE(env, image_prompt, cfg.tenant, pbToken);
-    if (generatedImage) {
-      resolvedImageUrl = await uploadImageToMediaLibrary(
-        env, pbToken, cfg.tenant, generatedImage, title, image_prompt
-      ) || "";
-    }
-    if (!resolvedImageUrl) imageWarning = "Không thể sinh hoặc lưu ảnh AI; bài viết vẫn được tạo.";
+  let imageSource = image_url ? "provided" : "";
+  if (!resolvedImageUrl && !video_url) {
+    const image = await resolvePostImage(env, pbToken, cfg.tenant, { title, content, imagePrompt: image_prompt, cfg });
+    resolvedImageUrl = image.url;
+    imageSource = image.source;
+    if (!resolvedImageUrl && image_prompt && normalizeImagePolicy(cfg).mode !== "none") imageWarning = "Không thể chọn hoặc tạo ảnh; bài viết vẫn được tạo.";
   }
 
   if (resolvedImageUrl || video_url) {
@@ -5403,7 +5463,8 @@ async function handleApiCreatePost(request, env, cors, cfg, ctx) {
     success: true,
     post_id: post.id,
     targets: createdTargets,
-    image_generated: Boolean(resolvedImageUrl && !image_url),
+    image_generated: imageSource === "ai",
+    image_source: imageSource || null,
     video_generation_started: shouldGenerateVideo,
     ...(!video_url && video_prompt && !cfg.pixverse_api_key ? { video_warning: "Chưa nhập pixverse_api_key của bạn (config.html); bài viết đã được tạo nhưng chưa sinh video. Hãy truyền video_url nếu đã có video." } : {}),
     ...(imageWarning ? { warning: imageWarning } : {})
@@ -5591,14 +5652,15 @@ var CONFIG_READABLE_FIELDS = [
   "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
   "response_language",
   "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
-  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size", "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color", "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border"
+  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size", "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color", "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border", "image_mode", "image_style"
 ];
 var CONFIG_WRITABLE_FIELDS = [
   "bot_name", "bot_avatar", "color", "webhook", "greeting", "system_prompt",
   "response_language",
   "model", "temperature", "max_tokens", "streaming", "owner_telegram_chat_id",
   "pixverse_api_key",
-  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size", "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color"
+  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size", "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color",
+  "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border", "image_mode", "image_style"
 ];
 // Field bí mật trong bot_configs — KHÔNG bao giờ đưa giá trị thật vào snapshot cho model,
 // chỉ đưa cờ "<field>_set" (true/false) để model biết đã có hay chưa mà tư vấn.
@@ -5627,7 +5689,8 @@ function validateConfigPatch(body) {
     brand_logo_size: Object.keys(BRAND_LOGO_WIDTH), brand_text_size: Object.keys(BRAND_TEXT_SIZE),
     brand_text_color: ["white", "black"],
     brand_logo_opacity: Object.keys(BRAND_OPACITY), brand_text_opacity: Object.keys(BRAND_OPACITY),
-    brand_text_bg: Object.keys(BRAND_TEXT_BG), brand_border: Object.keys(BRAND_BORDER)
+    brand_text_bg: Object.keys(BRAND_TEXT_BG), brand_border: Object.keys(BRAND_BORDER),
+    image_mode: IMAGE_MODES
   };
   for (const [field, allowed] of Object.entries(brandEnums)) {
     if (patch[field] && !allowed.includes(patch[field])) return { error: `${field} ph\u1EA3i l\xE0 m\u1ED9t trong: ${allowed.join(", ")}` };
@@ -5721,7 +5784,9 @@ var CONFIG_CHAT_TOOLS = [
           brand_logo_opacity: { type: "string", enum: ["100", "80", "60", "40"], description: "Độ đậm logo (%)" },
           brand_text_opacity: { type: "string", enum: ["100", "80", "60", "40"], description: "Độ đậm chữ (%)" },
           brand_text_bg: { type: "string", enum: ["none", "dark", "light"], description: "Lớp nền mờ phía sau chữ" },
-          brand_border: { type: "string", enum: ["none", "thin", "thick"], description: "Viền quanh logo/chữ" }
+          brand_border: { type: "string", enum: ["none", "thin", "thick"], description: "Viền quanh logo/chữ" },
+          image_mode: { type: "string", enum: IMAGE_MODES, description: "Cách lấy ảnh tự động cho bài: ai_only (AI vẽ), library_first (ưu tiên ảnh trong thư viện, không có thì AI vẽ), library_only (chỉ dùng thư viện), none (không tự thêm ảnh)" },
+          image_style: { type: "string", description: "Phong cách ảnh AI vẽ cho thương hiệu, vd: flat illustration, màu xanh dương, tối giản" }
         },
         required: []
       }

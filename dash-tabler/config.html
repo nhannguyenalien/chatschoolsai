@@ -161,6 +161,30 @@
                                 <div class="card">
                                     <div class="card-header border-bottom-0 pb-0">
                                         <h3 class="card-title d-flex align-items-center gap-2">
+                                            <i class="ti ti-photo-ai text-primary fs-2"></i> Ảnh tự động cho bài đăng
+                                        </h3>
+                                    </div>
+                                    <div class="card-body pt-2">
+                                        <div class="text-secondary fs-5 mb-3">Khi bài được tạo tự động (từ RSS, cụm bài blog, hoặc API) mà chưa có ảnh, hệ thống sẽ lấy ảnh theo cách bạn chọn ở đây. Bài bạn tự gắn ảnh thì giữ nguyên.</div>
+                                        <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Cách lấy ảnh</label>
+                                        <select class="form-select mb-1" id="imageMode" onchange="toggleImageStyle()">
+                                            <option value="ai_only">AI vẽ ảnh theo nội dung bài (mặc định)</option>
+                                            <option value="library_first">Ưu tiên ảnh trong Thư viện Media, không có ảnh hợp thì AI vẽ</option>
+                                            <option value="library_only">Chỉ dùng ảnh trong Thư viện Media (không dùng AI)</option>
+                                            <option value="none">Không tự thêm ảnh</option>
+                                        </select>
+                                        <small class="form-hint d-block mb-3">Chọn từ thư viện dựa trên <b>tên (nhãn)</b> của ảnh — hãy đặt tên ảnh mô tả rõ nội dung (VD: "Bàn làm việc gỗ sồi", "Đội ngũ tư vấn") ở tab Thư viện Media. Hệ thống tránh dùng lại những ảnh vừa đăng gần đây.</small>
+                                        <div id="imageStyleWrap">
+                                            <label class="form-label text-uppercase tracking-wide text-secondary fs-5">Phong cách ảnh AI (tuỳ chọn)</label>
+                                            <input type="text" class="form-control" id="imageStyle" maxlength="300" placeholder="VD: ảnh chụp thật, ánh sáng tự nhiên, tông ấm; không có chữ trong ảnh">
+                                            <small class="form-hint mt-1 d-block">Gắn vào mọi ảnh AI vẽ để ảnh của thương hiệu đồng bộ màu sắc và phong cách.</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <div class="card-header border-bottom-0 pb-0">
+                                        <h3 class="card-title d-flex align-items-center gap-2">
                                             <i class="ti ti-photo-edit text-primary fs-2"></i> Chèn logo &amp; chữ lên ảnh
                                         </h3>
                                     </div>
@@ -502,7 +526,7 @@
        - brand_logo_url (text) — link ảnh logo do tenant nhập.
        - brand_logo_enabled, brand_text_enabled (bool); brand_logo_position, brand_logo_size, brand_text,
          brand_text_position, brand_text_size, brand_text_color, brand_logo_opacity, brand_text_opacity,
-         brand_text_bg, brand_border (text) — tuỳ chọn chèn logo/chữ lên ảnh.
+         brand_text_bg, brand_border (text); image_mode (ai_only|library_first|library_only|none), image_style (text). — tuỳ chọn chèn logo/chữ lên ảnh.
        - brand_logo_public_id, brand_logo_cached_url (text) — cache nội bộ do worker tự ghi, KHÔNG hiển thị
          trên UI (worker dùng để biết đã upload logo lên Cloudinary chưa, tránh upload lại mỗi lần đăng bài).
        - api_key (text) — API key riêng của tenant để hệ thống ngoài gọi /api/v1/... (xem docs/API.md).
@@ -647,7 +671,14 @@
         document.getElementById("brandTextOpacity").value = r.brand_text_opacity || "100";
         document.getElementById("brandTextBg").value = r.brand_text_bg || "none";
         document.getElementById("brandBorder").value = r.brand_border || "none";
+        document.getElementById("imageMode").value = r.image_mode || "ai_only";
+        document.getElementById("imageStyle").value = r.image_style || "";
+        toggleImageStyle();
         toggleBrandOptions();
+    }
+    function toggleImageStyle() {
+        const mode = document.getElementById("imageMode").value;
+        document.getElementById("imageStyleWrap").classList.toggle("d-none", mode === "library_only" || mode === "none");
     }
     function toggleBrandOptions() {
         document.getElementById("brandLogoOptions").classList.toggle("d-none", !document.getElementById("brandLogoEnabled").checked);
@@ -1196,6 +1227,8 @@
             brand_text_opacity: document.getElementById("brandTextOpacity").value,
             brand_text_bg: document.getElementById("brandTextBg").value,
             brand_border: document.getElementById("brandBorder").value,
+            image_mode: document.getElementById("imageMode").value,
+            image_style: document.getElementById("imageStyle").value.trim(),
             pixverse_api_key: document.getElementById("pixverseApiKey").value.trim(),
             system_prompt: document.getElementById("systemPrompt").value.trim(),
             response_language: document.getElementById("responseLanguage").value,
