@@ -3196,10 +3196,22 @@ async function handleAccountMetaCheck(request, env, cors) {
       const r = await fetchWithTimeout(`https://graph.facebook.com/${version}/${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}`, { timeout: 2e4 });
       return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
     };
+    // body.subscribe_page_fields: ghi lại các trường webhook của Page cho app (POST /{page_id}/subscribed_apps) — dùng khi
+    // một thao tác bên Meta Dashboard vô tình làm mất đăng ký (vd lưu đăng ký webhook Instagram làm Page chỉ còn "feed").
+    const wanted = Array.isArray(body.subscribe_page_fields) ? body.subscribe_page_fields.filter((f) => /^[a-z_]{3,40}$/.test(f)).slice(0, 20) : [];
+    let resubscribed = null;
+    if (wanted.length) {
+      const sr = await fetchWithTimeout(`https://graph.facebook.com/${version}/${encodeURIComponent(page.page_id)}/subscribed_apps`, {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ subscribed_fields: wanted.join(","), access_token: page.access_token }).toString(), timeout: 2e4
+      });
+      const sd = await sr.json().catch(() => ({}));
+      resubscribed = { ok: sr.ok && sd.success === true, fields: wanted, error: sr.ok ? undefined : sd?.error?.message || `HTTP ${sr.status}` };
+    }
     const info = await graph(`${encodeURIComponent(page.page_id)}?fields=name,instagram_business_account{id,username,name,profile_picture_url}`);
     const subs = await graph(`${encodeURIComponent(page.page_id)}/subscribed_apps`);
     const entry = {
-      channel_id: page.id, page_id: page.page_id, label: page.label,
+      channel_id: page.id, page_id: page.page_id, label: page.label, resubscribed,
       page: info.ok ? { ok: true, name: info.data.name, instagram: info.data.instagram_business_account || null } : { ok: false, error: info.data?.error?.message || `HTTP ${info.status}` },
       subscribed_apps: subs.ok ? (subs.data.data || []).map((a) => ({ id: a.id, name: a.name, fields: a.subscribed_fields || [] })) : { error: subs.data?.error?.message || `HTTP ${subs.status}` }
     };
