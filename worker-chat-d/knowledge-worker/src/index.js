@@ -3230,7 +3230,10 @@ async function applyBranding(env, pbToken, cfg, imageUrl) {
   try {
     const sys = await getSystemConfig(env);
     const cloud = { cloudName: sys.CLOUDINARY_CLOUD_NAME, apiKey: sys.CLOUDINARY_API_KEY, apiSecret: sys.CLOUDINARY_API_SECRET };
-    if (!cloud.cloudName || !cloud.apiKey || !cloud.apiSecret) return imageUrl;
+    if (!cloud.cloudName || !cloud.apiKey || !cloud.apiSecret) {
+      console.warn("[Branding] Bỏ qua: chưa cấu hình Cloudinary ở system-config.html (cloud name/API key/API secret)");
+      return imageUrl;
+    }
     const logoPublicId = useLogo ? await ensureLogoUploaded(env, pbToken, cloud, cfg) : "";
     const transformation = buildBrandTransformation(cfg, logoPublicId);
     if (!transformation) return imageUrl;
