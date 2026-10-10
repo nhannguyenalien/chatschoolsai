@@ -19,7 +19,7 @@ const res = await fetch(u + "/api/collections?perPage=200", { headers: { Authori
 const data = await res.json();
 if (!Array.isArray(data.items)) { console.error("Không đọc được danh sách:", res.status, JSON.stringify(data)); process.exit(1); }
 for (const x of data.items) {
-  if (!pattern.test(x.name) && x.id !== "3wdtwb5u4loybcm") continue;
+  if (!pattern.test(x.name)) continue;
   let count = "";
   if (withCount) {
     const r = await fetch(`${u}/api/collections/${x.id}/records?perPage=1`, { headers: { Authorization: token } });
