@@ -84,6 +84,7 @@
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item"><a href="#tab-posts" class="nav-link active" data-bs-toggle="tab">Bài viết</a></li>
                         <li class="nav-item"><a href="#tab-content-planning" class="nav-link" data-bs-toggle="tab">Content Planning</a></li>
+                        <li class="nav-item"><a href="#tab-weekly" class="nav-link" data-bs-toggle="tab">Kế hoạch tuần</a></li>
                         <li class="nav-item"><a href="#tab-media" class="nav-link" data-bs-toggle="tab">Thư viện Media</a></li>
                         <li class="nav-item"><a href="#tab-rss" class="nav-link" data-bs-toggle="tab">RSS &amp; Prompt AI</a></li>
                         <li class="nav-item"><a href="#tab-schedule" class="nav-link" data-bs-toggle="tab">Lịch đăng bài</a></li>
@@ -113,6 +114,56 @@
                                 </div>
                                 <div class="card-body">
                                     <div id="posts-list" class="row row-cards"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===== TAB KẾ HOẠCH TUẦN ===== -->
+                        <div class="tab-pane" id="tab-weekly">
+                            <div class="card mb-3">
+                                <div class="card-header"><h3 class="card-title"><i class="ti ti-adjustments me-2"></i>Thiết lập kế hoạch tuần</h3></div>
+                                <div class="card-body">
+                                    <div class="text-secondary mb-3">AI lập một lượt cả tuần bài social theo các nhóm nội dung bên dưới. Bài được tạo ở trạng thái <b>chờ duyệt</b> kèm giờ đăng dự kiến — bạn xem, sửa rồi duyệt, hệ thống mới tự đăng đúng giờ.</div>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-3"><label class="form-label">Số bài mỗi tuần</label><input type="number" min="1" max="21" id="wk-posts" class="form-control" value="7"></div>
+                                        <div class="col-md-5"><label class="form-label">Đăng lên</label><div id="wk-platforms" class="d-flex gap-3 flex-wrap pt-1"></div></div>
+                                        <div class="col-md-4"><label class="form-label">Múi giờ</label>
+                                            <select id="wk-timezone" class="form-select">
+                                                <option value="Asia/Ho_Chi_Minh">Việt Nam (GMT+7)</option><option value="Asia/Bangkok">Bangkok</option><option value="Asia/Tokyo">Tokyo</option>
+                                                <option value="Europe/London">London</option><option value="America/New_York">New York</option><option value="UTC">UTC</option>
+                                            </select></div>
+                                    </div>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-7"><label class="form-label">Ngày đăng</label><div id="wk-days" class="d-flex gap-2 flex-wrap pt-1"></div></div>
+                                        <div class="col-md-5"><label class="form-label">Giờ đăng (cách nhau dấu phẩy)</label><input type="text" id="wk-times" class="form-control" placeholder="09:00, 19:00"></div>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <label class="form-label m-0">Nhóm nội dung (tỉ lệ %)</label>
+                                        <div class="ms-auto d-flex gap-2">
+                                            <button type="button" id="wk-suggest" class="btn btn-sm btn-outline-primary" title="AI đọc thông tin doanh nghiệp, Knowledge Base và bài gần đây — tốn 1 lượt trả lời"><i class="ti ti-sparkles me-1"></i>AI đề xuất nhóm nội dung</button>
+                                            <button type="button" id="wk-add-pillar" class="btn btn-sm btn-outline-secondary"><i class="ti ti-plus me-1"></i>Thêm nhóm</button>
+                                        </div>
+                                    </div>
+                                    <div id="wk-pillars" class="mb-1"></div>
+                                    <div id="wk-pillar-sum" class="form-hint mb-3"></div>
+                                    <div class="mb-3"><label class="form-label">Giọng văn / quy tắc riêng (tuỳ chọn)</label>
+                                        <textarea id="wk-notes" rows="2" maxlength="600" class="form-control" placeholder="VD: Xưng &quot;mình&quot;, thân thiện; không dùng emoji; không nhắc giá cụ thể"></textarea></div>
+                                    <button type="button" id="wk-save" class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Lưu thiết lập</button>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title"><i class="ti ti-calendar-week me-2"></i>Kế hoạch gần nhất</h3>
+                                    <div class="ms-auto d-flex gap-2 align-items-center">
+                                        <span id="wk-estimate" class="text-secondary fs-5"></span>
+                                        <button type="button" id="wk-create" class="btn btn-primary"><i class="ti ti-wand me-1"></i>Tạo kế hoạch tuần</button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div id="wk-progress" class="alert alert-info d-none"></div>
+                                    <div id="wk-warnings"></div>
+                                    <div id="wk-approve-bar" class="d-none mb-3"><button type="button" id="wk-approve-all" class="btn btn-success"><i class="ti ti-checks me-1"></i><span>Duyệt tất cả</span></button></div>
+                                    <div id="wk-plan" class="row row-cards"><div class="col-12 text-secondary">Chưa có kế hoạch. Thiết lập ở trên rồi bấm "Tạo kế hoạch tuần".</div></div>
                                 </div>
                             </div>
                         </div>
@@ -573,6 +624,225 @@
         await loadContentPlanningSites();
         await loadContentPlanningReview();
     })();
+
+    // ═══════════════════════════════════════
+    // KẾ HOẠCH TUẦN BẰNG AI
+    // ═══════════════════════════════════════
+    const WK_DAYS = [['mon','T2'],['tue','T3'],['wed','T4'],['thu','T5'],['fri','T6'],['sat','T7'],['sun','CN']];
+    const WK_PLATFORMS = [['facebook','Facebook'],['instagram','Instagram'],['linkedin','LinkedIn']];
+    let wkState = { config: null, plan: null, timezone: 'Asia/Ho_Chi_Minh', imageMode: 'ai_only' };
+
+    function wkApi(path, method = 'GET', body) {
+        return fetch(`${WORKER_URL}/api/account/weekly-plan${path}`, {
+            method, cache: 'no-store',
+            headers: { Authorization: PB.authStore.token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+            body: body ? JSON.stringify(body) : undefined
+        }).then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
+            return data;
+        });
+    }
+
+    function wkRenderPillars(pillars) {
+        const box = document.getElementById('wk-pillars');
+        box.innerHTML = '';
+        pillars.forEach(p => {
+            const row = document.createElement('div');
+            row.className = 'row g-2 mb-2 wk-pillar';
+            row.innerHTML = `<div class="col-md-3"><input class="form-control wk-p-name" maxlength="60" placeholder="Tên nhóm"></div>
+                <div class="col-md-2"><div class="input-group"><input type="number" min="1" max="100" class="form-control wk-p-weight"><span class="input-group-text">%</span></div></div>
+                <div class="col-md-6"><input class="form-control wk-p-desc" maxlength="200" placeholder="Nhóm này đăng gì (1 câu)"></div>
+                <div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 wk-p-del" title="Xoá nhóm"><i class="ti ti-trash"></i></button></div>`;
+            row.querySelector('.wk-p-name').value = p.name || '';
+            row.querySelector('.wk-p-weight').value = p.weight || 1;
+            row.querySelector('.wk-p-desc').value = p.description || '';
+            row.querySelector('.wk-p-del').addEventListener('click', () => { row.remove(); wkUpdatePillarSum(); });
+            row.querySelector('.wk-p-weight').addEventListener('input', wkUpdatePillarSum);
+            box.appendChild(row);
+        });
+        wkUpdatePillarSum();
+    }
+    function wkReadPillars() {
+        return [...document.querySelectorAll('.wk-pillar')].map(r => ({
+            name: r.querySelector('.wk-p-name').value.trim(),
+            weight: Number(r.querySelector('.wk-p-weight').value) || 1,
+            description: r.querySelector('.wk-p-desc').value.trim()
+        })).filter(p => p.name);
+    }
+    function wkUpdatePillarSum() {
+        const sum = [...document.querySelectorAll('.wk-p-weight')].reduce((a, i) => a + (Number(i.value) || 0), 0);
+        const el = document.getElementById('wk-pillar-sum');
+        el.textContent = sum ? `Tổng tỉ lệ: ${sum}% (hệ thống tự quy đổi về 100%)` : 'Chưa có nhóm nội dung nào.';
+    }
+
+    function wkFillForm(config, available) {
+        document.getElementById('wk-posts').value = config.postsPerWeek;
+        document.getElementById('wk-timezone').value = config.timezone;
+        document.getElementById('wk-times').value = config.times.join(', ');
+        document.getElementById('wk-notes').value = config.notes || '';
+        const days = document.getElementById('wk-days');
+        days.innerHTML = WK_DAYS.map(([v, l]) => `<label class="form-check form-check-inline m-0"><input class="form-check-input wk-day" type="checkbox" value="${v}" ${config.days.includes('all') || config.days.includes(v) ? 'checked' : ''}><span class="form-check-label">${l}</span></label>`).join('');
+        const plats = document.getElementById('wk-platforms');
+        plats.innerHTML = WK_PLATFORMS.map(([v, l]) => {
+            const has = available.includes(v);
+            return `<label class="form-check form-check-inline m-0" title="${has ? '' : 'Chưa có kênh đang hoạt động'}"><input class="form-check-input wk-platform" type="checkbox" value="${v}" ${config.platforms.includes(v) && has ? 'checked' : ''} ${has ? '' : 'disabled'}><span class="form-check-label">${l}</span></label>`;
+        }).join('');
+        wkRenderPillars(config.pillars);
+    }
+    function wkReadForm() {
+        const checkedDays = [...document.querySelectorAll('.wk-day:checked')].map(i => i.value);
+        return {
+            posts_per_week: Number(document.getElementById('wk-posts').value) || 7,
+            platforms: [...document.querySelectorAll('.wk-platform:checked')].map(i => i.value),
+            timezone: document.getElementById('wk-timezone').value,
+            days: checkedDays.length === 7 || !checkedDays.length ? ['all'] : checkedDays,
+            times: document.getElementById('wk-times').value.split(',').map(t => t.trim()).filter(Boolean).map(t => /^\d:\d\d$/.test(t) ? '0' + t : t),
+            notes: document.getElementById('wk-notes').value.trim(),
+            pillars: wkReadPillars()
+        };
+    }
+    function wkUpdateEstimate(est) {
+        document.getElementById('wk-estimate').textContent = est
+            ? `Ước tính: ${est.min === est.max ? est.min : `${est.min}–${est.max}`} lượt trả lời`
+            : '';
+    }
+
+    async function wkLoad() {
+        try {
+            const data = await wkApi(`?tenant=${encodeURIComponent(window.TENANT)}`);
+            wkState = { config: data.config, plan: data.plan, timezone: data.config.timezone, imageMode: data.image_mode };
+            wkFillForm(data.config, data.available_platforms);
+            wkUpdateEstimate(data.estimate);
+            await wkRenderPlan();
+        } catch (err) {
+            document.getElementById('wk-plan').innerHTML = `<div class="col-12 alert alert-danger">Lỗi tải kế hoạch tuần: ${escHtml(err.message)}</div>`;
+        }
+    }
+
+    async function wkRenderPlan() {
+        const box = document.getElementById('wk-plan');
+        const plan = wkState.plan;
+        const items = Array.isArray(plan?.items) ? plan.items : [];
+        document.getElementById('wk-approve-bar').classList.add('d-none');
+        if (!items.length) { box.innerHTML = '<div class="col-12 text-secondary">Chưa có kế hoạch. Thiết lập ở trên rồi bấm "Tạo kế hoạch tuần".</div>'; return; }
+        const posts = await TC('posts').getFullList({ sort: '-created', expand: 'media_via_post_id,post_targets_via_post_id' });
+        const byId = new Map(posts.map(p => [p.id, p]));
+        box.innerHTML = '';
+        let pendingCount = 0;
+        const rows = items.map(it => ({ it, post: byId.get(it.post_id) })).filter(r => r.post)
+            .sort((a, b) => String(a.it.slot || '~').localeCompare(String(b.it.slot || '~')));
+        if (!rows.length) { box.innerHTML = '<div class="col-12 text-secondary">Các bài của kế hoạch gần nhất đã bị xoá.</div>'; return; }
+        rows.forEach(({ it, post }) => {
+            const targets = post.expand?.post_targets_via_post_id || [];
+            const media = (post.expand?.media_via_post_id || [])[0];
+            const pending = targets.filter(t => t.status === 'pending');
+            pendingCount += pending.length;
+            const status = targets.every(t => t.status === 'published') ? 'Đã đăng' : pending.length ? 'Chờ duyệt' : targets.some(t => t.status === 'error') ? 'Lỗi' : 'Đã duyệt';
+            const when = it.slot ? new Date(it.slot).toLocaleString('vi-VN', { timeZone: wkState.timezone, weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Chưa có giờ';
+            const igNoImage = !media && targets.some(t => t.platform === 'instagram');
+            const col = document.createElement('div');
+            col.className = 'col-md-6';
+            col.innerHTML = `<div class="card"><div class="card-body">
+                <div class="d-flex gap-3">
+                  <div style="width:96px;flex:none">${media ? `<img src="${escHtml(media.url)}" class="rounded" style="width:96px;height:96px;object-fit:cover" loading="lazy">` : '<div class="rounded bg-light text-secondary d-flex align-items-center justify-content-center text-center fs-6" style="width:96px;height:96px">Chưa có ảnh</div>'}</div>
+                  <div class="flex-fill" style="min-width:0">
+                    <div class="d-flex flex-wrap gap-1 mb-1"><span class="badge bg-blue-lt">${escHtml(when)}</span><span class="badge bg-purple-lt">${escHtml(it.pillar || '')}</span>${targets.map(t => `<span class="badge bg-secondary-lt">${escHtml(t.platform)}</span>`).join('')}<span class="badge ${status === 'Chờ duyệt' ? 'bg-yellow-lt' : status === 'Lỗi' ? 'bg-red-lt' : 'bg-green-lt'}">${status}</span></div>
+                    <div class="fw-medium text-truncate">${escHtml(post.title)}</div>
+                    <div class="text-secondary fs-6" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escHtml(post.content)}</div>
+                    ${igNoImage ? '<div class="text-warning fs-6 mt-1">Instagram bắt buộc có ảnh — hãy thêm ảnh trước khi duyệt.</div>' : ''}
+                  </div></div>
+                <div class="d-flex gap-2 mt-3">
+                  <button type="button" class="btn btn-sm btn-outline-secondary wk-edit"><i class="ti ti-pencil me-1"></i>Sửa</button>
+                  ${pending.length ? '<button type="button" class="btn btn-sm btn-success wk-approve"><i class="ti ti-check me-1"></i>Duyệt</button>' : ''}
+                  <button type="button" class="btn btn-sm btn-outline-danger ms-auto wk-delete"><i class="ti ti-trash"></i></button>
+                </div></div></div>`;
+            col.querySelector('.wk-edit').addEventListener('click', () => openPostModal(post.id));
+            col.querySelector('.wk-approve')?.addEventListener('click', () => wkApprove(pending));
+            col.querySelector('.wk-delete').addEventListener('click', async () => {
+                if (!confirm('Xoá bài này khỏi kế hoạch?')) return;
+                try {
+                    for (const m of post.expand?.media_via_post_id || []) await TC('media').delete(m.id);
+                    for (const t of targets) await TC('post_targets').delete(t.id);
+                    await TC('posts').delete(post.id);
+                    await wkRenderPlan();
+                } catch (err) { showToast('Lỗi xoá bài: ' + err.message, 'error'); }
+            });
+            box.appendChild(col);
+        });
+        if (pendingCount) {
+            document.getElementById('wk-approve-bar').classList.remove('d-none');
+            document.querySelector('#wk-approve-all span').textContent = `Duyệt tất cả (${pendingCount} kênh đăng)`;
+            document.getElementById('wk-approve-all').onclick = () => wkApprove(rows.flatMap(r => (r.post.expand?.post_targets_via_post_id || []).filter(t => t.status === 'pending')));
+        }
+    }
+
+    async function wkApprove(targets) {
+        if (!targets.length) return;
+        if (!confirm(`Duyệt ${targets.length} bài đăng? Hệ thống sẽ tự đăng đúng giờ đã xếp.`)) return;
+        try {
+            for (const t of targets) await TC('post_targets').update(t.id, { status: 'scheduled' });
+            showToast('Đã duyệt — hệ thống sẽ đăng đúng giờ', 'success');
+            await wkRenderPlan();
+        } catch (err) { showToast('Lỗi duyệt: ' + err.message, 'error'); }
+    }
+
+    document.getElementById('wk-add-pillar').addEventListener('click', () => {
+        const rows = [...document.querySelectorAll('.wk-pillar')].map(r => ({ name: r.querySelector('.wk-p-name').value, weight: Number(r.querySelector('.wk-p-weight').value) || 1, description: r.querySelector('.wk-p-desc').value }));
+        rows.push({ name: '', weight: 10, description: '' });
+        wkRenderPillars(rows);
+    });
+    document.getElementById('wk-suggest').addEventListener('click', async (event) => {
+        const btn = event.currentTarget; btn.disabled = true;
+        try {
+            const data = await wkApi('/suggest-pillars', 'POST', { tenant: window.TENANT });
+            wkRenderPillars(data.pillars);
+            showToast(`AI đã đề xuất ${data.pillars.length} nhóm (tốn ${data.units_charged} lượt). Sửa lại nếu cần rồi bấm Lưu thiết lập.`, 'success');
+        } catch (err) { showToast('Lỗi AI đề xuất: ' + err.message, 'error'); }
+        finally { btn.disabled = false; }
+    });
+    document.getElementById('wk-save').addEventListener('click', async (event) => {
+        const btn = event.currentTarget; btn.disabled = true;
+        try {
+            const data = await wkApi('/config', 'PUT', { tenant: window.TENANT, config: wkReadForm() });
+            wkState.config = data.config; wkState.timezone = data.config.timezone;
+            wkUpdateEstimate(data.estimate);
+            showToast('Đã lưu thiết lập kế hoạch tuần', 'success');
+        } catch (err) { showToast('Lỗi lưu: ' + err.message, 'error'); }
+        finally { btn.disabled = false; }
+    });
+    document.getElementById('wk-create').addEventListener('click', async (event) => {
+        const btn = event.currentTarget;
+        const progress = document.getElementById('wk-progress');
+        const warnings = document.getElementById('wk-warnings');
+        warnings.innerHTML = '';
+        btn.disabled = true;
+        try {
+            const saved = await wkApi('/config', 'PUT', { tenant: window.TENANT, config: wkReadForm() });
+            wkState.config = saved.config; wkState.timezone = saved.config.timezone; wkUpdateEstimate(saved.estimate);
+            const est = saved.estimate;
+            if (!confirm(`Tạo kế hoạch ${saved.config.postsPerWeek} bài cho 7 ngày tới?\nBước viết bài tốn ${est.write} lượt trả lời; xử lý ảnh thêm ${est.min - est.write}${est.max > est.min ? `–${est.max - est.write}` : ''} lượt. Bài chỉ ở trạng thái chờ duyệt, chưa đăng.`)) return;
+            progress.classList.remove('d-none');
+            progress.textContent = 'AI đang viết bài cho cả tuần... (khoảng 30–60 giây)';
+            const created = await wkApi('/create', 'POST', { tenant: window.TENANT });
+            const items = created.items;
+            let withImage = 0;
+            for (let i = 0; i < items.length; i++) {
+                progress.textContent = `Đang chọn/tạo ảnh cho bài ${i + 1}/${items.length}...`;
+                try { const r = await wkApi('/image', 'POST', { tenant: window.TENANT, post_id: items[i].post_id }); if (r.url) withImage++; } catch (e) { if (e.data?.quota_exceeded) { showToast(e.message, 'error'); break; } }
+            }
+            wkState.plan = { items };
+            warnings.innerHTML = (created.warnings || []).map(w => `<div class="alert alert-warning">${escHtml(w)}</div>`).join('');
+            progress.classList.add('d-none');
+            showToast(`Đã tạo ${items.length} bài (${withImage} có ảnh), tốn ${created.units_charged} lượt cho phần viết. Hãy xem và duyệt.`, 'success');
+            await wkRenderPlan();
+            loadPosts();
+        } catch (err) {
+            progress.classList.add('d-none');
+            showToast('Lỗi tạo kế hoạch: ' + err.message, 'error');
+        } finally { btn.disabled = false; }
+    });
+    document.querySelector('a[href="#tab-weekly"]').addEventListener('shown.bs.tab', wkLoad, { once: true });
 
     // ═══════════════════════════════════════
     // LỊCH ĐĂNG BÀI TỰ ĐỘNG

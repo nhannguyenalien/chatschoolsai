@@ -157,6 +157,7 @@ async function migrateBotConfigs(token) {
   schema = ensureField(schema, { name: "brand_border", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "image_mode", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   schema = ensureField(schema, { name: "image_style", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+  schema = ensureField(schema, { name: "weekly_plan_config", type: "text", required: false, options: { min: null, max: 20000, pattern: "" } });
   schema = ensureField(schema, { name: "api_key", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
   await patchCollection(token, col.id, { schema, ...TENANT_RULES });
 }
@@ -378,6 +379,27 @@ async function migratePublishSchedules(token) {
   });
 }
 
+async function migrateWeeklyPlans(token) {
+  console.log("\n[weekly_plans] — collection MỚI, lưu các kế hoạch tuần do AI lập (kế hoạch tuần ở composer.html)");
+  const existing = await getCollectionByName(token, "weekly_plans");
+  if (existing) { console.log("  - collection đã tồn tại, cập nhật tenant rules"); await patchCollection(token, existing.id, TENANT_RULES); return; }
+  console.log("  + tạo collection mới");
+  await createCollection(token, {
+    name: "weekly_plans",
+    type: "base",
+    schema: [
+      { name: "tenant", type: "text", required: true, options: {} },
+      { name: "week_start", type: "text", required: false, options: {} },
+      { name: "status", type: "text", required: false, options: {} },
+      { name: "requested", type: "number", required: false, options: { min: 0, max: null, noDecimal: true } },
+      { name: "created_count", type: "number", required: false, options: { min: 0, max: null, noDecimal: true } },
+      { name: "items", type: "json", required: false, options: { maxSize: 2000000 } },
+      { name: "note", type: "text", required: false, options: { min: null, max: 2000, pattern: "" } },
+    ],
+    ...TENANT_RULES,
+  });
+}
+
 export async function runPocketBaseMigration({ pbUrl, adminEmail, adminPass }) {
   PB_URL = pbUrl;
   PB_ADMIN_EMAIL = adminEmail;
@@ -385,20 +407,26 @@ export async function runPocketBaseMigration({ pbUrl, adminEmail, adminPass }) {
   if (!PB_URL || !PB_ADMIN_EMAIL || !PB_ADMIN_PASS) throw new Error("Thiếu cấu hình PocketBase admin.");
   console.log(`Đăng nhập admin PocketBase tại ${PB_URL} ...`);
   const token = await getAdminToken();
-  await migratePagesConfig(token);
-  await migrateMessages(token);
-  await migrateBotConfigs(token);
-  await migrateTenants(token);
-  await migrateMediaLibrary(token);
-  await migrateSessionSummaries(token);
-  await migratePosts(token);
-  await migratePostTargets(token);
-  await migrateSystemConfig(token);
-  await migrateAgentLogs(token);
-  await migrateAgentTools(token);
-  await migrateAgentToolProposals(token);
-  await migrateAgentChatMessages(token);
-  await migratePublishSchedules(token);
+  // Mỗi bước độc lập: một bước lỗi (vd collection trùng tên) không chặn các bước sau; lỗi được gom và báo ở cuối.
+  const steps = [
+    migratePagesConfig, migrateMessages, migrateBotConfigs, migrateTenants, migrateMediaLibrary, migrateSessionSummaries,
+    migratePosts, migratePostTargets, migrateSystemConfig, migrateAgentLogs, migrateAgentTools, migrateAgentToolProposals,
+    migrateAgentChatMessages, migratePublishSchedules, migrateWeeklyPlans,
+  ];
+  const failures = [];
+  for (const step of steps) {
+    try {
+      await step(token);
+    } catch (err) {
+      console.error(`  ❌ ${step.name} lỗi: ${err.message}`);
+      failures.push(`${step.name}: ${err.message}`);
+    }
+  }
+  if (failures.length) {
+    console.log(`\n⚠️ Xong, nhưng ${failures.length} bước lỗi (các bước còn lại đã chạy):`);
+    failures.forEach((f) => console.log(`  - ${f}`));
+    throw new Error(`${failures.length} bước migrate lỗi — xem danh sách ở trên.`);
+  }
   console.log("\n✅ Xong. daily_reports/weekly_reports đã đủ field sẵn, không cần sửa gì thêm.");
   console.log("Script này an toàn để chạy lại bất kỳ lúc nào (tự bỏ qua phần đã có).");
   return { ok: true };

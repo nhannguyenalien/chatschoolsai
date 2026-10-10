@@ -1,5 +1,9 @@
 import { AccountQuotaStore, bonusRemaining, effectivePlan, messageLimit, storageLimit } from "./domain/billing/accountQuota.js";
 import { createMediaStore, MediaError } from "./domain/media/mediaStore.js";
+import {
+  WeeklyPlanError, allocatePillarCounts, assertReadyForGeneration, buildPillarSuggestMessages, buildWeeklyMessages,
+  estimateWeeklyUnits, interleaveByPillar, languageNameFor, normalizePlanConfig, parsePillars, parseWeeklyPosts, pickWeekSlots
+} from "./domain/content-plans/weeklyPlan.js";
 import { buildDescribeMessages, cleanDescription, isGenericLabel } from "./domain/media/imageLabel.js";
 import {
   IMAGE_MODES, allowsAi, buildImagePrompt, buildPickMessages, heuristicPick,
@@ -345,6 +349,13 @@ var index_default = {
       if (url.pathname === "/api/account/branding-preview" && request.method === "POST") {
         const limited = enforceRateLimit(request, "branding-preview", 30, 60 * 60 * 1000);
         return limited || await handleAccountBrandingPreview(request, env2, cors);
+      }
+      const weeklyPlanMatch = url.pathname.match(/^\/api\/account\/weekly-plan(?:\/([a-z-]+))?$/);
+      if (weeklyPlanMatch) {
+        const action = weeklyPlanMatch[1] || "";
+        const costly = action === "create" || action === "image" || action === "suggest-pillars";
+        const limited = costly ? enforceRateLimit(request, "weekly-plan", 60, 60 * 60 * 1000) : null;
+        return limited || await handleAccountWeeklyPlan(request, env2, cors, url, action);
       }
       if (url.pathname === "/api/account/bot-config" && ["GET", "PUT"].includes(request.method)) {
         return await handleAccountBotConfig(request, env2, cors, url);
@@ -2830,7 +2841,8 @@ var ACCOUNT_DATA_COLLECTIONS = {
   ai_prompts: ["GET", "POST", "PATCH", "DELETE"],
   rss_sources: ["GET", "POST", "PATCH", "DELETE"],
   publish_schedules: ["GET", "POST", "PATCH", "DELETE"],
-  media_library: ["GET"]
+  media_library: ["GET"],
+  weekly_plans: ["GET"]
 };
 async function handleAccountData(request, env, cors, url, collection, id) {
   const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
@@ -2884,6 +2896,157 @@ async function handleAccountData(request, env, cors, url, collection, id) {
 }
 __name(handleAccountData, "handleAccountData");
 
+// ================= [KẾ HOẠCH TUẦN BẰNG AI: lập kế hoạch nhiều bài social, duyệt trước khi đăng] =================
+// Cấu hình lưu ở bot_configs.weekly_plan_config (JSON: số bài/tuần, nền tảng, nhóm nội dung kèm tỉ lệ, ghi chú giọng văn,
+// ngày/giờ đăng, múi giờ). "Tạo kế hoạch": 1 lần gọi AI viết cả tuần -> tạo posts + post_targets trạng thái "pending" (chờ duyệt)
+// kèm giờ đăng cụ thể. Ảnh gắn riêng từng bài qua /image (client gọi lần lượt để có tiến độ và không vượt giới hạn thời gian).
+// Duyệt = đổi target sang "scheduled" (giữ nguyên scheduled_at) — worker tự đăng đúng giờ.
+async function loadWeeklyPlanContext(env, pbToken, tenant, cfgRecord) {
+  const tenantFilter = encodeURIComponent(`tenant='${escFilterValue(tenant)}'`);
+  const [docsRes, postsRes] = await Promise.all([
+    fetchWithTimeout(`${env.PB_URL}/api/collections/documents/records?perPage=40&sort=-created&fields=title&filter=${tenantFilter}`, { headers: { Authorization: pbToken } }),
+    fetchWithTimeout(`${env.PB_URL}/api/collections/posts/records?perPage=30&sort=-created&fields=title&filter=${tenantFilter}`, { headers: { Authorization: pbToken } })
+  ]);
+  const titles = async (res) => (res.ok ? ((await res.json()).items || []).map((r) => r.title).filter(Boolean) : []);
+  return {
+    businessContext: [cfgRecord?.bot_name ? `Business/bot name: ${cfgRecord.bot_name}` : "", String(cfgRecord?.system_prompt || "")].filter(Boolean).join("\n"),
+    kbTitles: await titles(docsRes),
+    recentTitles: await titles(postsRes),
+    languageName: languageNameFor(cfgRecord?.response_language)
+  };
+}
+__name(loadWeeklyPlanContext, "loadWeeklyPlanContext");
+
+async function weeklyPlanAiText(env, messages, timeout = 12e4) {
+  if (!env.OPENAI_KEY) throw new WeeklyPlanError("Hệ thống chưa cấu hình AI (OPENAI_KEY).");
+  const res = await fetchWithTimeout(`${env.OPENAI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages }),
+    timeout
+  });
+  if (!res.ok) throw new WeeklyPlanError(`AI lỗi ${res.status}, thử lại sau.`);
+  return (await res.json()).choices?.[0]?.message?.content || "";
+}
+__name(weeklyPlanAiText, "weeklyPlanAiText");
+
+async function handleAccountWeeklyPlan(request, env, cors, url, action) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = request.method === "GET" ? {} : await request.json().catch(() => ({}));
+  const tenant = String(url.searchParams.get("tenant") || body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const token = access.token;
+  const headers = { Authorization: token, "Content-Type": "application/json" };
+  const cfgRecord = await loadTenantImageConfig(env, token, tenant);
+  const pagesRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=100&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true`)}`, { headers: { Authorization: token } });
+  const pages = pagesRes.ok ? (await pagesRes.json()).items || [] : [];
+  const mode = normalizeImagePolicy(cfgRecord).mode;
+
+  try {
+    if (request.method === "GET" && !action) {
+      const config = normalizePlanConfig(cfgRecord?.weekly_plan_config);
+      const planRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/weekly_plans/records?perPage=1&sort=-created&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers: { Authorization: token } });
+      const plan = planRes.ok ? (await planRes.json()).items?.[0] || null : null;
+      return json({
+        config, has_bot_config: !!cfgRecord, plan, image_mode: mode,
+        available_platforms: [...new Set(pages.map((p) => p.platform))],
+        estimate: estimateWeeklyUnits(config.postsPerWeek, mode)
+      });
+    }
+    if (request.method !== "POST" && !(request.method === "PUT" && action === "config")) return json({ error: "Method không được phép" }, 405);
+
+    if (action === "config") {
+      if (!cfgRecord) return json({ error: "Hãy lưu Cấu hình bot (tên bot) trước khi cấu hình kế hoạch tuần." }, 400);
+      const config = normalizePlanConfig(body.config);
+      const stored = { posts_per_week: config.postsPerWeek, platforms: config.platforms, pillars: config.pillars, notes: config.notes, timezone: config.timezone, days: config.days, times: config.times };
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records/${cfgRecord.id}`, { method: "PATCH", headers, body: JSON.stringify({ weekly_plan_config: JSON.stringify(stored) }) });
+      const patched = res.ok ? await res.json().catch(() => ({})) : null;
+      // PocketBase bỏ qua field chưa có trong schema mà không báo lỗi -> kiểm tra bản ghi trả về có field đó không.
+      if (!patched || !("weekly_plan_config" in patched)) return json({ error: "Chưa lưu được cấu hình kế hoạch tuần — cần chạy scripts/pb-migrate.mjs để thêm field weekly_plan_config." }, 502);
+      return json({ success: true, config, estimate: estimateWeeklyUnits(config.postsPerWeek, mode) });
+    }
+
+    if (action === "suggest-pillars") {
+      await recordAiUsage(env, tenant, COST_TABLE.chat, token);
+      const ctx = await loadWeeklyPlanContext(env, token, tenant, cfgRecord);
+      const text = await weeklyPlanAiText(env, buildPillarSuggestMessages(ctx), 6e4);
+      return json({ pillars: parsePillars(text), units_charged: COST_TABLE.chat });
+    }
+
+    if (action === "create") {
+      if (!cfgRecord) return json({ error: "Hãy lưu Cấu hình bot trước." }, 400);
+      const config = assertReadyForGeneration(normalizePlanConfig(cfgRecord.weekly_plan_config));
+      const pageByPlatform = new Map();
+      for (const platform of config.platforms) {
+        const page = pages.find((p) => p.platform === platform);
+        if (page) pageByPlatform.set(platform, page);
+      }
+      if (!pageByPlatform.size) return json({ error: "Chưa có kênh đăng nào đang hoạt động cho các nền tảng đã chọn (xem Quản lý kênh đăng)." }, 400);
+      const platforms = [...pageByPlatform.keys()];
+      const warnings = config.platforms.filter((p) => !pageByPlatform.has(p)).map((p) => `Chưa có kênh ${p} đang hoạt động nên bỏ qua.`);
+      const count = config.postsPerWeek;
+      const counts = allocatePillarCounts(config.pillars, count);
+      const units = COST_TABLE.post_text * count;
+      await recordAiUsage(env, tenant, units, token);
+      const ctx = await loadWeeklyPlanContext(env, token, tenant, cfgRecord);
+      const text = await weeklyPlanAiText(env, buildWeeklyMessages({ config: { ...config, platforms }, counts, ...ctx }));
+      const written = interleaveByPillar(parseWeeklyPosts(text, { pillars: config.pillars, platforms }).slice(0, count));
+      const slots = pickWeekSlots({ config, from: new Date(Date.now() + 36e5), count: written.length });
+      if (slots.length < written.length) warnings.push(`Chỉ có ${slots.length} khung giờ trong 7 ngày tới cho ${written.length} bài — các bài còn lại chưa có giờ đăng (bạn đặt giờ khi duyệt hoặc thêm khung giờ).`);
+      const items = await Promise.all(written.map(async (post, i) => {
+        const postRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/posts/records`, {
+          method: "POST", headers,
+          body: JSON.stringify({ tenant, title: post.title, content: post.content, image_prompt: post.image_prompt, video_prompt: "" })
+        });
+        const created = await postRes.json().catch(() => ({}));
+        if (!postRes.ok || !created.id) return null;
+        const targets = await Promise.all(platforms.map(async (platform) => {
+          const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records`, {
+            method: "POST", headers,
+            body: JSON.stringify({ tenant, post_id: created.id, platform, page_id: pageByPlatform.get(platform).page_id, status: "pending", scheduled_at: slots[i] || "" })
+          });
+          return res.ok ? (await res.json()).id : null;
+        }));
+        return { post_id: created.id, pillar: post.pillar, title: post.title, slot: slots[i] || "", target_ids: targets.filter(Boolean) };
+      }));
+      const made = items.filter(Boolean);
+      if (!made.length) return json({ error: "Không tạo được bài nào, thử lại sau." }, 502);
+      let planId = null;
+      const planRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/weekly_plans/records`, {
+        method: "POST", headers,
+        body: JSON.stringify({ tenant, week_start: slots[0] || new Date().toISOString(), status: "ready", requested: count, created_count: made.length, items: made, note: warnings.join(" | ") })
+      });
+      if (planRes.ok) planId = (await planRes.json()).id;
+      else console.error("[WeeklyPlan] Không lưu được weekly_plans (đã chạy pb-migrate chưa?):", planRes.status);
+      return json({ plan_id: planId, items: made, warnings, units_charged: units, image_mode: mode }, 201);
+    }
+
+    if (action === "image") {
+      const postId = String(body.post_id || "");
+      if (!/^[A-Za-z0-9]{1,40}$/.test(postId)) return json({ error: "Thiếu post_id" }, 400);
+      const postRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/posts/records/${postId}?expand=media_via_post_id`, { headers: { Authorization: token } });
+      if (!postRes.ok) return json({ error: "Không tìm thấy bài" }, 404);
+      const post = await postRes.json();
+      if (post.tenant !== tenant) return json({ error: "Không tìm thấy bài" }, 404);
+      const existing = post.expand?.media_via_post_id?.[0];
+      if (existing) return json({ url: existing.url, source: "existing" });
+      const image = await resolvePostImage(env, token, tenant, { title: post.title, content: post.content, imagePrompt: post.image_prompt, cfg: cfgRecord });
+      if (image.url) {
+        await fetchWithTimeout(`${env.PB_URL}/api/collections/media/records`, { method: "POST", headers, body: JSON.stringify({ tenant, post_id: postId, url: image.url, type: "image", order: 0 }) });
+      }
+      return json({ url: image.url, source: image.source || "" });
+    }
+    return json({ error: "Hành động không hợp lệ" }, 404);
+  } catch (err) {
+    if (err?.code === "MONTHLY_QUOTA_EXCEEDED") return json({ error: "Bạn đã hết lượt trả lời AI trong tháng này nên chưa tạo được kế hoạch.", quota_exceeded: true }, 429);
+    if (err instanceof WeeklyPlanError) return json({ error: err.message }, 422);
+    console.error("[WeeklyPlan] Lỗi:", err);
+    return json({ error: "Có lỗi khi xử lý kế hoạch tuần, thử lại sau." }, 500);
+  }
+}
+__name(handleAccountWeeklyPlan, "handleAccountWeeklyPlan");
+
 // Đọc/ghi cấu hình bot qua Worker: rule PocketBase của bot_configs chỉ khớp workspace gốc của tài khoản,
 // workspace phụ sẽ đọc rỗng và không tạo/sửa được. Quyền workspace kiểm tra bằng resolveMediaTenantAccess.
 var ACCOUNT_BOT_CONFIG_FIELDS = [
@@ -2892,7 +3055,7 @@ var ACCOUNT_BOT_CONFIG_FIELDS = [
   "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size",
   "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color",
   "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border",
-  "image_mode", "image_style"
+  "image_mode", "image_style", "weekly_plan_config"
 ];
 async function handleAccountBotConfig(request, env, cors, url) {
   const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
