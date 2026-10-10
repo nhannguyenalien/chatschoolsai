@@ -3432,7 +3432,7 @@ function buildBrandTransformation(cfg, logoPublicId) {
     const layer = [`l_${logoPublicId}`, `c_scale,fl_relative,w_${w}`];
     if (borderPx) layer.push(`bo_${borderPx}px_solid_white`);
     if (o < 100) layer.push(`o_${o}`);
-    layer.push(`fl_layer_apply,g_${g},x_20,y_20`);
+    layer.push(`fl_layer_apply,g_${g},x_0.03,y_0.03,fl_relative`);
     parts.push(layer.join("/"));
   }
   const text = String(cfg.brand_text || "").trim().slice(0, 80);
@@ -3447,7 +3447,7 @@ function buildBrandTransformation(cfg, logoPublicId) {
     const layer = [`l_text:Arial_200_bold:${cloudinaryTextEscape(text)},co_${color}${bg}`, `c_fit,fl_relative,w_0.9,h_${h}`];
     if (borderPx && !bgHex) layer.push(`bo_${borderPx}px_solid_${color === "white" ? "black" : "white"}`);
     if (o < 100) layer.push(`o_${o}`);
-    layer.push(`fl_layer_apply,g_${g},x_20,y_20`);
+    layer.push(`fl_layer_apply,g_${g},x_0.03,y_0.03,fl_relative`);
     parts.push(layer.join("/"));
   }
   return parts.join("/");
