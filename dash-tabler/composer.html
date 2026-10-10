@@ -190,6 +190,7 @@
                                             <option value="ai_generated">AI render</option>
                                         </select>
                                         <button id="refresh-media" class="btn btn-outline-secondary"><i class="ti ti-refresh"></i></button>
+                                        <button id="describe-all-btn" class="btn btn-outline-primary" title="AI nhìn từng ảnh chưa có tên rồi đặt tên mô tả (mỗi ảnh tốn 1 lượt trả lời)"><i class="ti ti-sparkles me-1"></i> AI mô tả ảnh chưa có nhãn</button>
                                         <button id="upload-media-btn" class="btn btn-primary"><i class="ti ti-upload me-1"></i> Upload ảnh/video</button>
                                     </div>
                                 </div>
@@ -494,7 +495,7 @@
           <div class="modal-body">
             <div class="mb-3">
               <label class="form-label">Tên gợi nhớ</label>
-              <input type="text" id="upload-media-label" class="form-control" placeholder="Bỏ trống để AI tự mô tả ảnh (VD: Ảnh nội thất phòng khách)">
+              <input type="text" id="upload-media-label" class="form-control" placeholder="Bỏ trống để AI tự mô tả ảnh — tốn 1 lượt trả lời (VD: Ảnh nội thất phòng khách)">
             </div>
             <div class="mb-3">
               <label class="form-label">Loại</label>
@@ -1472,7 +1473,7 @@
             : m.status === 'error' ? '<span class="badge bg-red-lt">Lỗi</span>' : '';
         const actionBtn = mode === 'picker'
             ? `<button class="btn btn-sm btn-primary w-100 pick-btn">Chọn</button>`
-            : `<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-secondary w-100 edit-media-btn" title="Đổi tên"><i class="ti ti-pencil"></i></button><button class="btn btn-sm btn-outline-primary w-100 describe-media-btn" title="AI tự mô tả ảnh (đặt tên theo nội dung)"><i class="ti ti-sparkles"></i></button><button class="btn btn-sm btn-outline-danger w-100 delete-media-btn" title="Xóa"><i class="ti ti-trash"></i></button></div>`;
+            : `<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-secondary w-100 edit-media-btn" title="Đổi tên"><i class="ti ti-pencil"></i></button><button class="btn btn-sm btn-outline-primary w-100 describe-media-btn" title="AI tự mô tả ảnh (đặt tên theo nội dung) — tốn 1 lượt trả lời"><i class="ti ti-sparkles"></i></button><button class="btn btn-sm btn-outline-danger w-100 delete-media-btn" title="Xóa"><i class="ti ti-trash"></i></button></div>`;
         return `
           <div class="col-md-3">
             <div class="card">
@@ -1547,6 +1548,39 @@
 
     document.getElementById('filter-media-source').addEventListener('change', renderMediaLibrary);
     document.getElementById('refresh-media').addEventListener('click', loadMediaLibrary);
+
+    document.getElementById('describe-all-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('describe-all-btn');
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        try {
+            const headers = { Authorization: PB.authStore.token, 'Content-Type': 'application/json' };
+            const pendingRes = await fetch(`${WORKER_URL}/api/account/media/describe-pending?tenant=${encodeURIComponent(window.TENANT)}`, { headers, cache: 'no-store' });
+            const pending = await pendingRes.json().catch(() => ({}));
+            if (!pendingRes.ok) throw new Error(pending.error || pendingRes.status);
+            if (!pending.count) { showToast('Tất cả ảnh đã có nhãn mô tả', 'success'); return; }
+            if (!confirm(`Có ${pending.count} ảnh chưa có nhãn. AI sẽ mô tả từng ảnh — tốn ${pending.total_units} lượt trả lời (${pending.units_per_image} lượt/ảnh). Tiếp tục?`)) return;
+            let done = 0, used = 0, quotaHit = false;
+            const skip = [];
+            while (true) {
+                btn.textContent = `Đang mô tả... ${done}/${pending.count}`;
+                const res = await fetch(`${WORKER_URL}/api/account/media/describe-batch`, { method: 'POST', headers, body: JSON.stringify({ tenant: window.TENANT, skip_ids: skip }) });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || res.status);
+                done += data.done; used += data.units_used; skip.push(...data.failed_ids);
+                if (data.quota_exceeded) { quotaHit = true; break; }
+                if (!data.remaining || (!data.done && !data.failed)) break;
+            }
+            const failed = skip.length;
+            showToast(`Đã mô tả ${done} ảnh, tốn ${used} lượt trả lời` + (failed ? `; ${failed} ảnh chưa mô tả được` : '') + (quotaHit ? '. Đã hết lượt trả lời AI trong tháng nên dừng lại.' : ''), quotaHit || failed ? 'error' : 'success');
+            loadMediaLibrary();
+        } catch (err) {
+            showToast('Lỗi mô tả hàng loạt: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
 
     document.getElementById('upload-media-btn').addEventListener('click', () => {
         document.getElementById('upload-media-label').value = '';

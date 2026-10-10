@@ -6,6 +6,7 @@ export const COST_TABLE = Object.freeze({
   chat: 1,
   post_text: 2,
   image: 8, // bài post + 1 ảnh AI = post_text (2) + image (8) = 10
+  image_describe: 1, // AI nhìn 1 ảnh để đặt nhãn (vision, ảnh độ phân giải thấp) ~ 1 lượt trả lời
   voice_greeting: 1,
   voice_per_minute: 4
 });

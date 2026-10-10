@@ -301,6 +301,13 @@ var index_default = {
       if (accountMediaDeleteMatch && request.method === "DELETE") {
         return await handleAccountMediaDelete(request, env2, cors, accountMediaDeleteMatch[1]);
       }
+      if (url.pathname === "/api/account/media/describe-pending" && request.method === "GET") {
+        return await handleAccountMediaDescribePending(request, env2, cors, url);
+      }
+      if (url.pathname === "/api/account/media/describe-batch" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "media-describe-batch", 120, 60 * 60 * 1000);
+        return limited || await handleAccountMediaDescribeBatch(request, env2, cors);
+      }
       const accountMediaDescribeMatch = url.pathname.match(/^\/api\/account\/media\/([A-Za-z0-9]+)\/describe$/);
       if (accountMediaDescribeMatch && request.method === "POST") {
         const limited = enforceRateLimit(request, "media-describe", 60, 60 * 60 * 1000);
@@ -2584,7 +2591,11 @@ async function handleAccountMediaUpload(request, env, cors) {
     let label = String(form.get("label") || "");
     // Người dùng không đặt nhãn (hoặc chỉ là tên file/mã máy ảnh) -> AI nhìn ảnh và mô tả để chọn ảnh theo nội dung bài sau này.
     if (isGenericLabel(label || file.name) && String(file.type || "").startsWith("image/")) {
-      label = await describeImageForLabel(env, access.token, tenant, bytes, file.type) || label;
+      try {
+        label = await describeImageForLabel(env, access.token, tenant, bytes, file.type) || label;
+      } catch (err) {
+        if (err?.code !== "MONTHLY_QUOTA_EXCEEDED") throw err; // hết lượt AI: vẫn upload bình thường, giữ tên cũ
+      }
     }
     const stored = await createTenantMediaStore(env, access.token, access.account.id).store({
       tenant, bytes, contentType: file.type,
@@ -2596,7 +2607,8 @@ async function handleAccountMediaUpload(request, env, cors) {
   }
 }
 
-// Nhờ AI (model có đọc ảnh) mô tả ảnh thành 1 nhãn ngắn. Không bao giờ ném lỗi: lỗi -> "" và giữ nhãn cũ.
+// Nhờ AI (model có đọc ảnh) mô tả ảnh thành 1 nhãn ngắn. Mỗi ảnh trừ COST_TABLE.image_describe lượt trả lời của tài khoản.
+// Lỗi AI/ảnh -> "" (giữ nhãn cũ); hết quota -> ném lỗi MONTHLY_QUOTA_EXCEEDED để caller báo rõ cho người dùng.
 var IMAGE_LABEL_MAX_BYTES = 5 * 1024 * 1024;
 var IMAGE_LABEL_LANGUAGES = { vi: "Vietnamese", en: "English", ja: "Japanese", es: "Spanish", fr: "French", ko: "Korean", zh: "Chinese" };
 async function describeImageForLabel(env, pbToken, tenant, bytes, contentType) {
@@ -2608,7 +2620,7 @@ async function describeImageForLabel(env, pbToken, tenant, bytes, contentType) {
     let binary = "";
     for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     const dataUrl = `data:${contentType};base64,${btoa(binary)}`;
-    const res = await createMeteredAiFetch(env, tenant, pbToken)(`${env.OPENAI_BASE_URL}/chat/completions`, {
+    const res = await createMeteredAiFetch(env, tenant, pbToken, null, "image_describe")(`${env.OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: env.OPENAI_VISION_MODEL || env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages: buildDescribeMessages(dataUrl, language) }),
@@ -2618,6 +2630,7 @@ async function describeImageForLabel(env, pbToken, tenant, bytes, contentType) {
     const data = await res.json();
     return cleanDescription(data.choices?.[0]?.message?.content);
   } catch (err) {
+    if (err?.code === "MONTHLY_QUOTA_EXCEEDED") throw err;
     console.error("[Image] Lỗi AI mô tả ảnh:", err);
     return "";
   }
@@ -2646,7 +2659,13 @@ async function handleAccountMediaDescribe(request, env, cors, id) {
     if (file?.ok) { bytes = new Uint8Array(await file.arrayBuffer()); contentType = (file.headers.get("content-type") || "").split(";")[0]; }
   }
   if (!bytes) return json({ error: "Không đọc được file ảnh" }, 502);
-  const label = await describeImageForLabel(env, token, record.tenant, bytes, contentType);
+  let label = "";
+  try {
+    label = await describeImageForLabel(env, token, record.tenant, bytes, contentType);
+  } catch (err) {
+    if (err?.code === "MONTHLY_QUOTA_EXCEEDED") return json({ error: "Bạn đã hết lượt trả lời AI trong tháng này nên chưa mô tả được ảnh.", quota_exceeded: true }, 429);
+    throw err;
+  }
   if (!label) return json({ error: "AI chưa mô tả được ảnh này (ảnh quá lớn, sai định dạng hoặc AI tạm lỗi)" }, 502);
   const patch = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify({ label })
@@ -2655,6 +2674,71 @@ async function handleAccountMediaDescribe(request, env, cors, id) {
   return json({ success: true, media: { id, label } });
 }
 __name(handleAccountMediaDescribe, "handleAccountMediaDescribe");
+
+// Hàng loạt: các ảnh upload chưa có nhãn có ý nghĩa (rỗng/tên file/mã máy ảnh). Mỗi ảnh tốn COST_TABLE.image_describe lượt.
+async function listUndescribedImages(env, token, tenant) {
+  const filter = `tenant='${escFilterValue(tenant)}' && type='image' && status='ready'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records?perPage=200&sort=created&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: token } });
+  if (!res.ok) return null;
+  return ((await res.json()).items || []).filter((r) => isGenericLabel(r.label));
+}
+__name(listUndescribedImages, "listUndescribedImages");
+
+async function handleAccountMediaDescribePending(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const tenant = String(url.searchParams.get("tenant") || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const items = await listUndescribedImages(env, access.token, tenant);
+  if (!items) return json({ error: "Không tải được thư viện media" }, 502);
+  return json({ count: items.length, units_per_image: COST_TABLE.image_describe, total_units: items.length * COST_TABLE.image_describe });
+}
+__name(handleAccountMediaDescribePending, "handleAccountMediaDescribePending");
+
+var DESCRIBE_BATCH_SIZE = 4;
+async function handleAccountMediaDescribeBatch(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const pending = await listUndescribedImages(env, access.token, tenant);
+  if (!pending) return json({ error: "Không tải được thư viện media" }, 502);
+  const skip = new Set(Array.isArray(body.skip_ids) ? body.skip_ids.map(String) : []);
+  const queue = pending.filter((r) => !skip.has(r.id));
+  const batch = queue.slice(0, DESCRIBE_BATCH_SIZE);
+  const results = await Promise.all(batch.map(async (record) => {
+    try {
+      let bytes = null;
+      let contentType = "";
+      if (record.r2_key && env.MEDIA_BUCKET) {
+        const object = await env.MEDIA_BUCKET.get(record.r2_key);
+        if (object) { bytes = new Uint8Array(await object.arrayBuffer()); contentType = object.httpMetadata?.contentType || ""; }
+      } else {
+        const fileUrl = record.url || (record.file ? `${env.PB_URL}/api/files/media_library/${record.id}/${encodeURIComponent(record.file)}` : "");
+        const file = fileUrl ? await fetchWithTimeout(fileUrl, { timeout: 2e4 }) : null;
+        if (file?.ok) { bytes = new Uint8Array(await file.arrayBuffer()); contentType = (file.headers.get("content-type") || "").split(";")[0]; }
+      }
+      if (!bytes) return { id: record.id, ok: false };
+      const label = await describeImageForLabel(env, access.token, tenant, bytes, contentType);
+      if (!label) return { id: record.id, ok: false };
+      const patch = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records/${encodeURIComponent(record.id)}`, {
+        method: "PATCH", headers: { Authorization: access.token, "Content-Type": "application/json" }, body: JSON.stringify({ label })
+      });
+      return { id: record.id, ok: patch.ok };
+    } catch (err) {
+      return { id: record.id, ok: false, quota: err?.code === "MONTHLY_QUOTA_EXCEEDED" };
+    }
+  }));
+  const done = results.filter((r) => r.ok).length;
+  const failedIds = results.filter((r) => !r.ok).map((r) => r.id);
+  const quotaExceeded = results.some((r) => r.quota);
+  return json({
+    done, failed: failedIds.length, failed_ids: failedIds, quota_exceeded: quotaExceeded,
+    remaining: Math.max(0, queue.length - batch.length), units_used: done * COST_TABLE.image_describe
+  });
+}
+__name(handleAccountMediaDescribeBatch, "handleAccountMediaDescribeBatch");
 
 async function handleAccountMediaDelete(request, env, cors, id) {
   const account = await resolveOwnAccountRecord(request, env);

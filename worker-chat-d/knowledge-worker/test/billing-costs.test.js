@@ -28,3 +28,8 @@ test('image generation path is detected, other paths keep the caller kind', () =
   assert.equal(costKindForPath('/v1/chat/completions', 'post_text'), 'post_text');
   assert.equal(costKindForPath('/v1/chat/completions'), 'chat');
 });
+
+test('describing an uploaded photo with AI costs 1 reply unit and keeps its own kind', () => {
+  assert.equal(COST_TABLE.image_describe, 1);
+  assert.equal(costKindForPath('/v1/chat/completions', 'image_describe'), 'image_describe');
+});
