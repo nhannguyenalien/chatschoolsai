@@ -368,6 +368,10 @@ var index_default = {
         const limited = costly ? enforceRateLimit(request, "weekly-plan", 60, 60 * 60 * 1000) : null;
         return limited || await handleAccountWeeklyPlan(request, env2, cors, url, action);
       }
+      if (url.pathname === "/api/account/meta/check" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "meta-check", 30, 60 * 60 * 1000);
+        return limited || await handleAccountMetaCheck(request, env2, cors);
+      }
       if (url.pathname === "/api/account/whatsapp/check" && request.method === "POST") {
         const limited = enforceRateLimit(request, "whatsapp-check", 30, 60 * 60 * 1000);
         return limited || await handleAccountWhatsAppCheck(request, env2, cors);
@@ -3167,6 +3171,59 @@ async function handleAccountWeeklyPlan(request, env, cors, url, action) {
   }
 }
 __name(handleAccountWeeklyPlan, "handleAccountWeeklyPlan");
+
+// Chẩn đoán kênh Facebook/Instagram bằng token đã lưu (token không bao giờ trả về): fanpage, tài khoản Instagram gắn kèm,
+// quyền (scope) của token, app nào cấp token, các trường webhook mà Page đã đăng ký.
+// body: { tenant, app_id? } — app_id cần để hỏi Meta (debug_token) bằng app_secret trong extra_config của kênh.
+// body.link_instagram=true: tạo kênh Instagram (platform=instagram, page_id = Instagram Business Account ID) sao chép token và
+// cấu hình xác thực từ kênh Facebook ngay phía server nếu workspace chưa có kênh Instagram đó.
+async function handleAccountMetaCheck(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const headers = { Authorization: access.token, "Content-Type": "application/json" };
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true && (platform='facebook' || platform='instagram')`)}`, { headers: { Authorization: access.token } });
+  const pages = res.ok ? (await res.json()).items || [] : [];
+  const fbPages = pages.filter((p) => p.platform === "facebook");
+  if (!fbPages.length) return json({ error: "Workspace chưa có kênh Facebook đang hoạt động" }, 404);
+  const out = { pages: [] };
+  for (const page of fbPages) {
+    const extra = parseMessageClientMeta(page.extra_config);
+    const version = String(extra.graph_version || FB_GRAPH_VERSION);
+    const graph = async (path, token = page.access_token) => {
+      const r = await fetchWithTimeout(`https://graph.facebook.com/${version}/${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}`, { timeout: 2e4 });
+      return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+    };
+    const info = await graph(`${encodeURIComponent(page.page_id)}?fields=name,instagram_business_account{id,username,name,profile_picture_url}`);
+    const subs = await graph(`${encodeURIComponent(page.page_id)}/subscribed_apps`);
+    const entry = {
+      channel_id: page.id, page_id: page.page_id, label: page.label,
+      page: info.ok ? { ok: true, name: info.data.name, instagram: info.data.instagram_business_account || null } : { ok: false, error: info.data?.error?.message || `HTTP ${info.status}` },
+      subscribed_apps: subs.ok ? (subs.data.data || []).map((a) => ({ id: a.id, name: a.name, fields: a.subscribed_fields || [] })) : { error: subs.data?.error?.message || `HTTP ${subs.status}` }
+    };
+    const appId = String(body.app_id || extra.app_id || "");
+    if (/^\d{5,30}$/.test(appId) && extra.app_secret) {
+      const dbg = await graph(`debug_token?input_token=${encodeURIComponent(page.access_token)}`, `${appId}|${extra.app_secret}`);
+      entry.token = dbg.ok ? { type: dbg.data.data?.type, app_id: dbg.data.data?.app_id, application: dbg.data.data?.application, valid: dbg.data.data?.is_valid, expires_at: dbg.data.data?.expires_at, scopes: dbg.data.data?.scopes || [] } : { error: dbg.data?.error?.message || `HTTP ${dbg.status}` };
+    } else {
+      entry.token = { error: "Cần app_id và app_secret trong Cấu hình thêm của kênh để đọc quyền của token" };
+    }
+    const ig = info.data?.instagram_business_account;
+    entry.instagram_channel = pages.find((p) => p.platform === "instagram" && ig && p.page_id === ig.id)?.id || null;
+    if (body.link_instagram === true && ig?.id && !entry.instagram_channel) {
+      const create = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records`, {
+        method: "POST", headers,
+        body: JSON.stringify({ tenant, platform: "instagram", label: `Instagram @${ig.username || ig.id}`, page_id: ig.id, access_token: page.access_token, extra_config: page.extra_config || "", is_active: true })
+      });
+      entry.linked_instagram = create.ok ? { ok: true, id: (await create.json()).id } : { ok: false, status: create.status };
+    }
+    out.pages.push(entry);
+  }
+  return json(out);
+}
+__name(handleAccountMetaCheck, "handleAccountMetaCheck");
 
 // Chẩn đoán kênh WhatsApp Cloud API bằng token đã lưu trong kênh (token không bao giờ trả về): token còn hợp lệ không,
 // số điện thoại là số nào, WhatsApp Business Account (waba_id trong extra_config) đã đăng ký nhận webhook cho app chưa.
