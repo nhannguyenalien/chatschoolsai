@@ -176,6 +176,17 @@
                 <i class="ti ti-refresh me-1"></i> Tạo Verify Token ngẫu nhiên
               </button>
             </div>
+            <div class="alert alert-info d-none" id="whatsapp-webhook-guide" role="alert">
+              <h4 class="alert-title">Kết nối WhatsApp Cloud API (AI tự trả lời)</h4>
+              <div class="text-secondary">
+                <ol class="mb-0 ps-3">
+                  <li><strong>Phone Number ID</strong> (ô ID kênh) và <strong>Access Token</strong>: Meta for Developers → App → WhatsApp → API Setup. Token tạm chỉ sống 24 giờ — dùng thật thì tạo token vĩnh viễn từ System User trong Business Settings.</li>
+                  <li>Điền <code>app_secret</code> (App settings → Basic) và bấm "Tạo Verify Token ngẫu nhiên" trong ô Cấu hình thêm, rồi <strong>Lưu</strong>.</li>
+                  <li>Meta App Dashboard → WhatsApp → Configuration → Webhook: Callback URL <code>https://apic.schoolsai.work/meta-webhook</code>, dán đúng Verify Token → Verify and save, rồi Subscribe field <code>messages</code>.</li>
+                  <li>Khách nhắn tới số WhatsApp thì AI tự trả lời trong cửa sổ 24 giờ kể từ tin của khách. Số test miễn phí chỉ nhắn được tới tối đa 5 số đã thêm vào danh sách người nhận.</li>
+                </ol>
+              </div>
+            </div>
             <div class="alert alert-info d-none" id="meta-webhook-guide" role="alert">
               <h4 class="alert-title">Kết nối nhắn tin/bình luận tự động (Messenger &amp; Instagram)</h4>
               <div class="text-secondary">
@@ -236,11 +247,12 @@
         sanity: 'API token (tạo ở sanity.io/manage → project → API → Tokens, quyền Editor trở lên)',
     };
     const EXTRA_HINTS = {
+        whatsapp: 'Điền {"app_secret":"...","verify_token":"..."} — app_secret lấy ở Meta App Dashboard → App settings → Basic (dùng để xác thực tin Meta gửi tới); bấm "Tạo Verify Token ngẫu nhiên" để sinh verify_token.',
         sanity: 'Tuỳ chọn — chỉnh tên document type/field cho khớp schema riêng của bạn: {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}. Bỏ trống = dùng mặc định trên.',
         facebook: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
         instagram: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
     };
-    const META_WEBHOOK_PLATFORMS = ['facebook', 'instagram'];
+    const META_WEBHOOK_PLATFORMS = ['facebook', 'instagram', 'whatsapp'];
     const PLATFORM_ICON = {
         facebook: 'ti-brand-facebook', instagram: 'ti-brand-instagram',
         whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle',
@@ -408,7 +420,8 @@
         const isMeta = META_WEBHOOK_PLATFORMS.includes(platform);
         document.getElementById('page-content-mode-wrap').classList.toggle('d-none', !['facebook', 'instagram', 'linkedin'].includes(platform));
         document.getElementById('gen-verify-token-btn').classList.toggle('d-none', !isMeta);
-        document.getElementById('meta-webhook-guide').classList.toggle('d-none', !isMeta);
+        document.getElementById('meta-webhook-guide').classList.toggle('d-none', !(isMeta && platform !== 'whatsapp'));
+        document.getElementById('whatsapp-webhook-guide').classList.toggle('d-none', platform !== 'whatsapp');
         document.getElementById('test-wordpress-btn').classList.toggle('d-none', !(platform === 'wordpress' && document.getElementById('page-id-hidden').value));
     }
 

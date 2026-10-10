@@ -1,5 +1,6 @@
 import { AccountQuotaStore, bonusRemaining, effectivePlan, messageLimit, storageLimit } from "./domain/billing/accountQuota.js";
 import { createMediaStore, MediaError } from "./domain/media/mediaStore.js";
+import { extractWhatsAppMessages, isWhatsAppPayload, splitWhatsAppText, whatsAppPhoneNumberIds } from "./domain/chat/whatsappWebhook.js";
 import {
   WeeklyPlanError, allocatePillarCounts, assertReadyForGeneration, buildPillarSuggestMessages, buildWeeklyMessages,
   estimateWeeklyUnits, interleaveByPillar, isAutoRunDue, languageNameFor, normalizePlanConfig, parsePillars, parseWeeklyPosts, pickWeekSlots, serializePlanConfig
@@ -3865,7 +3866,7 @@ async function handleMetaWebhookVerify(url, env) {
     return new Response("Forbidden", { status: 403 });
   }
   const pbToken = await getPbToken(env);
-  const filter = `(platform='facebook' || platform='instagram') && is_active=true`;
+  const filter = `(platform='facebook' || platform='instagram' || platform='whatsapp') && is_active=true`;
   const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=200&filter=${encodeURIComponent(filter)}`, {
     headers: { Authorization: pbToken }
   });
@@ -4269,6 +4270,13 @@ async function replyToMetaWithAi(env, page, platform, session, senderId, display
     console.error("[Meta Messaging] AI không khả dụng, dùng phản hồi dự phòng:", err);
   }
   const outboundMedia = [...extractOutboundMediaFromText(reply), ...autoMedia].slice(0, 10);
+  if (platform === "whatsapp") {
+    // WhatsApp giới hạn ~4096 ký tự/tin: gửi lần lượt các đoạn, đoạn cuối kèm media.
+    const parts = splitWhatsAppText(reply);
+    for (let i = 0; i < parts.length - 1; i++) await sendWhatsAppMessage(page, senderId, parts[i], []);
+    await sendWhatsAppMessage(page, senderId, parts.at(-1) || "", outboundMedia);
+    return;
+  }
   await sendMetaMessage(page.access_token, senderId, reply, outboundMedia, platform);
 }
 __name(replyToMetaWithAi, "replyToMetaWithAi");
@@ -4327,7 +4335,10 @@ __name(processMetaCommentEvent, "processMetaCommentEvent");
 // Chữ ký được kiểm với app_secret của các kênh có trong payload; META_APP_SECRET toàn hệ thống chỉ là fallback.
 async function metaAppSecretsForPayload(env, body, platform) {
   const secrets = [];
-  const ids = [...new Set((body?.entry || []).map((entry) => String(entry?.id || "")).filter((id) => /^[0-9A-Za-z_.:-]{1,64}$/.test(id)))].slice(0, 20);
+  // WhatsApp: entry.id là WABA id, còn kênh lưu Phone Number ID (metadata.phone_number_id) trong page_id.
+  const ids = (platform === "whatsapp"
+    ? whatsAppPhoneNumberIds(body)
+    : [...new Set((body?.entry || []).map((entry) => String(entry?.id || "")).filter((id) => /^[0-9A-Za-z_.:-]{1,64}$/.test(id)))]).slice(0, 20);
   if (ids.length) {
     try {
       const pbToken = await getPbToken(env);
@@ -4349,7 +4360,8 @@ async function handleMetaWebhookEvent(request, env, ctx) {
   const signature = request.headers.get("X-Hub-Signature-256") || "";
   const rawBody = await request.clone().arrayBuffer();
   const parsed = await request.clone().json().catch(() => null);
-  const secrets = await metaAppSecretsForPayload(env, parsed, parsed?.object === "instagram" ? "instagram" : "facebook");
+  const secretPlatform = isWhatsAppPayload(parsed) ? "whatsapp" : parsed?.object === "instagram" ? "instagram" : "facebook";
+  const secrets = await metaAppSecretsForPayload(env, parsed, secretPlatform);
   if (!secrets.length) {
     console.error("[Meta Webhook] Không có app_secret (kênh hoặc META_APP_SECRET) để xác thực chữ ký");
     return new Response("Webhook not configured", { status: 503 });
@@ -4361,8 +4373,19 @@ async function handleMetaWebhookEvent(request, env, ctx) {
   const job = (async () => {
     try {
       if (!body || !Array.isArray(body.entry)) return;
-      const platform = body.object === "instagram" ? "instagram" : "facebook";
       const pbToken = await getPbToken(env);
+      if (isWhatsAppPayload(body)) {
+        // Tối đa 20 tin/lần giao để một payload lớn không vượt giới hạn lời gọi; tin dư Meta sẽ giao lại khi không nhận 200.
+        for (const message of extractWhatsAppMessages(body).slice(0, 20)) {
+          try {
+            await processMetaMessagingEvent(env, pbToken, "whatsapp", message.phoneNumberId, message.from, message.text, []);
+          } catch (err) {
+            console.error(`[WhatsApp] Lỗi xử lý tin ${message.id}:`, err);
+          }
+        }
+        return;
+      }
+      const platform = body.object === "instagram" ? "instagram" : "facebook";
       for (const entry of body.entry) {
         const pageId = entry.id;
         const events = entry.messaging || [];
