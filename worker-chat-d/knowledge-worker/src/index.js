@@ -368,6 +368,10 @@ var index_default = {
         const limited = costly ? enforceRateLimit(request, "weekly-plan", 60, 60 * 60 * 1000) : null;
         return limited || await handleAccountWeeklyPlan(request, env2, cors, url, action);
       }
+      if (url.pathname === "/api/account/meta/upgrade-token" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "meta-upgrade-token", 10, 60 * 60 * 1000);
+        return limited || await handleAccountMetaUpgradeToken(request, env2, cors);
+      }
       if (url.pathname === "/api/account/meta/check" && request.method === "POST") {
         const limited = enforceRateLimit(request, "meta-check", 30, 60 * 60 * 1000);
         return limited || await handleAccountMetaCheck(request, env2, cors);
@@ -3171,6 +3175,54 @@ async function handleAccountWeeklyPlan(request, env, cors, url, action) {
   }
 }
 __name(handleAccountWeeklyPlan, "handleAccountWeeklyPlan");
+
+// Đổi "user token" ngắn hạn (lấy từ Graph API Explorer, đã cấp đủ quyền) thành token Page KHÔNG hết hạn:
+// user token -> long-lived user token (cần app_secret của kênh) -> /me/accounts lấy Page token của đúng fanpage.
+// Ghi token Page vào kênh Facebook và kênh Instagram của fanpage đó. Token không bao giờ được trả về trình duyệt.
+async function handleAccountMetaUpgradeToken(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const userToken = String(body.user_token || "").trim();
+  const appId = String(body.app_id || "");
+  if (!/^[A-Za-z0-9_-]{30,600}$/.test(userToken)) return json({ error: "user_token không hợp lệ (dán đúng chuỗi Access Token từ Graph API Explorer)" }, 400);
+  if (!/^\d{5,30}$/.test(appId)) return json({ error: "Thiếu app_id" }, 400);
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const headers = { Authorization: access.token, "Content-Type": "application/json" };
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true && (platform='facebook' || platform='instagram')`)}`, { headers: { Authorization: access.token } });
+  const pages = res.ok ? (await res.json()).items || [] : [];
+  const fb = pages.find((p) => p.platform === "facebook");
+  if (!fb) return json({ error: "Workspace chưa có kênh Facebook đang hoạt động" }, 404);
+  const extra = parseMessageClientMeta(fb.extra_config);
+  if (!extra.app_secret) return json({ error: "Kênh Facebook chưa có app_secret trong Cấu hình thêm" }, 400);
+  const version = String(extra.graph_version || FB_GRAPH_VERSION);
+  const g = async (path) => {
+    const r = await fetchWithTimeout(`https://graph.facebook.com/${version}/${path}`, { timeout: 2e4 });
+    return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+  };
+  const ex = await g(`oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${encodeURIComponent(extra.app_secret)}&fb_exchange_token=${encodeURIComponent(userToken)}`);
+  if (!ex.ok || !ex.data.access_token) return json({ error: `Meta từ chối token: ${ex.data?.error?.message || ex.status}` }, 502);
+  const accounts = await g(`me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(ex.data.access_token)}`);
+  if (!accounts.ok) return json({ error: `Không đọc được danh sách Page: ${accounts.data?.error?.message || accounts.status}` }, 502);
+  const pageRow = (accounts.data.data || []).find((a) => a.id === fb.page_id);
+  if (!pageRow?.access_token) return json({ error: "Tài khoản đã cấp token không quản lý fanpage này (hoặc chưa cấp quyền pages_show_list)" }, 403);
+  const dbg = await g(`debug_token?input_token=${encodeURIComponent(pageRow.access_token)}&access_token=${appId}|${encodeURIComponent(extra.app_secret)}`);
+  const info = dbg.data?.data || {};
+  if (!dbg.ok || info.is_valid !== true) return json({ error: "Token Page nhận được không hợp lệ" }, 502);
+  const targets = pages.filter((p) => p.platform === "facebook" ? p.id === fb.id : p.platform === "instagram");
+  const saved = [];
+  for (const t of targets) {
+    const tExtra = parseMessageClientMeta(t.extra_config);
+    if (!tExtra.app_id) tExtra.app_id = appId;
+    const up = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records/${t.id}`, {
+      method: "PATCH", headers, body: JSON.stringify({ access_token: pageRow.access_token, extra_config: JSON.stringify(tExtra) })
+    });
+    saved.push({ platform: t.platform, ok: up.ok });
+  }
+  return json({ success: saved.every((s) => s.ok), saved, token: { type: info.type, expires_at: info.expires_at, never_expires: info.expires_at === 0, scopes: info.scopes || [] } });
+}
+__name(handleAccountMetaUpgradeToken, "handleAccountMetaUpgradeToken");
 
 // Chẩn đoán kênh Facebook/Instagram bằng token đã lưu (token không bao giờ trả về): fanpage, tài khoản Instagram gắn kèm,
 // quyền (scope) của token, app nào cấp token, các trường webhook mà Page đã đăng ký.
