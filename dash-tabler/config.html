@@ -542,10 +542,14 @@
         try {
             // Legacy data may contain duplicate rows. Keep the editor and public chat on
             // the same canonical row: the config most recently updated for this tenant.
-            const r = await PB.collection("bot_configs").getFirstListItem(
-                `tenant="${window.TENANT}"`,
-                { sort: "-updated" }
-            );
+            const res = await fetch(`${WORKER_URL}/api/account/bot-config?tenant=${encodeURIComponent(window.TENANT)}`, {
+                headers: { Authorization: PB.authStore.token }, cache: "no-store"
+            });
+            const loaded = await res.json().catch(() => ({}));
+            if (!res.ok) throw Object.assign(new Error(loaded.error || `HTTP ${res.status}`), { status: res.status });
+            // Tenant chưa có cấu hình: đi vào nhánh "chưa có" (404) để tạo mới khi lưu.
+            if (!loaded.record) throw Object.assign(new Error("not found"), { status: 404 });
+            const r = loaded.record;
             configRecordId = r.id;
 
             document.getElementById("botName").value     = r.bot_name    || "";
@@ -1118,12 +1122,14 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Saving...';
 
         try {
-            if (configRecordId) {
-                await PB.collection("bot_configs").update(configRecordId, data);
-            } else {
-                const r = await PB.collection("bot_configs").create(data);
-                configRecordId = r.id;
-            }
+            const res = await fetch(`${WORKER_URL}/api/account/bot-config`, {
+                method: "PUT",
+                headers: { Authorization: PB.authStore.token, "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+            const saved = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(saved.error || `HTTP ${res.status}`);
+            configRecordId = saved.record?.id || configRecordId;
             originalData = { ...data };
             showToast("Đã lưu cài đặt bot!", "success");
         } catch (err) {

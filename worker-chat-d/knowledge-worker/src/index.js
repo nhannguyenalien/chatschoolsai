@@ -318,6 +318,9 @@ var index_default = {
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
+      if (url.pathname === "/api/account/bot-config" && ["GET", "PUT"].includes(request.method)) {
+        return await handleAccountBotConfig(request, env2, cors, url);
+      }
       if (url.pathname === "/api/account/workspaces" && request.method === "GET") {
         return await handleAccountListWorkspaces(request, env2, cors);
       }
@@ -2557,6 +2560,38 @@ async function handleAccountPagesConfig(request, env, cors, url) {
   if (!res.ok) return json({ error: out.message || "Không lưu được kênh", details: out.data }, res.status === 400 ? 400 : 502);
   return json({ success: true, record: out }, existing ? 200 : 201);
 }
+
+// Đọc/ghi cấu hình bot qua Worker: rule PocketBase của bot_configs chỉ khớp workspace gốc của tài khoản,
+// workspace phụ sẽ đọc rỗng và không tạo/sửa được. Quyền workspace kiểm tra bằng resolveMediaTenantAccess.
+var ACCOUNT_BOT_CONFIG_FIELDS = [
+  "bot_name", "bot_avatar", "color", "webhook", "greeting", "owner_telegram_chat_id", "pixverse_api_key",
+  "system_prompt", "response_language", "temperature", "api_key",
+  "brand_logo_url", "brand_logo_enabled", "brand_logo_position", "brand_logo_size",
+  "brand_text_enabled", "brand_text", "brand_text_position", "brand_text_size", "brand_text_color",
+  "brand_logo_opacity", "brand_text_opacity", "brand_text_bg", "brand_border"
+];
+async function handleAccountBotConfig(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = request.method === "GET" ? {} : await request.json().catch(() => ({}));
+  const tenant = String(url.searchParams.get("tenant") || body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const headers = { Authorization: access.token, "Content-Type": "application/json" };
+  const base = `${env.PB_URL}/api/collections/bot_configs/records`;
+  // Dữ liệu cũ có thể trùng dòng: luôn dùng dòng cập nhật gần nhất, khớp với editor và chat công khai.
+  const listRes = await fetchWithTimeout(`${base}?perPage=1&sort=-updated&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers });
+  if (!listRes.ok) return json({ error: "Không tải được cấu hình bot" }, 502);
+  const existing = (await listRes.json()).items?.[0] || null;
+  if (request.method === "GET") return json({ record: existing });
+  const data = {};
+  for (const key of ACCOUNT_BOT_CONFIG_FIELDS) if (key in body) data[key] = body[key];
+  if (!existing) data.tenant = tenant;
+  const res = await fetchWithTimeout(existing ? `${base}/${existing.id}` : base, { method: existing ? "PATCH" : "POST", headers, body: JSON.stringify(data) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) return json({ error: out.message || "Không lưu được cấu hình bot", details: out.data }, res.status === 400 ? 400 : 502);
+  return json({ success: true, record: out }, existing ? 200 : 201);
+}
+__name(handleAccountBotConfig, "handleAccountBotConfig");
 
 // Kiểm tra token của kênh Facebook đang được cấp những quyền nào (debug_token) để biết thiếu quyền gì khi đăng bài/trả lời.
 // Cần app_secret của Meta App trong extra_config của kênh (cùng chỗ dùng để ký webhook).
