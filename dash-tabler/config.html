@@ -175,6 +175,7 @@
                                             <div class="input-group mb-1">
                                                 <input type="url" class="form-control" id="brandLogoUrl" placeholder="Dán link logo hoặc bấm Upload (PNG nền trong suốt cho đẹp)" oninput="previewBrandLogo()">
                                                 <button type="button" class="btn btn-primary" id="brandLogoUploadBtn" onclick="document.getElementById('brandLogoFile').click()"><i class="ti ti-upload me-1"></i>Upload logo</button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="openLogoLibrary()"><i class="ti ti-photo me-1"></i>Chọn từ thư viện</button>
                                             </div>
                                             <input type="file" id="brandLogoFile" class="d-none" accept="image/png,image/jpeg,image/webp" onchange="uploadBrandLogo(this)">
                                             <small class="form-hint d-block mb-2">Logo upload sẽ được lưu vào Thư viện Media của bạn. Nhớ bấm Lưu cấu hình sau khi upload.</small>
@@ -451,6 +452,19 @@
         </div>
     </div>
 
+    <div class="modal" id="logo-library-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chọn logo từ Thư viện Media</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3" id="logo-library-grid"><div class="col-12 text-secondary">Đang tải...</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
 
     <script>
@@ -626,6 +640,48 @@
     function toggleBrandOptions() {
         document.getElementById("brandLogoOptions").classList.toggle("d-none", !document.getElementById("brandLogoEnabled").checked);
         document.getElementById("brandTextOptions").classList.toggle("d-none", !document.getElementById("brandTextEnabled").checked);
+    }
+    async function openLogoLibrary() {
+        const grid = document.getElementById("logo-library-grid");
+        grid.innerHTML = '<div class="col-12 text-secondary">Đang tải...</div>';
+        new bootstrap.Modal(document.getElementById("logo-library-modal")).show();
+        try {
+            const res = await fetch(`${WORKER_URL}/api/account/media?tenant=${encodeURIComponent(window.TENANT)}`, {
+                headers: { Authorization: PB.authStore.token }, cache: "no-store"
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || res.status);
+            if (!data.items.length) { grid.innerHTML = '<div class="col-12 text-secondary">Thư viện chưa có ảnh nào. Bấm "Upload logo" để thêm.</div>'; return; }
+            grid.innerHTML = "";
+            for (const m of data.items) {
+                const col = document.createElement("div");
+                col.className = "col-6 col-md-3";
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = "btn btn-outline-secondary w-100 p-2 text-start";
+                const img = document.createElement("img");
+                img.src = m.url; img.loading = "lazy"; img.alt = "";
+                img.style.cssText = "width:100%;height:90px;object-fit:contain;background:#f1f5f9";
+                const cap = document.createElement("div");
+                cap.className = "small text-truncate mt-1";
+                cap.textContent = m.label || "(không tên)";
+                card.append(img, cap);
+                card.addEventListener("click", () => {
+                    document.getElementById("brandLogoUrl").value = m.url;
+                    previewBrandLogo();
+                    bootstrap.Modal.getInstance(document.getElementById("logo-library-modal")).hide();
+                    showToast("Đã chọn logo — bấm Lưu để áp dụng", "success");
+                });
+                col.appendChild(card);
+                grid.appendChild(col);
+            }
+        } catch (err) {
+            grid.innerHTML = "";
+            const alert = document.createElement("div");
+            alert.className = "col-12 alert alert-danger";
+            alert.textContent = "Lỗi tải thư viện: " + err.message;
+            grid.appendChild(alert);
+        }
     }
     async function uploadBrandLogo(input) {
         const file = input.files[0];

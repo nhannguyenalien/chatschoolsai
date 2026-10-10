@@ -285,6 +285,9 @@ var index_default = {
       if (url.pathname === "/api/account/media/usage" && request.method === "GET") {
         return await handleAccountMediaUsage(request, env2, cors);
       }
+      if (url.pathname === "/api/account/media" && request.method === "GET") {
+        return await handleAccountMediaList(request, env2, cors, url);
+      }
       if (url.pathname === "/api/account/media" && request.method === "POST") {
         const limited = enforceRateLimit(request, "media-upload", 60, 60 * 60 * 1000);
         return limited || await handleAccountMediaUpload(request, env2, cors);
@@ -2451,6 +2454,26 @@ async function resolveMediaTenantAccess(request, env, tenant) {
   }
   return { account, token };
 }
+
+// Danh sách ảnh trong thư viện media của workspace (dùng cho nút "Chọn từ thư viện"). Đọc qua Worker vì
+// rule PocketBase của media_library chỉ khớp workspace gốc.
+async function handleAccountMediaList(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const tenant = String(url.searchParams.get("tenant") || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const filter = `tenant='${escFilterValue(tenant)}' && type='image' && status='ready'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records?perPage=100&sort=-created&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: access.token } });
+  if (!res.ok) return json({ error: "Không tải được thư viện media" }, 502);
+  const items = ((await res.json()).items || []).map((r) => ({
+    id: r.id,
+    label: r.label || "",
+    created: r.created,
+    url: r.url || (r.file ? `${env.PB_URL}/api/files/media_library/${r.id}/${encodeURIComponent(r.file)}` : "")
+  })).filter((r) => r.url);
+  return json({ items });
+}
+__name(handleAccountMediaList, "handleAccountMediaList");
 
 async function handleAccountMediaUsage(request, env, cors) {
   const account = await resolveOwnAccountRecord(request, env);
