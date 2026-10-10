@@ -227,7 +227,8 @@ var index_default = {
         if (url.pathname === "/ai-voice/greeting") return await callInternalHandlerWithForcedTenant(request, env2, cors, auth.cfg.tenant, handleAiVoiceGreeting);
       }
       if (url.pathname === "/run-weekly-plan" && request.method === "POST") {
-        // Cron gọi vào đây qua service binding SELF để việc tạo kế hoạch tuần chạy ở lượt xử lý riêng (hạn mức lời gọi riêng).
+        // Cron ngoài (VPS Coolify) gọi mỗi giờ vào đây; handler tự quyết tenant nào đến lượt (đúng thứ/giờ, chưa có kế hoạch tuần này).
+        // Gọi từ ngoài nên mỗi lần là 1 lượt xử lý riêng, không chung hạn mức lời gọi với cron Agent/Ads của Cloudflare.
         if (!env2.ADMIN_SECRET || (request.headers.get("X-Admin-Secret") || "") !== env2.ADMIN_SECRET) {
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         }
@@ -415,11 +416,6 @@ var index_default = {
         ctx.waitUntil(pingAnythingLLM(env2));
       }
     } else if (event.cron === "0 * * * *") {
-      // Chạy ở lượt xử lý riêng (service binding tới chính worker) để không dùng chung hạn mức lời gọi với Agent/Ads của tick này.
-      const weeklyPlanRun = env.SELF
-        ? env.SELF.fetch("https://self.internal/run-weekly-plan", { method: "POST", headers: { "X-Admin-Secret": env2.ADMIN_SECRET || "" } })
-        : handleWeeklyPlanAutoRun(env2, new Date(event.scheduledTime));
-      ctx.waitUntil(Promise.resolve(weeklyPlanRun).catch((err) => console.error("[WeeklyPlan] Lỗi tổng:", err)));
       if (new Date(event.scheduledTime).getUTCHours() === 0) {
         // 07:00 giờ VN: báo cáo Ads Agent. Chạy THAY cho lượt AI Agent của giờ này (cùng lý do với bản tin master:
         // không đủ cron/subrequest để tách riêng) — AI Agent chạy lại ở giờ kế tiếp.
