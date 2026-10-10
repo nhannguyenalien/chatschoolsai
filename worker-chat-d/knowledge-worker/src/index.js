@@ -321,6 +321,10 @@ var index_default = {
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
       }
+      const accountDataMatch = url.pathname.match(/^\/api\/account\/data\/([a-z_]+)(?:\/([A-Za-z0-9]{1,40}))?$/);
+      if (accountDataMatch && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
+        return await handleAccountData(request, env2, cors, url, accountDataMatch[1], accountDataMatch[2] || "");
+      }
       if (url.pathname === "/api/account/bot-config" && ["GET", "PUT"].includes(request.method)) {
         return await handleAccountBotConfig(request, env2, cors, url);
       }
@@ -2583,6 +2587,70 @@ async function handleAccountPagesConfig(request, env, cors, url) {
   if (!res.ok) return json({ error: out.message || "Không lưu được kênh", details: out.data }, res.status === 400 ? 400 : 502);
   return json({ success: true, record: out }, existing ? 200 : 201);
 }
+
+// CRUD cho các bảng dữ liệu của workspace qua Worker. Rule PocketBase chỉ khớp workspace GỐC của tài khoản nên
+// workspace phụ đọc rỗng/ghi 400; ở đây quyền kiểm tra bằng resolveMediaTenantAccess (thành viên active của tenant).
+// Không nhận filter tự do từ trình duyệt: list luôn bị khoá theo tenant, tránh rò sang tenant khác.
+var ACCOUNT_DATA_COLLECTIONS = {
+  posts: ["GET", "POST", "PATCH", "DELETE"],
+  media: ["GET", "POST", "PATCH", "DELETE"],
+  post_targets: ["GET", "POST", "PATCH", "DELETE"],
+  ai_prompts: ["GET", "POST", "PATCH", "DELETE"],
+  rss_sources: ["GET", "POST", "PATCH", "DELETE"],
+  publish_schedules: ["GET", "POST", "PATCH", "DELETE"],
+  media_library: ["GET"]
+};
+async function handleAccountData(request, env, cors, url, collection, id) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const allowed = ACCOUNT_DATA_COLLECTIONS[collection];
+  if (!allowed) return json({ error: "Collection không được hỗ trợ" }, 404);
+  if (!allowed.includes(request.method)) return json({ error: "Method không được phép" }, 405);
+  const body = request.method === "POST" || request.method === "PATCH" ? await request.json().catch(() => ({})) : {};
+  const sort = url.searchParams.get("sort") || "";
+  const expand = url.searchParams.get("expand") || "";
+  if (sort && !/^-?[A-Za-z0-9_]{1,40}$/.test(sort)) return json({ error: "sort không hợp lệ" }, 400);
+  if (expand && !/^[A-Za-z0-9_,]{1,120}$/.test(expand)) return json({ error: "expand không hợp lệ" }, 400);
+  const base = `${env.PB_URL}/api/collections/${collection}/records`;
+  const adminToken = await getPbToken(env);
+  let tenant = String(url.searchParams.get("tenant") || body.tenant || "");
+  let existing = null;
+  if (id) {
+    const res = await fetchWithTimeout(`${base}/${id}${expand ? `?expand=${encodeURIComponent(expand)}` : ""}`, { headers: { Authorization: adminToken } });
+    if (res.status === 404) return json({ error: "Không tìm thấy" }, 404);
+    if (!res.ok) return json({ error: "Dữ liệu tạm thời không truy cập được" }, 503);
+    existing = await res.json();
+    tenant = existing.tenant;
+  }
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const headers = { Authorization: access.token, "Content-Type": "application/json" };
+  if (request.method === "GET") {
+    if (existing) return json(existing);
+    const items = [];
+    for (let page = 1; page <= 10; page++) {
+      const qs = `page=${page}&perPage=200${sort ? `&sort=${encodeURIComponent(sort)}` : ""}${expand ? `&expand=${encodeURIComponent(expand)}` : ""}&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`;
+      const res = await fetchWithTimeout(`${base}?${qs}`, { headers });
+      if (!res.ok) return json({ error: "Không tải được dữ liệu" }, 502);
+      const data = await res.json();
+      items.push(...(data.items || []));
+      if (page >= (data.totalPages || 1)) break;
+    }
+    return json({ items });
+  }
+  if (request.method === "DELETE") {
+    if (!existing) return json({ error: "Thiếu id" }, 400);
+    const res = await fetchWithTimeout(`${base}/${id}`, { method: "DELETE", headers });
+    return res.ok || res.status === 404 ? json({ success: true }) : json({ error: "Không xoá được" }, 502);
+  }
+  const data = { ...body };
+  delete data.id; delete data.created; delete data.updated; delete data.collectionId; delete data.collectionName; delete data.expand;
+  data.tenant = tenant; // không cho chuyển bản ghi sang tenant khác
+  const res = await fetchWithTimeout(existing ? `${base}/${id}` : base, { method: existing ? "PATCH" : "POST", headers, body: JSON.stringify(data) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) return json({ error: out.message || "Không lưu được", details: out.data }, res.status === 400 ? 400 : 502);
+  return json(out, existing ? 200 : 201);
+}
+__name(handleAccountData, "handleAccountData");
 
 // Đọc/ghi cấu hình bot qua Worker: rule PocketBase của bot_configs chỉ khớp workspace gốc của tài khoản,
 // workspace phụ sẽ đọc rỗng và không tạo/sửa được. Quyền workspace kiểm tra bằng resolveMediaTenantAccess.

@@ -616,7 +616,7 @@
         const days = [...document.querySelectorAll('.sched-day:checked')].map(el => el.value);
         const pageId = contentType === 'social' ? document.getElementById('sched-page').value : '';
         try {
-            await PB.collection('publish_schedules').create({
+            await TC('publish_schedules').create({
                 tenant: window.TENANT,
                 content_type: contentType,
                 page_id: pageId,
@@ -636,7 +636,7 @@
 
     async function toggleScheduleRule(id, current) {
         try {
-            await PB.collection('publish_schedules').update(id, { is_active: !current });
+            await TC('publish_schedules').update(id, { is_active: !current });
             await loadSchedules();
         } catch (err) {
             showToast('Lỗi cập nhật: ' + err.message, 'error');
@@ -646,7 +646,7 @@
     async function deleteScheduleRule(id) {
         if (!confirm('Xóa luật lên lịch này?')) return;
         try {
-            await PB.collection('publish_schedules').delete(id);
+            await TC('publish_schedules').delete(id);
             await loadSchedules();
         } catch (err) {
             showToast('Lỗi xóa: ' + err.message, 'error');
@@ -656,7 +656,7 @@
     async function loadSchedules() {
         const el = document.getElementById('schedule-list');
         try {
-            schedulesCache = await PB.collection('publish_schedules').getFullList({
+            schedulesCache = await TC('publish_schedules').getFullList({
                 sort: '-created',
                 filter: `tenant = "${window.TENANT}"`
             });
@@ -716,7 +716,7 @@
         const list = document.getElementById('posts-list');
         list.innerHTML = '<div class="col-12 text-secondary">Đang tải...</div>';
         try {
-            const posts = await PB.collection('posts').getFullList({
+            const posts = await TC('posts').getFullList({
                 sort: '-created',
                 filter: `tenant = "${window.TENANT}"`,
                 expand: 'media_via_post_id,post_targets_via_post_id'
@@ -814,11 +814,11 @@
     async function getContentPlanningApiKey() {
         if (contentPlanningApiKey) return contentPlanningApiKey;
         if (!contentPlanningApiKeyPromise) {
-            contentPlanningApiKeyPromise = PB.collection('bot_configs')
-                .getList(1, 2, { filter: `tenant = "${window.TENANT}"` })
-                .then(configs => {
-                    if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
-                    contentPlanningApiKey = configs.items[0].api_key;
+            contentPlanningApiKeyPromise = fetch(`${WORKER_URL}/api/account/bot-config?tenant=${encodeURIComponent(window.TENANT)}`, { headers: { Authorization: PB.authStore.token }, cache: 'no-store' })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.record?.api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+                    contentPlanningApiKey = data.record.api_key;
                     return contentPlanningApiKey;
                 })
                 .catch(error => { contentPlanningApiKeyPromise = null; throw error; });
@@ -1103,7 +1103,7 @@
 
         if (id) {
             try {
-                const p = await PB.collection('posts').getOne(id, { expand: 'media_via_post_id,post_targets_via_post_id' });
+                const p = await TC('posts').getOne(id, { expand: 'media_via_post_id,post_targets_via_post_id' });
                 document.getElementById('post-title').value = p.title || '';
                 document.getElementById('post-content').value = p.content || '';
                 document.getElementById('post-image-prompt').value = p.image_prompt || '';
@@ -1137,9 +1137,9 @@
         try {
             let postId = id;
             if (id) {
-                await PB.collection('posts').update(id, data);
+                await TC('posts').update(id, data);
             } else {
-                const created = await PB.collection('posts').create(data);
+                const created = await TC('posts').create(data);
                 postId = created.id;
             }
 
@@ -1152,7 +1152,7 @@
                     type: row.querySelector('.media-type').value,
                     order: Number(row.querySelector('.media-order').value || 0)
                 };
-                return recId ? PB.collection('media').update(recId, payload) : PB.collection('media').create(payload);
+                return recId ? TC('media').update(recId, payload) : TC('media').create(payload);
             });
 
             const targetPromises = [...document.querySelectorAll('#target-rows .repeatable-row')].map(row => {
@@ -1167,7 +1167,7 @@
                     scheduled_at: scheduled ? new Date(scheduled).toISOString() : '',
                     error_log: row.querySelector('.target-error').value
                 };
-                return recId ? PB.collection('post_targets').update(recId, payload) : PB.collection('post_targets').create(payload);
+                return recId ? TC('post_targets').update(recId, payload) : TC('post_targets').create(payload);
             });
 
             await Promise.all([...mediaPromises, ...targetPromises]);
@@ -1189,7 +1189,7 @@
         const list = document.getElementById('prompts-list');
         list.innerHTML = '<div class="text-secondary">Đang tải...</div>';
         try {
-            promptsCache = await PB.collection('ai_prompts').getFullList({
+            promptsCache = await TC('ai_prompts').getFullList({
                 sort: 'category',
                 filter: `tenant = "${window.TENANT}"`
             });
@@ -1254,8 +1254,8 @@
         };
         btnLoading('save-prompt-btn', 'Đang lưu...');
         try {
-            if (id) await PB.collection('ai_prompts').update(id, data);
-            else await PB.collection('ai_prompts').create(data);
+            if (id) await TC('ai_prompts').update(id, data);
+            else await TC('ai_prompts').create(data);
             bootstrap.Modal.getInstance(document.getElementById('prompt-modal')).hide();
             showToast('Đã lưu prompt', 'success');
             await loadPrompts();
@@ -1271,7 +1271,7 @@
         const id = document.getElementById('prompt-id-hidden').value;
         if (!id || !confirm('Xóa prompt này?')) return;
         try {
-            await PB.collection('ai_prompts').delete(id);
+            await TC('ai_prompts').delete(id);
             bootstrap.Modal.getInstance(document.getElementById('prompt-modal')).hide();
             showToast('Đã xóa', 'success');
             await loadPrompts();
@@ -1288,7 +1288,7 @@
         const list = document.getElementById('rss-list');
         list.innerHTML = '<div class="text-secondary">Đang tải...</div>';
         try {
-            rssCache = await PB.collection('rss_sources').getFullList({
+            rssCache = await TC('rss_sources').getFullList({
                 sort: 'category',
                 filter: `tenant = "${window.TENANT}"`,
                 expand: 'prompt_id'
@@ -1359,8 +1359,8 @@
         };
         btnLoading('save-rss-btn', 'Đang lưu...');
         try {
-            if (id) await PB.collection('rss_sources').update(id, data);
-            else await PB.collection('rss_sources').create(data);
+            if (id) await TC('rss_sources').update(id, data);
+            else await TC('rss_sources').create(data);
             bootstrap.Modal.getInstance(document.getElementById('rss-modal')).hide();
             showToast('Đã lưu nguồn RSS', 'success');
             loadRss();
@@ -1375,7 +1375,7 @@
         const id = document.getElementById('rss-id-hidden').value;
         if (!id || !confirm('Xóa nguồn RSS này?')) return;
         try {
-            await PB.collection('rss_sources').delete(id);
+            await TC('rss_sources').delete(id);
             bootstrap.Modal.getInstance(document.getElementById('rss-modal')).hide();
             showToast('Đã xóa', 'success');
             loadRss();
@@ -1387,6 +1387,30 @@
     // ═══════════════════════════════════════
     // MEDIA LIBRARY
     // ═══════════════════════════════════════
+    // Dữ liệu workspace đọc/ghi qua Worker (/api/account/data/*): rule PocketBase chỉ khớp workspace gốc nên
+    // workspace phụ sẽ đọc rỗng và ghi bị 400. API tương tự PB.collection(...) cho phần code bên dưới.
+    function TC(name) {
+        const call = async (path, method, body, query = {}) => {
+            const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v)).toString();
+            const res = await fetch(`${WORKER_URL}/api/account/data/${name}${path}${qs ? `?${qs}` : ''}`, {
+                method,
+                headers: { Authorization: PB.authStore.token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+                body: body ? JSON.stringify(body) : undefined,
+                cache: 'no-store'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            return data;
+        };
+        return {
+            getFullList: async (o = {}) => (await call('', 'GET', null, { tenant: window.TENANT, sort: o.sort, expand: o.expand })).items,
+            getOne: (id, o = {}) => call(`/${id}`, 'GET', null, { expand: o.expand }),
+            create: (data) => call('', 'POST', { ...data, tenant: window.TENANT }),
+            update: (id, data) => call(`/${id}`, 'PATCH', data),
+            delete: (id) => call(`/${id}`, 'DELETE')
+        };
+    }
+
     function fileUrl(record) {
         if (record.file) return PB.files.getUrl(record, record.file);
         return record.url || '';
@@ -1426,7 +1450,7 @@
         const grid = document.getElementById('media-library-grid');
         if (grid) grid.innerHTML = '<div class="col-12 text-secondary">Đang tải...</div>';
         try {
-            mediaLibraryCache = await PB.collection('media_library').getFullList({
+            mediaLibraryCache = await TC('media_library').getFullList({
                 sort: '-created',
                 filter: `tenant = "${window.TENANT}"`
             });
