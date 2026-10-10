@@ -325,6 +325,10 @@ var index_default = {
       if (accountDataMatch && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountData(request, env2, cors, url, accountDataMatch[1], accountDataMatch[2] || "");
       }
+      if (url.pathname === "/api/account/branding-preview" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "branding-preview", 30, 60 * 60 * 1000);
+        return limited || await handleAccountBrandingPreview(request, env2, cors);
+      }
       if (url.pathname === "/api/account/bot-config" && ["GET", "PUT"].includes(request.method)) {
         return await handleAccountBotConfig(request, env2, cors, url);
       }
@@ -3170,8 +3174,9 @@ var BRAND_GRAVITY = {
   bottom_right: "south_east", bottom_left: "south_west", top_right: "north_east", top_left: "north_west",
   bottom_center: "south", top_center: "north", center: "center"
 };
-var BRAND_LOGO_WIDTH = { small: 100, medium: 150, large: 220 };
-var BRAND_TEXT_SIZE = { small: 28, medium: 40, large: 56 };
+// Kích thước theo TỈ LỆ ảnh gốc (fl_relative) để ảnh nhỏ hay lớn đều cân đối: logo = bề rộng, chữ = chiều cao tối đa.
+var BRAND_LOGO_WIDTH = { small: 0.12, medium: 0.2, large: 0.3 };
+var BRAND_TEXT_SIZE = { small: 0.04, medium: 0.06, large: 0.09 };
 
 // Cloudinary yêu cầu text trong URL transformation được mã hoá 2 lớp cho dấu , và /.
 function cloudinaryTextEscape(text) {
@@ -3199,52 +3204,90 @@ __name(brandOpacity, "brandOpacity");
 function buildBrandTransformation(cfg, logoPublicId) {
   const parts = [];
   const borderPx = BRAND_BORDER[cfg.brand_border] || 0;
+  // Cú pháp lớp phủ Cloudinary: l_<lớp>/<biến đổi của lớp>/fl_layer_apply,<vị trí>. Vị trí (g_/x_/y_)
+  // phải nằm ở bước fl_layer_apply, không được trộn vào bước l_.
   if (logoPublicId) {
     const g = BRAND_GRAVITY[cfg.brand_logo_position] || "south_east";
     const w = BRAND_LOGO_WIDTH[cfg.brand_logo_size] || BRAND_LOGO_WIDTH.medium;
     const o = brandOpacity(cfg.brand_logo_opacity);
-    const bo = borderPx ? `,bo_${borderPx}px_solid_white` : "";
-    parts.push(`l_${logoPublicId},g_${g},x_20,y_20,w_${w}${bo}${o < 100 ? `,o_${o}` : ""},fl_layer_apply`);
+    const layer = [`l_${logoPublicId}`, `c_scale,fl_relative,w_${w}`];
+    if (borderPx) layer.push(`bo_${borderPx}px_solid_white`);
+    if (o < 100) layer.push(`o_${o}`);
+    layer.push(`fl_layer_apply,g_${g},x_20,y_20`);
+    parts.push(layer.join("/"));
   }
   const text = String(cfg.brand_text || "").trim().slice(0, 80);
   if (cfg.brand_text_enabled && text) {
     const g = BRAND_GRAVITY[cfg.brand_text_position] || "south_west";
-    const size = BRAND_TEXT_SIZE[cfg.brand_text_size] || BRAND_TEXT_SIZE.medium;
+    const h = BRAND_TEXT_SIZE[cfg.brand_text_size] || BRAND_TEXT_SIZE.medium;
     const color = brandTextColor(cfg.brand_text_color);
     const o = brandOpacity(cfg.brand_text_opacity);
     const bgHex = BRAND_TEXT_BG[cfg.brand_text_bg] || "";
-    // Lớp nền mờ: nền + viền trong suốt cùng màu nền để tạo đệm quanh chữ.
+    // Lớp nền mờ: nền + viền cùng màu nền để tạo đệm quanh chữ.
     const bg = bgHex ? `,b_rgb:${bgHex}99,bo_8px_solid_rgb:${bgHex}99` : "";
-    const outline = borderPx && !bgHex ? `,bo_${borderPx}px_solid_${color === "white" ? "black" : "white"}` : "";
-    parts.push(`l_text:Arial_${size}_bold:${cloudinaryTextEscape(text)},co_${color}${bg}${outline}${o < 100 ? `,o_${o}` : ""},g_${g},x_20,y_20,fl_layer_apply`);
+    const layer = [`l_text:Arial_200_bold:${cloudinaryTextEscape(text)},co_${color}${bg}`, `c_fit,fl_relative,w_0.9,h_${h}`];
+    if (borderPx && !bgHex) layer.push(`bo_${borderPx}px_solid_${color === "white" ? "black" : "white"}`);
+    if (o < 100) layer.push(`o_${o}`);
+    layer.push(`fl_layer_apply,g_${g},x_20,y_20`);
+    parts.push(layer.join("/"));
   }
   return parts.join("/");
 }
 __name(buildBrandTransformation, "buildBrandTransformation");
 
-async function applyBranding(env, pbToken, cfg, imageUrl) {
-  if (!imageUrl || !cfg) return imageUrl;
+// Trả về URL ảnh đã chèn; ném lỗi nếu Cloudinary lỗi. Trả về imageUrl nguyên bản nếu tenant không bật gì
+// hoặc hệ thống chưa cấu hình Cloudinary.
+async function buildBrandedUrl(env, pbToken, cfg, imageUrl) {
   const useLogo = !!(cfg.brand_logo_enabled && cfg.brand_logo_url);
   const useText = !!(cfg.brand_text_enabled && String(cfg.brand_text || "").trim());
   if (!useLogo && !useText) return imageUrl;
+  const sys = await getSystemConfig(env);
+  const cloud = { cloudName: sys.CLOUDINARY_CLOUD_NAME, apiKey: sys.CLOUDINARY_API_KEY, apiSecret: sys.CLOUDINARY_API_SECRET };
+  if (!cloud.cloudName || !cloud.apiKey || !cloud.apiSecret) {
+    console.warn("[Branding] Bỏ qua: chưa cấu hình Cloudinary ở system-config.html (cloud name/API key/API secret)");
+    return imageUrl;
+  }
+  const logoPublicId = useLogo ? await ensureLogoUploaded(env, pbToken, cloud, cfg) : "";
+  const transformation = buildBrandTransformation(cfg, logoPublicId);
+  if (!transformation) return imageUrl;
+  const data = await cloudinaryUpload(cloud, imageUrl, { transformation });
+  return data.secure_url || imageUrl;
+}
+__name(buildBrandedUrl, "buildBrandedUrl");
+
+async function applyBranding(env, pbToken, cfg, imageUrl) {
+  if (!imageUrl || !cfg) return imageUrl;
   try {
-    const sys = await getSystemConfig(env);
-    const cloud = { cloudName: sys.CLOUDINARY_CLOUD_NAME, apiKey: sys.CLOUDINARY_API_KEY, apiSecret: sys.CLOUDINARY_API_SECRET };
-    if (!cloud.cloudName || !cloud.apiKey || !cloud.apiSecret) {
-      console.warn("[Branding] Bỏ qua: chưa cấu hình Cloudinary ở system-config.html (cloud name/API key/API secret)");
-      return imageUrl;
-    }
-    const logoPublicId = useLogo ? await ensureLogoUploaded(env, pbToken, cloud, cfg) : "";
-    const transformation = buildBrandTransformation(cfg, logoPublicId);
-    if (!transformation) return imageUrl;
-    const data = await cloudinaryUpload(cloud, imageUrl, { transformation });
-    return data.secure_url || imageUrl;
+    return await buildBrandedUrl(env, pbToken, cfg, imageUrl);
   } catch (err) {
     console.error("[Branding] Lỗi chèn logo/chữ Cloudinary:", err);
     return imageUrl;
   }
 }
 __name(applyBranding, "applyBranding");
+
+// Xem thử kết quả chèn logo/chữ trên 1 ảnh mẫu, dùng tuỳ chọn đang chỉnh (chưa cần lưu).
+async function handleAccountBrandingPreview(request, env, cors) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const imageUrl = String(body.image_url || "");
+  if (!/^https:\/\//.test(imageUrl)) return json({ error: "image_url phải là link https" }, 400);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records?perPage=1&sort=-updated&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers: { Authorization: access.token } });
+  const cfg = res.ok ? (await res.json()).items?.[0] : null;
+  if (!cfg) return json({ error: "Workspace chưa có cấu hình bot — lưu cấu hình trước" }, 400);
+  const settings = body.settings && typeof body.settings === "object" ? body.settings : {};
+  for (const key of ACCOUNT_BOT_CONFIG_FIELDS) if (key.startsWith("brand_") && key in settings) cfg[key] = settings[key];
+  try {
+    const url = await buildBrandedUrl(env, access.token, cfg, imageUrl);
+    return json({ url, branded: url !== imageUrl });
+  } catch (err) {
+    return json({ error: String(err?.message || err).slice(0, 300) }, 502);
+  }
+}
+__name(handleAccountBrandingPreview, "handleAccountBrandingPreview");
 
 const FACEBOOK_MAX_PHOTOS = 10;
 // Facebook: nhiều ảnh = 1 bài có attached_media (mỗi ảnh upload published=false trước); video không gộp được với ảnh

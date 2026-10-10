@@ -199,6 +199,7 @@
                                             </div>
                                         </div>
                                         <div class="row g-3 mt-2"><div class="col-md-4"><label class="form-label text-uppercase tracking-wide text-secondary fs-5">Viền (logo &amp; chữ)</label><select class="form-select" id="brandBorder"><option value="none">Không viền</option><option value="thin">Viền mỏng</option><option value="thick">Viền dày</option></select></div></div>
+                                        <div class="mt-3"><button type="button" class="btn btn-outline-primary" id="brandPreviewBtn" onclick="previewBranding()"><i class="ti ti-eye me-1"></i>Xem thử trên ảnh mẫu</button></div>
                                         <small class="form-hint mt-3 d-block">Nếu chèn cả logo và chữ, nên chọn hai vị trí khác nhau để không đè lên nhau.</small>
                                     </div>
                                 </div>
@@ -465,6 +466,17 @@
             </div>
         </div>
     </div>
+    <div class="modal" id="brand-preview-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xem thử logo &amp; chữ trên ảnh</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center" id="brand-preview-body"></div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
 
     <script>
@@ -640,6 +652,42 @@
     function toggleBrandOptions() {
         document.getElementById("brandLogoOptions").classList.toggle("d-none", !document.getElementById("brandLogoEnabled").checked);
         document.getElementById("brandTextOptions").classList.toggle("d-none", !document.getElementById("brandTextEnabled").checked);
+    }
+    async function previewBranding() {
+        const body = document.getElementById("brand-preview-body");
+        body.innerHTML = '<div class="text-secondary py-4">Đang tạo ảnh xem thử...</div>';
+        new bootstrap.Modal(document.getElementById("brand-preview-modal")).show();
+        const btn = document.getElementById("brandPreviewBtn");
+        btn.disabled = true;
+        try {
+            const d = getFormData();
+            const settings = Object.fromEntries(Object.entries(d).filter(([k]) => k.startsWith("brand_")));
+            const res = await fetch(`${WORKER_URL}/api/account/branding-preview`, {
+                method: "POST",
+                headers: { Authorization: PB.authStore.token, "Content-Type": "application/json" },
+                body: JSON.stringify({ tenant: window.TENANT, image_url: "https://res.cloudinary.com/demo/image/upload/sample.jpg", settings })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || res.status);
+            body.innerHTML = "";
+            if (!data.branded) {
+                const note = document.createElement("div");
+                note.className = "alert alert-warning";
+                note.textContent = "Chưa bật chèn logo/chữ, hoặc hệ thống chưa cấu hình Cloudinary — ảnh dưới đây là ảnh gốc.";
+                body.appendChild(note);
+            }
+            const img = document.createElement("img");
+            img.src = data.url; img.alt = ""; img.className = "img-fluid rounded border";
+            body.appendChild(img);
+        } catch (err) {
+            body.innerHTML = "";
+            const alert = document.createElement("div");
+            alert.className = "alert alert-danger";
+            alert.textContent = "Lỗi xem thử: " + err.message;
+            body.appendChild(alert);
+        } finally {
+            btn.disabled = false;
+        }
     }
     async function openLogoLibrary() {
         const grid = document.getElementById("logo-library-grid");
