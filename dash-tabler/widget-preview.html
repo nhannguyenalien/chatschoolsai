@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Widget Preview</title>
+<style>
+    /* Nền giả lập 1 trang web thật để thấy widget nổi trông ra sao khi nhúng thật. */
+    html, body { margin: 0; height: 100%; font-family: -apple-system, "Inter", sans-serif; }
+    body {
+        background: linear-gradient(180deg, #eef1f7 0%, #e4e8f1 100%);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .mock-page { max-width: 640px; padding: 40px 32px; color: #b9bfcf; text-align: center; }
+    .mock-page h1 { color: #ced3e0; font-size: 22px; margin-bottom: 8px; }
+    .mock-page p { font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+    <div class="mock-page">
+        <h1>example-website.com</h1>
+        <p>Đây là trang giả lập để xem widget chat nổi trông thế nào trên 1 website thật.<br>Bong bóng chat ở góc màn hình chính là widget thật — bấm thử được luôn.</p>
+    </div>
+    <script id="widget-script-holder"></script>
+    <script>
+        // Đọc config từ query string do widget.html truyền qua (?tenant=&botname=&color=&position=&radius=&domain=)
+        // rồi tự dựng đúng thẻ <script data-...> như khách sẽ dán vào web thật — preview này chạy
+        // ĐÚNG file chat-widget.js thật, không phải bản giả lập, nên thấy sao thì lên web thật y vậy.
+        const params = new URLSearchParams(location.search);
+        const s = document.createElement('script');
+        s.src = 'chat-widget.js';
+        s.setAttribute('data-tenant', params.get('tenant') || 'demo');
+        s.setAttribute('data-botname', params.get('botname') || 'AI Assistant');
+        if (params.get('color')) s.setAttribute('data-color', params.get('color'));
+        if (params.get('position')) s.setAttribute('data-position', params.get('position'));
+        if (params.get('radius')) s.setAttribute('data-radius', params.get('radius'));
+        if (params.get('domain')) s.setAttribute('data-domain', params.get('domain'));
+        if (params.get('style')) s.setAttribute('data-style', params.get('style'));
+        if (params.get('lang')) s.setAttribute('data-lang', params.get('lang'));
+        s.onload = function () {
+            // Tự mở khung chat luôn để xem trọn giao diện, không bắt phải tự bấm bong bóng mỗi lần đổi option.
+            setTimeout(function () {
+                const fab = document.getElementById('ai-btn-fab');
+                if (fab) fab.click();
+            }, 60);
+        };
+        document.body.appendChild(s);
+    </script>
+</body>
+</html>

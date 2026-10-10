@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Nhúng Widget - Customer AI Hub</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <script src="_shared/config.js"></script>
+    <script src="_shared/auth.js"></script>
+    <script src="_shared/ui.js"></script>
+    <script src="_shared/i18n.js?v=20261007-3"></script>
+    <script src="_shared/sidebar.js"></script>
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+        body { font-family: var(--tblr-font-sans-serif); }
+        .toast-msg { position:fixed; right:24px; bottom:24px; z-index:9999; padding:12px 20px; border-radius:8px; background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.12); opacity:0; transform:translateY(70px); transition:.25s; }
+        .toast-msg.show { opacity:1; transform:translateY(0); }
+        .toast-msg.success { border-left:4px solid #2fb344; color:#2fb344; }
+        .toast-msg.error { border-left:4px solid #d63939; color:#d63939; }
+
+        .template-card { cursor:pointer; border:2px solid var(--tblr-border-color); border-radius:10px; padding:14px; transition:.15s; height:100%; }
+        .template-card:hover { border-color:#a6c8ff; }
+        .template-card.active { border-color:var(--tblr-primary); box-shadow:0 0 0 3px rgba(32,107,196,.15); }
+        .template-swatch { width:100%; height:34px; border-radius:8px; margin-bottom:10px; }
+        /* iframe luôn dựng ở khổ desktop thật (960px) rồi thu nhỏ bằng transform — để widget bên
+           trong LUÔN nhận đúng layout desktop (bo góc, vị trí góc màn hình) bất kể card này hẹp
+           cỡ nào, thay vì vô tình lọt vào breakpoint mobile (max-width:640px) của chat-widget.js
+           chỉ vì cột sidebar nhỏ hơn 640px. */
+        .widget-preview-wrap { width:100%; height:640px; overflow:hidden; border:1px solid var(--tblr-border-color); border-radius:10px; background:#eef1f7; position:relative; }
+        .widget-preview-frame { position:absolute; top:0; left:0; width:960px; height:900px; border:0; transform-origin:top left; }
+    </style>
+</head>
+<body class="layout-fluid">
+    <div class="toast-msg" id="toast"></div>
+    <div class="page">
+        <div id="sidebar-placeholder"></div>
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md navbar-light d-lg-none border-bottom">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
+                    <div class="navbar-brand fw-bold text-primary">AI Admin</div>
+                </div>
+            </header>
+            <div class="page-body mt-4">
+                <div class="container-xl">
+                    <div class="mb-4">
+                        <div class="text-secondary mb-2"><a href="config.html" class="text-reset text-decoration-none" data-i18n="wg_breadcrumb_parent">Cấu hình bot</a> <i class="ti ti-chevron-right"></i> <span data-i18n="nav_widget">Nhúng Widget</span></div>
+                        <h1 class="page-title fs-1" data-i18n="wg_title">Nhúng chatbot vào website</h1>
+                        <div class="text-secondary fs-3 mt-1" data-i18n="wg_subtitle">Chọn mẫu giao diện, chỉnh theo ý khách, xem trước thật — rồi copy 1 dòng mã dán vào web.</div>
+                    </div>
+
+                    <div class="row row-cards">
+                        <div class="col-lg-7">
+                            <div class="card mb-4">
+                                <div class="card-header"><h3 class="card-title"><i class="ti ti-layout-grid me-2 text-primary"></i><span data-i18n="wg_templates_title">Mẫu giao diện</span></h3></div>
+                                <div class="card-body">
+                                    <div class="row g-3" id="template-list"></div>
+                                </div>
+                            </div>
+
+                            <div class="card mb-4">
+                                <div class="card-header"><h3 class="card-title"><i class="ti ti-adjustments-horizontal me-2 text-primary"></i><span data-i18n="wg_customize_title">Tuỳ chỉnh riêng</span></h3></div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-6">
+                                            <label class="form-label" data-i18n="wg_color">Màu chủ đạo</label>
+                                            <input type="color" class="form-control form-control-color w-100" id="opt-color" value="#0050cb">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label" data-i18n="wg_position">Vị trí bong bóng chat</label>
+                                            <select class="form-select" id="opt-position">
+                                                <option value="right" data-i18n="wg_position_right">Góc phải</option>
+                                                <option value="left" data-i18n="wg_position_left">Góc trái</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label" data-i18n="wg_display_style">Kiểu hiển thị</label>
+                                            <select class="form-select" id="opt-style">
+                                                <option value="bubble" data-i18n="wg_style_bubble">Bong bóng nổi</option>
+                                                <option value="sidebar" data-i18n="wg_style_sidebar">Thanh bên (sidebar)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label" data-i18n="wg_widget_lang">Ngôn ngữ widget</label>
+                                            <select class="form-select" id="opt-lang">
+                                                <option value="vi">Tiếng Việt</option>
+                                                <option value="en">English</option>
+                                                <option value="ja">日本語</option>
+                                                <option value="es">Español</option>
+                                                <option value="fr">Français</option>
+                                                <option value="ko">한국어</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12" id="opt-radius-group">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <label class="form-label mb-0" data-i18n="wg_radius">Độ bo góc</label>
+                                                <span class="badge bg-blue-lt" id="opt-radius-value">12px</span>
+                                            </div>
+                                            <input type="range" class="form-range" id="opt-radius" min="0" max="28" step="2" value="12">
+                                            <div class="d-flex justify-content-between text-secondary fs-6"><span data-i18n="wg_radius_square">Vuông vức</span><span data-i18n="wg_radius_round">Bo tròn</span></div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label" data-i18n="wg_domain">Domain sẽ nhúng (khuyên điền khi dùng thật)</label>
+                                            <input type="text" class="form-control" id="opt-domain" placeholder="VD: myshop.com">
+                                            <small class="form-hint" data-i18n="wg_domain_hint">Bỏ trống thì widget chạy được trên mọi trang (tiện để test). Điền domain thật trước khi đưa cho khách để chặn trang lạ nhúng ké bot của bạn.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header"><h3 class="card-title"><i class="ti ti-code me-2 text-primary"></i><span data-i18n="wg_snippet_title">Đoạn mã nhúng</span></h3></div>
+                                <div class="card-body">
+                                    <div class="text-secondary fs-5 mb-2" data-i18n-html="wg_snippet_hint">Dán đoạn này vào trước thẻ <code>&lt;/body&gt;</code> của website.</div>
+                                    <div class="input-group">
+                                        <textarea class="form-control font-monospace fs-6" id="widget-snippet" rows="3" readonly style="resize:none;"></textarea>
+                                        <button class="btn btn-outline-primary" type="button" id="copy-snippet-btn"><i class="ti ti-copy me-2"></i><span data-i18n="btn_copy">Copy</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-5">
+                            <div class="card position-sticky" style="top:16px;">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h3 class="card-title mb-0"><i class="ti ti-eye me-2 text-primary"></i><span data-i18n="wg_preview_title">Xem trước trực tiếp</span></h3>
+                                    <button class="btn btn-sm btn-ghost-secondary" type="button" id="refresh-preview-btn"><i class="ti ti-refresh"></i></button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-secondary fs-6 mb-2" data-i18n="wg_preview_hint">Đây là widget thật đang chạy — bấm thử được luôn trong khung dưới.</div>
+                                    <div class="widget-preview-wrap" id="preview-wrap">
+                                        <iframe class="widget-preview-frame" id="preview-frame" title="Widget preview"></iframe>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script>
+        const TEMPLATES = [
+            { id: 'blue',   nameKey: 'wg_tpl_blue_name',   descKey: 'wg_tpl_blue_desc',   color: '#0050cb', radius: 12, position: 'right' },
+            { id: 'mono',   nameKey: 'wg_tpl_mono_name',   descKey: 'wg_tpl_mono_desc',   color: '#111827', radius: 8,  position: 'right' },
+            { id: 'orange', nameKey: 'wg_tpl_orange_name', descKey: 'wg_tpl_orange_desc', color: '#ea580c', radius: 24, position: 'right' },
+            { id: 'green',  nameKey: 'wg_tpl_green_name',  descKey: 'wg_tpl_green_desc',  color: '#16a34a', radius: 16, position: 'left' },
+            { id: 'purple', nameKey: 'wg_tpl_purple_name', descKey: 'wg_tpl_purple_desc', color: '#7c3aed', radius: 14, position: 'right' },
+        ];
+        let botName = 'AI Assistant';
+        let activeTemplateId = 'blue';
+
+        function renderTemplates() {
+            const el = document.getElementById('template-list');
+            el.innerHTML = TEMPLATES.map(tpl => `
+                <div class="col-sm-6">
+                    <div class="template-card ${tpl.id === activeTemplateId ? 'active' : ''}" data-template="${tpl.id}">
+                        <div class="template-swatch" style="background:${tpl.color};"></div>
+                        <div class="fw-medium fs-4">${t(tpl.nameKey)}</div>
+                        <div class="text-secondary fs-6">${t(tpl.descKey)}</div>
+                    </div>
+                </div>`).join('');
+            el.querySelectorAll('.template-card').forEach(card => {
+                card.addEventListener('click', () => applyTemplate(card.dataset.template));
+            });
+        }
+
+        function applyTemplate(id) {
+            const tpl = TEMPLATES.find(x => x.id === id);
+            if (!tpl) return;
+            activeTemplateId = id;
+            document.getElementById('opt-color').value = tpl.color;
+            document.getElementById('opt-position').value = tpl.position;
+            document.getElementById('opt-radius').value = tpl.radius;
+            document.getElementById('opt-radius-value').textContent = tpl.radius + 'px';
+            renderTemplates();
+            updateAll();
+        }
+
+        // Độ bo góc không có tác dụng gì ở kiểu "sidebar" (chat-widget.js luôn ép radius về 0
+        // cho kiểu này vì panel áp sát mép màn hình) — ẩn control đi để khỏi có option chọn mà
+        // không thấy đổi gì, dễ gây hiểu lầm là bug.
+        function syncRadiusVisibility() {
+            const isSidebar = document.getElementById('opt-style').value === 'sidebar';
+            document.getElementById('opt-radius-group').style.display = isSidebar ? 'none' : '';
+        }
+
+        function currentOptions() {
+            return {
+                tenant: window.TENANT || '',
+                botname: botName,
+                color: document.getElementById('opt-color').value,
+                position: document.getElementById('opt-position').value,
+                radius: document.getElementById('opt-radius').value,
+                style: document.getElementById('opt-style').value,
+                lang: document.getElementById('opt-lang').value,
+                domain: document.getElementById('opt-domain').value.trim(),
+            };
+        }
+
+        function updateSnippet() {
+            const o = currentOptions();
+            const domainAttr = o.domain ? ` data-domain="${o.domain}"` : '';
+            const radiusAttr = o.style === 'sidebar' ? '' : ` data-radius="${o.radius}"`;
+            document.getElementById('widget-snippet').value =
+                `<script src="https://chat.schoolsai.work/chat-widget.js" data-tenant="${o.tenant}" data-botname="${o.botname}" data-color="${o.color}" data-position="${o.position}" data-style="${o.style}" data-lang="${o.lang}"${radiusAttr}${domainAttr}><\/script>`;
+        }
+
+        function scalePreviewFrame() {
+            const wrap = document.getElementById('preview-wrap');
+            const frame = document.getElementById('preview-frame');
+            const width = wrap.clientWidth;
+            // Lúc mới load trang, layout (sidebar, card) có thể chưa dựng xong nên clientWidth
+            // tạm thời = 0 — nếu áp luôn thì scale(0) làm preview biến mất trắng xoá. Tự thử lại
+            // ở frame kế tiếp tới khi có kích thước thật thay vì áp 1 lần duy nhất lúc chưa sẵn sàng.
+            if (!width) { requestAnimationFrame(scalePreviewFrame); return; }
+            frame.style.transform = `scale(${width / 960})`;
+        }
+
+        function updatePreview() {
+            const o = currentOptions();
+            const params = new URLSearchParams({ tenant: o.tenant || 'demo', botname: o.botname, color: o.color, position: o.position, style: o.style, lang: o.lang });
+            if (o.style !== 'sidebar') params.set('radius', o.radius);
+            if (o.domain) params.set('domain', o.domain);
+            document.getElementById('preview-frame').src = 'widget-preview.html?' + params.toString();
+            scalePreviewFrame();
+        }
+        window.addEventListener('resize', scalePreviewFrame);
+
+        function updateAll() {
+            document.getElementById('opt-radius-value').textContent = document.getElementById('opt-radius').value + 'px';
+            syncRadiusVisibility();
+            updateSnippet();
+            updatePreview();
+        }
+
+        document.getElementById('opt-color').addEventListener('input', updateAll);
+        document.getElementById('opt-position').addEventListener('change', updateAll);
+        document.getElementById('opt-radius').addEventListener('input', updateAll);
+        document.getElementById('opt-style').addEventListener('change', updateAll);
+        document.getElementById('opt-lang').addEventListener('change', updateAll);
+        document.getElementById('opt-domain').addEventListener('change', updateAll);
+        document.getElementById('refresh-preview-btn').addEventListener('click', updatePreview);
+        document.getElementById('copy-snippet-btn').addEventListener('click', () => {
+            const val = document.getElementById('widget-snippet').value;
+            navigator.clipboard.writeText(val);
+            showToast(t('wg_toast_copied'), 'success');
+        });
+        // Đổi ngôn ngữ TRANG (sidebar) không tự đổi ngôn ngữ WIDGET (2 lựa chọn độc lập — trang
+        // này có thể tiếng Việt trong khi widget cấu hình tiếng Anh cho khách nước ngoài) — chỉ
+        // cần vẽ lại tên/mô tả template theo ngôn ngữ trang mới.
+        window.addEventListener('languagechange', renderTemplates);
+
+        (async () => {
+            await requireAuth();
+            renderSidebar(window.AUTH_USER);
+            try {
+                const cfg = await PB.collection('bot_configs').getFirstListItem(`tenant="${window.TENANT}"`);
+                botName = cfg.bot_name || botName;
+            } catch (_) { /* chưa có config — dùng tên mặc định */ }
+            document.getElementById('opt-lang').value = getLang();
+            renderTemplates();
+            applyTemplate('blue');
+        })();
+    </script>
+</body>
+</html>

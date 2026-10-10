@@ -148,6 +148,17 @@
                                     <div id="wk-pillar-sum" class="form-hint mb-3"></div>
                                     <div class="mb-3"><label class="form-label">Giọng văn / quy tắc riêng (tuỳ chọn)</label>
                                         <textarea id="wk-notes" rows="2" maxlength="600" class="form-control" placeholder="VD: Xưng &quot;mình&quot;, thân thiện; không dùng emoji; không nhắc giá cụ thể"></textarea></div>
+                                    <div class="border rounded p-3 mb-3">
+                                        <label class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="wk-auto">
+                                            <span class="form-check-label fw-medium">Tự động tạo kế hoạch mỗi tuần</span>
+                                        </label>
+                                        <div id="wk-auto-opts" class="row g-3 mb-1">
+                                            <div class="col-md-4"><label class="form-label">Vào</label><select id="wk-auto-day" class="form-select"></select></div>
+                                            <div class="col-md-4"><label class="form-label">Lúc (giờ địa phương)</label><select id="wk-auto-hour" class="form-select"></select></div>
+                                        </div>
+                                        <div id="wk-auto-hint" class="form-hint"></div>
+                                    </div>
                                     <button type="button" id="wk-save" class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Lưu thiết lập</button>
                                 </div>
                             </div>
@@ -162,7 +173,7 @@
                                 <div class="card-body">
                                     <div id="wk-progress" class="alert alert-info d-none"></div>
                                     <div id="wk-warnings"></div>
-                                    <div id="wk-approve-bar" class="d-none mb-3"><button type="button" id="wk-approve-all" class="btn btn-success"><i class="ti ti-checks me-1"></i><span>Duyệt tất cả</span></button></div>
+                                    <div id="wk-approve-bar" class="d-none mb-3 d-flex gap-2 flex-wrap"><button type="button" id="wk-approve-all" class="btn btn-success"><i class="ti ti-checks me-1"></i><span>Duyệt tất cả</span></button><button type="button" id="wk-find-images" class="btn btn-outline-primary d-none"><i class="ti ti-photo-search me-1"></i><span>Tìm ảnh cho các bài chưa có ảnh</span></button></div>
                                     <div id="wk-plan" class="row row-cards"><div class="col-12 text-secondary">Chưa có kế hoạch. Thiết lập ở trên rồi bấm "Tạo kế hoạch tuần".</div></div>
                                 </div>
                             </div>
@@ -689,6 +700,21 @@
             return `<label class="form-check form-check-inline m-0" title="${has ? '' : 'Chưa có kênh đang hoạt động'}"><input class="form-check-input wk-platform" type="checkbox" value="${v}" ${config.platforms.includes(v) && has ? 'checked' : ''} ${has ? '' : 'disabled'}><span class="form-check-label">${l}</span></label>`;
         }).join('');
         wkRenderPillars(config.pillars);
+        document.getElementById('wk-auto').checked = !!config.autoEnabled;
+        document.getElementById('wk-auto-day').innerHTML = [['mon','Thứ hai'],['tue','Thứ ba'],['wed','Thứ tư'],['thu','Thứ năm'],['fri','Thứ sáu'],['sat','Thứ bảy'],['sun','Chủ nhật']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+        document.getElementById('wk-auto-hour').innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
+        document.getElementById('wk-auto-day').value = config.autoDay || 'sun';
+        document.getElementById('wk-auto-hour').value = String(config.autoHour ?? 20);
+        wkUpdateAutoHint();
+    }
+    function wkUpdateAutoHint() {
+        const on = document.getElementById('wk-auto').checked;
+        document.getElementById('wk-auto-opts').classList.toggle('d-none', !on);
+        const hint = document.getElementById('wk-auto-hint');
+        if (!on) { hint.textContent = 'Đang tắt — bạn tạo kế hoạch bằng nút "Tạo kế hoạch tuần" bên dưới.'; return; }
+        const day = document.getElementById('wk-auto-day').selectedOptions[0]?.textContent || '';
+        const hour = document.getElementById('wk-auto-hour').selectedOptions[0]?.textContent || '';
+        hint.textContent = `Mỗi ${day} lúc ${hour} (theo múi giờ đã chọn), hệ thống tự tạo kế hoạch cho 7 ngày tới. Chỉ tạo bản nháp chờ duyệt — không tự đăng — và báo qua Telegram nếu bạn đã cài ID Telegram ở Cấu hình. Mỗi lần tự chạy tốn lượt như tạo tay. Nếu kế hoạch trước còn bài chưa duyệt thì tuần đó sẽ bỏ qua.`;
     }
     function wkReadForm() {
         const checkedDays = [...document.querySelectorAll('.wk-day:checked')].map(i => i.value);
@@ -699,7 +725,10 @@
             days: checkedDays.length === 7 || !checkedDays.length ? ['all'] : checkedDays,
             times: document.getElementById('wk-times').value.split(',').map(t => t.trim()).filter(Boolean).map(t => /^\d:\d\d$/.test(t) ? '0' + t : t),
             notes: document.getElementById('wk-notes').value.trim(),
-            pillars: wkReadPillars()
+            pillars: wkReadPillars(),
+            auto_enabled: document.getElementById('wk-auto').checked,
+            auto_day: document.getElementById('wk-auto-day').value,
+            auto_hour: Number(document.getElementById('wk-auto-hour').value)
         };
     }
     function wkUpdateEstimate(est) {
@@ -730,6 +759,7 @@
         const byId = new Map(posts.map(p => [p.id, p]));
         box.innerHTML = '';
         let pendingCount = 0;
+        const missingImagePostIds = [];
         const rows = items.map(it => ({ it, post: byId.get(it.post_id) })).filter(r => r.post)
             .sort((a, b) => String(a.it.slot || '~').localeCompare(String(b.it.slot || '~')));
         if (!rows.length) { box.innerHTML = '<div class="col-12 text-secondary">Các bài của kế hoạch gần nhất đã bị xoá.</div>'; return; }
@@ -740,6 +770,7 @@
             pendingCount += pending.length;
             const status = targets.every(t => t.status === 'published') ? 'Đã đăng' : pending.length ? 'Chờ duyệt' : targets.some(t => t.status === 'error') ? 'Lỗi' : 'Đã duyệt';
             const when = it.slot ? new Date(it.slot).toLocaleString('vi-VN', { timeZone: wkState.timezone, weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Chưa có giờ';
+            if (!media) missingImagePostIds.push(post.id);
             const igNoImage = !media && targets.some(t => t.platform === 'instagram');
             const col = document.createElement('div');
             col.className = 'col-md-6';
@@ -770,6 +801,20 @@
             });
             box.appendChild(col);
         });
+        const findBtn = document.getElementById('wk-find-images');
+        findBtn.classList.toggle('d-none', !missingImagePostIds.length || wkState.imageMode === 'none');
+        findBtn.onclick = async () => {
+            findBtn.disabled = true;
+            try {
+                let found = 0;
+                for (let i = 0; i < missingImagePostIds.length; i++) {
+                    findBtn.querySelector('span').textContent = `Đang tìm ảnh ${i + 1}/${missingImagePostIds.length}...`;
+                    try { const r = await wkApi('/image', 'POST', { tenant: window.TENANT, post_id: missingImagePostIds[i] }); if (r.url) found++; } catch (e) { if (e.data?.quota_exceeded) { showToast(e.message, 'error'); break; } }
+                }
+                showToast(`Đã gắn ảnh cho ${found}/${missingImagePostIds.length} bài`, found ? 'success' : 'error');
+            } finally { findBtn.disabled = false; findBtn.querySelector('span').textContent = 'Tìm ảnh cho các bài chưa có ảnh'; await wkRenderPlan(); }
+        };
+        if (pendingCount || missingImagePostIds.length) document.getElementById('wk-approve-bar').classList.remove('d-none');
         if (pendingCount) {
             document.getElementById('wk-approve-bar').classList.remove('d-none');
             document.querySelector('#wk-approve-all span').textContent = `Duyệt tất cả (${pendingCount} kênh đăng)`;
@@ -787,6 +832,7 @@
         } catch (err) { showToast('Lỗi duyệt: ' + err.message, 'error'); }
     }
 
+    ['wk-auto', 'wk-auto-day', 'wk-auto-hour'].forEach(id => document.getElementById(id).addEventListener('change', wkUpdateAutoHint));
     document.getElementById('wk-add-pillar').addEventListener('click', () => {
         const rows = [...document.querySelectorAll('.wk-pillar')].map(r => ({ name: r.querySelector('.wk-p-name').value, weight: Number(r.querySelector('.wk-p-weight').value) || 1, description: r.querySelector('.wk-p-desc').value }));
         rows.push({ name: '', weight: 10, description: '' });

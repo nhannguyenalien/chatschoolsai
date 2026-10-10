@@ -41,6 +41,8 @@ export function normalizePillars(raw) {
   return pillars;
 }
 
+const DAY_KEYS_SUN_FIRST = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
 export function normalizePlanConfig(raw) {
   const cfg = parseJson(raw, {}) || {};
   const posts = Math.round(Number(cfg.posts_per_week));
@@ -54,8 +56,36 @@ export function normalizePlanConfig(raw) {
     notes: clampText(cfg.notes, 600),
     timezone: validTimezone(cfg.timezone) ? cfg.timezone : DEFAULT_TIMEZONE,
     days: days.length ? days : ["all"],
-    times: times.length ? times : [...DEFAULT_TIMES]
+    times: times.length ? times : [...DEFAULT_TIMES],
+    autoEnabled: cfg.auto_enabled === true,
+    autoDay: DAY_NAMES.includes(cfg.auto_day) ? cfg.auto_day : "sun",
+    autoHour: Number.isInteger(Number(cfg.auto_hour)) && Number(cfg.auto_hour) >= 0 && Number(cfg.auto_hour) <= 23 && cfg.auto_hour !== "" && cfg.auto_hour !== null ? Number(cfg.auto_hour) : 20
   };
+}
+
+// Dạng lưu xuống bot_configs.weekly_plan_config (JSON).
+export function serializePlanConfig(config) {
+  return {
+    posts_per_week: config.postsPerWeek, platforms: config.platforms, pillars: config.pillars, notes: config.notes,
+    timezone: config.timezone, days: config.days, times: config.times,
+    auto_enabled: config.autoEnabled, auto_day: config.autoDay, auto_hour: config.autoHour
+  };
+}
+
+// Thứ/giờ hiện tại theo múi giờ của tenant.
+export function localDayAndHour(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short", hour: "2-digit", hourCycle: "h23" }).formatToParts(date);
+  const weekday = parts.find((p) => p.type === "weekday")?.value || "";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value);
+  return { day: weekday.slice(0, 3).toLowerCase(), hour };
+}
+
+// Đến lúc tự tạo kế hoạch? Đúng thứ đã chọn và từ giờ đã chọn trở đi (cho phép chạy bù nếu lỡ nhịp cron lúc đúng giờ);
+// việc chống tạo trùng trong tuần do caller kiểm tra bằng kế hoạch gần nhất.
+export function isAutoRunDue(config, now = new Date()) {
+  if (!config.autoEnabled) return false;
+  const { day, hour } = localDayAndHour(now, config.timezone);
+  return day === config.autoDay && hour >= config.autoHour;
 }
 
 export function assertReadyForGeneration(config) {

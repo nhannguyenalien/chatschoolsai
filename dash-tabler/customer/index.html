@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop của tôi</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+  <script src="config.js"></script>
+  <script src="../_shared/i18n.js?v=20261007-3"></script>
+  <style>
+    body { background: var(--tblr-body-bg, #f4f6fa); }
+    .portal-shell { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
+    .phone-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #e7f1ff; color: #206bc4; font-size: 13px; margin: 0 6px 6px 0; }
+    .toast-msg { position: fixed; right: 16px; bottom: 16px; z-index: 9999; padding: 12px 20px; border-radius: 8px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.15); opacity: 0; transform: translateY(60px); transition: .25s; }
+    .toast-msg.show { opacity: 1; transform: translateY(0); }
+    .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
+    .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+    /* Bố cục kiểu app nhắn tin: sidebar (danh sách hội thoại + SĐT) cố định bên trái, khung chat
+       to hết phần còn lại bên phải — không xếp chồng dọc, để "phần còn lại" không bị chìm dưới
+       khung chat. Dưới 900px thì xếp dọc lại cho vừa màn hình điện thoại. */
+    .messenger-layout { display: flex; align-items: flex-start; gap: 16px; }
+    .messenger-sidebar { width: 340px; flex-shrink: 0; }
+    .messenger-main { flex: 1; min-width: 0; }
+    #active-chat-frame { width: 100%; height: calc(100vh - 140px); min-height: 480px; border: 0; border-radius: 16px; box-shadow: 0 0 20px rgba(0,0,0,.06); }
+    .messenger-empty { height: calc(100vh - 140px); min-height: 480px; border-radius: 16px; background: #fff; border: 1px dashed var(--tblr-border-color); }
+    .shop-row.active { background: var(--tblr-primary-lt, #e7f1ff); }
+    @media (max-width: 900px) {
+      .messenger-layout { flex-direction: column; }
+      .messenger-sidebar { width: 100%; }
+      #active-chat-frame, .messenger-empty { height: 70vh; }
+    }
+  </style>
+</head>
+<body>
+<div class="toast-msg" id="toast"></div>
+
+<div id="portal-view" class="d-none">
+  <div class="portal-shell">
+    <div class="d-flex align-items-center mb-4">
+      <div>
+        <div class="h2 mb-0"><i class="ti ti-message-circle text-primary me-1"></i> Shop của tôi</div>
+        <div class="text-secondary" id="account-email">—</div>
+      </div>
+      <a class="btn btn-outline-primary ms-auto d-none" id="btn-seller-dashboard" href="../index.html"><i class="ti ti-building-store me-1"></i>Trang quản lý shop</a>
+      <button class="btn btn-outline-secondary ms-2" id="btn-logout" type="button"><i class="ti ti-logout me-1"></i>Đăng xuất</button>
+    </div>
+
+    <div class="messenger-layout">
+      <div class="messenger-sidebar">
+        <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title"><i class="ti ti-message-circle me-2"></i>Cuộc trò chuyện</h3>
+            <button class="btn btn-outline-primary btn-sm ms-auto" id="btn-refresh-overview" type="button"><i class="ti ti-refresh me-1"></i>Làm mới</button>
+          </div>
+          <div class="list-group list-group-flush" id="shop-list"><div class="text-secondary p-3">Đang tải...</div></div>
+          <div class="card-body border-top pt-3">
+            <a href="#" id="link-new-chat" class="text-decoration-none"><i class="ti ti-plus me-1"></i>Nhắn tin với 1 shop mới bằng mã shop</a>
+            <div id="manual-chat-section" class="d-none mt-2">
+              <div class="input-group">
+                <input id="manual-tenant" class="form-control" placeholder="Mã shop (shop cung cấp cho bạn)">
+                <button class="btn btn-primary" id="btn-open-chat" type="button"><i class="ti ti-message-circle me-1"></i>Mở chat</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="ti ti-phone me-2"></i>Số điện thoại đã liên kết</h3>
+          </div>
+          <div class="card-body">
+            <div class="text-secondary small mb-2">Liên kết SĐT để tổng hợp điểm tích lũy — không bắt buộc nếu bạn chỉ cần nhắn tin.</div>
+            <div id="phone-list" class="mb-3"><span class="text-secondary">Chưa có số điện thoại nào.</span></div>
+            <button class="btn btn-primary btn-sm" id="btn-verify-phone" type="button"><i class="ti ti-brand-telegram me-1"></i>Xác minh số điện thoại qua Telegram</button>
+            <div id="verify-status" class="mt-3 d-none">
+              <div class="alert alert-info mb-2">
+                Mở Telegram và bấm <strong>Start</strong> để bot gửi nút chia sẻ số điện thoại. Trang này tự cập nhật ngay khi bạn xác minh xong, không cần bấm gì thêm ở đây.
+              </div>
+              <a id="telegram-link" href="#" target="_blank" class="btn btn-outline-primary w-100"><i class="ti ti-brand-telegram me-2"></i>Mở Telegram để xác minh</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="messenger-main">
+        <iframe id="active-chat-frame" class="d-none" title="Chat"></iframe>
+        <div id="messenger-empty" class="messenger-empty d-flex align-items-center justify-content-center text-secondary">
+          <div class="text-center">
+            <i class="ti ti-message-circle" style="font-size:40px"></i>
+            <div class="mt-2">Chọn 1 cuộc trò chuyện bên trái để bắt đầu</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const TELEGRAM_BOT_USERNAME = 'verifyschoolaibot';
+  const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[c]));
+  const money = new Intl.NumberFormat('vi-VN');
+
+  function showToast(message, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = message;
+    el.className = `toast-msg ${type} show`;
+    setTimeout(() => el.classList.remove('show'), 3200);
+  }
+
+  document.getElementById('link-new-chat').addEventListener('click', (event) => {
+    event.preventDefault();
+    document.getElementById('manual-chat-section').classList.remove('d-none');
+    event.target.closest('a').classList.add('d-none');
+  });
+
+  document.getElementById('btn-open-chat').addEventListener('click', () => {
+    const tenant = document.getElementById('manual-tenant').value.trim();
+    if (!tenant) return;
+    openChat(tenant);
+  });
+
+  // Chỉ 1 khung chat dùng chung cho mọi shop (đổi src khi chọn shop khác) — thay vì nhúng riêng
+  // 1 iframe cho từng shop, để khung chat hiện đúng kích thước/giao diện như trang chat.html gốc
+  // thay vì bị bó nhỏ trong từng thẻ. embed=1 để chat.html ẩn sidebar riêng của nó — chỉ giữ
+  // đúng 1 sidebar (của trang này) thay vì 2 sidebar chồng nhau.
+  function openChat(tenant) {
+    const frame = document.getElementById('active-chat-frame');
+    frame.src = `../chat.html?bot=${encodeURIComponent(tenant)}&embed=1`;
+    frame.classList.remove('d-none');
+    document.getElementById('messenger-empty').classList.add('d-none');
+    document.querySelectorAll('.shop-row').forEach((row) => row.classList.toggle('active', row.dataset.tenant === tenant));
+  }
+
+  async function overviewFetch(path, options = {}) {
+    const response = await fetch(`${WORKER_URL}${path}`, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', Authorization: PB.authStore.token, ...(options.headers || {}) },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `API trả về HTTP ${response.status}`);
+    return body;
+  }
+
+  function renderPhones(phones) {
+    const el = document.getElementById('phone-list');
+    el.innerHTML = phones.length
+      ? phones.map((phone) => `<span class="phone-chip"><i class="ti ti-check"></i>${esc(phone)}</span>`).join('')
+      : '<span class="text-secondary">Chưa có số điện thoại nào.</span>';
+  }
+
+  function pendingRewardCount(shop) {
+    return (shop.rewards || []).filter((reward) => !reward.claimed).length;
+  }
+
+  function shopRow(shop) {
+    const preview = shop.last_message
+      ? esc(shop.last_message)
+      : (shop.balance > 0 ? `${money.format(shop.balance)} điểm tích lũy` : 'Chưa có tin nhắn');
+    const pending = pendingRewardCount(shop);
+    return `
+      <a href="#" class="list-group-item list-group-item-action d-flex align-items-center shop-row" data-tenant="${esc(shop.tenant)}">
+        <span class="avatar avatar-sm me-3 bg-blue-lt">${esc((shop.shop_name || '?').charAt(0).toUpperCase())}</span>
+        <div class="flex-fill text-truncate">
+          <div class="fw-bold text-truncate">${esc(shop.shop_name)}</div>
+          <div class="text-secondary small text-truncate">${preview}</div>
+        </div>
+        <div class="ms-2 text-end">
+          ${shop.balance > 0 ? `<div class="small fw-bold text-primary">${money.format(shop.balance)} đ</div>` : ''}
+          ${pending > 0 ? `<span class="badge bg-yellow-lt">${pending} thưởng chưa nhận</span>` : ''}
+        </div>
+      </a>`;
+  }
+
+  let currentShops = [];
+
+  async function loadOverview() {
+    const container = document.getElementById('shop-list');
+    try {
+      const overview = await overviewFetch('/api/customer-portal/overview');
+      renderPhones(overview.phones || []);
+      currentShops = overview.shops || [];
+      container.innerHTML = currentShops.map(shopRow).join('')
+        || '<div class="text-secondary p-3">Chưa có cuộc trò chuyện nào — nhắn tin với 1 shop mới bên dưới để bắt đầu.</div>';
+      if (currentShops.length && document.getElementById('active-chat-frame').classList.contains('d-none')) {
+        openChat(currentShops[0].tenant);
+      }
+    } catch (error) {
+      container.innerHTML = `<div class="text-danger p-3">${esc(error.message)}</div>`;
+    }
+  }
+
+  document.getElementById('shop-list').addEventListener('click', (event) => {
+    const row = event.target.closest('.shop-row');
+    if (!row) return;
+    event.preventDefault();
+    openChat(row.dataset.tenant);
+  });
+
+  let currentVerificationId = null;
+
+  async function startPhoneVerification() {
+    const code = 'HT' + Math.floor(100000 + Math.random() * 900000).toString();
+    document.getElementById('telegram-link').href = `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${code}`;
+    document.getElementById('verify-status').classList.remove('d-none');
+    try {
+      // session/tenant/domain không dùng ở đây (chỉ cần cho luồng chat widget cũ) nhưng vẫn gửi
+      // giá trị rỗng/an toàn phòng khi các field đó đang bắt buộc trên collection "verifications".
+      const record = await PB.collection('verifications').create({
+        code, status: 'pending', session: '', tenant: '', domain: window.location.origin,
+      });
+      currentVerificationId = record.id;
+      PB.collection('verifications').subscribe(record.id, async (e) => {
+        if (e.action === 'update' && e.record.status === 'verified') {
+          PB.collection('verifications').unsubscribe(record.id);
+          try {
+            await overviewFetch('/api/customer-portal/phones', {
+              method: 'POST',
+              body: JSON.stringify({ verification_id: record.id }),
+            });
+            showToast(`Đã liên kết số điện thoại ${e.record.phone}.`);
+            document.getElementById('verify-status').classList.add('d-none');
+            await loadOverview();
+          } catch (error) {
+            showToast(error.message, 'error');
+          }
+        }
+      });
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  }
+
+  document.getElementById('btn-verify-phone').addEventListener('click', startPhoneVerification);
+  document.getElementById('btn-refresh-overview').addEventListener('click', loadOverview);
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    if (currentVerificationId) PB.collection('verifications').unsubscribe(currentVerificationId);
+    PB.authStore.clear();
+    window.location.reload();
+  });
+
+  // Đăng nhập dùng chung với trang chính (landing.html) — trang này không tự vẽ nút Google
+  // riêng, chỉ kiểm tra phiên PocketBase đã đăng nhập chưa rồi đá về landing.html nếu chưa.
+  // landing.html/index.html tự điều hướng tài khoản không có "tenant" quay lại đây sau khi
+  // đăng nhập xong (xem _shared/auth.js requireAuth()).
+  async function bootstrap() {
+    if (!PB.authStore.isValid) {
+      window.location.href = '../landing.html';
+      return;
+    }
+    try {
+      await PB.collection('tenants').authRefresh();
+    } catch (error) {
+      if (error.status === 400 || error.status === 401) {
+        PB.authStore.clear();
+        window.location.href = '../landing.html';
+        return;
+      }
+      // Lỗi mạng/máy chủ chậm — vẫn thử dùng session cũ thay vì đá khách ra ngay.
+    }
+    const user = PB.authStore.model;
+    document.getElementById('account-email').textContent = user?.email || '';
+    if (user?.tenant) document.getElementById('btn-seller-dashboard').classList.remove('d-none');
+    document.getElementById('portal-view').classList.remove('d-none');
+    await loadOverview();
+  }
+
+  bootstrap();
+</script>
+</body>
+</html>

@@ -248,10 +248,32 @@
     // STATE
     // ═══════════════════════════════════════
     const PAGE_SIZE = 8;
-    let allDocs     = [];   
-    let filteredDocs = [];  
+    let allDocs     = [];
+    let filteredDocs = [];
     let currentPage = 1;
     let editingDocId = null;
+
+    // /embed và /doc trên worker xác thực bằng api_key CỦA TENANT (bot_configs.api_key), không
+    // phải token đăng nhập PocketBase của admin — 2 thứ khác hẳn nhau (xem authenticateTenantRequest
+    // trong index.js). Gửi nhầm PB.authStore.token luôn ra 401. Cache chung 1 promise đang chạy,
+    // giống getApiKey() ở loyalty.html/composer.html, để tránh 2 lượt gọi đầu cùng bắn trùng
+    // PB.collection('bot_configs').getList() rồi bị PocketBase SDK auto-cancel.
+    let knowledgeApiKey = '';
+    let knowledgeApiKeyPromise = null;
+    async function getKnowledgeApiKey() {
+        if (knowledgeApiKey) return knowledgeApiKey;
+        if (!knowledgeApiKeyPromise) {
+            knowledgeApiKeyPromise = PB.collection('bot_configs')
+                .getList(1, 2, { filter: `tenant = "${window.TENANT}"` })
+                .then(configs => {
+                    if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+                    knowledgeApiKey = configs.items[0].api_key;
+                    return knowledgeApiKey;
+                })
+                .catch(error => { knowledgeApiKeyPromise = null; throw error; });
+        }
+        return knowledgeApiKeyPromise;
+    }
 
     // ═══════════════════════════════════════
     // BOOT
@@ -432,9 +454,9 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang embedding...';
 
         try {
-            const res = await fetch(`${window.WORKER_URL}/embed`, {
+            const res = await fetch(`${WORKER_URL}/embed`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getKnowledgeApiKey()}` },
                 body: JSON.stringify({ tenant: window.TENANT, title, text: content, char_count: content.length })
             });
 
@@ -462,9 +484,9 @@
         if (!confirm(`Xoá tài liệu "${title}"?\n\nBot sẽ không còn dùng nội dung này nữa.`)) return;
 
         try {
-            const res = await fetch(`${window.WORKER_URL}/doc`, {
+            const res = await fetch(`${WORKER_URL}/doc`, {
                 method: "DELETE",
-                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getKnowledgeApiKey()}` },
                 body: JSON.stringify({ doc_id: docId, tenant: window.TENANT })
             });
 
@@ -508,17 +530,17 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang re-embed...';
 
         try {
-            const delRes = await fetch(`${window.WORKER_URL}/doc`, {
+            const delRes = await fetch(`${WORKER_URL}/doc`, {
                 method: "DELETE",
-                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getKnowledgeApiKey()}` },
                 body: JSON.stringify({ doc_id: editingDocId, tenant: window.TENANT })
             });
             const delData = await delRes.json();
             if (!delData.success) throw new Error(delData.error);
 
-            const embedRes = await fetch(`${window.WORKER_URL}/embed`, {
+            const embedRes = await fetch(`${WORKER_URL}/embed`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": PB.authStore.token },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${await getKnowledgeApiKey()}` },
                 body: JSON.stringify({ tenant: window.TENANT, title, text: content, char_count: content.length })
             });
             const embedData = await embedRes.json();

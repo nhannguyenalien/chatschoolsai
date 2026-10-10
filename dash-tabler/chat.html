@@ -54,6 +54,25 @@
         .chat-bubble-ai pre { background: #1e293b; color: #f8fafc; padding: 10px; border-radius: 8px; overflow-x: auto; margin-top: 8px; }
         .chat-bubble-ai code { font-family: monospace; background: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; color: #d63939;}
         .chat-bubble-ai pre code { background: transparent; padding: 0; color: inherit;}
+        .chat-bubble-ai img, .chat-bubble-user img,
+        .chat-bubble-ai video, .chat-bubble-user video {
+            display: block;
+            width: min(100%, 720px);
+            max-height: 70vh;
+            margin-top: 0.5rem;
+            border-radius: 10px;
+            object-fit: contain;
+            background: #000;
+        }
+        .chat-video-embed {
+            width: min(100%, 720px);
+            aspect-ratio: 16 / 9;
+            margin-top: 0.5rem;
+            overflow: hidden;
+            border-radius: 10px;
+            background: #000;
+        }
+        .chat-video-embed iframe { width: 100%; height: 100%; border: 0; }
 
         /* Typing Animation */
         .typing-dot {
@@ -163,7 +182,7 @@
 
         <div class="p-3 flex-grow-1 overflow-auto">
             <h2 class="fs-4 fw-bold text-body mb-3 d-flex align-items-center gap-2">
-                <i class="ti ti-folder text-blue fs-2"></i> Tài liệu đã tải lên
+                <i class="ti ti-folder text-blue fs-2"></i> Tài liệu của bot
             </h2>
             <ul class="list-unstyled d-flex flex-column gap-2" id="file-list">
                 <li class="text-secondary fst-italic text-center py-4 fs-5">Chưa có tài liệu nào</li>
@@ -335,7 +354,7 @@
    1. CORE LOGIC & INITIALIZATION
 ========================================= */
 const pb = new PocketBase("https://nhannguyen123-chat.hf.space");
-const WORKER_URL = "https://knowledge-worker.toidayhoc.workers.dev";
+const WORKER_URL = "https://apic.schoolsai.work";
 
 const rawTenant = new URLSearchParams(location.search).get("bot");
 const tenant = /^[a-z0-9_-]{1,40}$/i.test(rawTenant || "") ? rawTenant : "bds";
@@ -358,18 +377,21 @@ let cfg = {
     bot_name: "AI Assistant",
     bot_avatar: "🤖",
     color: "#206bc4", // Tabler Primary
-    webhook: "https://bluetech-ai-gateway.toidayhoc.workers.dev/?platform=web&key=nhan123",
+    webhook: WORKER_URL + "/chat",
     greeting: "Xin chào! Tôi có thể giúp gì cho bạn?"
 };
 
 async function loadConfig(){
     try{
-        const r = await pb.collection("bot_configs").getFirstListItem(`tenant='${tenant}'`);
+        const response = await fetch(WORKER_URL + "/chat/config?tenant=" + encodeURIComponent(tenant), { cache: "no-store" });
+        if (!response.ok) throw new Error("Không tải được cấu hình chat");
+        const r = await response.json();
         cfg = {
             bot_name: r.bot_name || cfg.bot_name,
             bot_avatar: r.bot_avatar || cfg.bot_avatar,
             color: r.color || cfg.color,
-            webhook: r.webhook || cfg.webhook,
+            // Chat luôn đi qua API hệ thống; không tin endpoint lưu trong cấu hình tenant.
+            webhook: WORKER_URL + "/chat",
             greeting: r.greeting || cfg.greeting
         };
     } catch(err){ console.log("Use default config"); }
@@ -411,6 +433,68 @@ inputEl.addEventListener("keypress", e => {
 /* =========================================
    3. CHAT LOGIC (Render & Send)
 ========================================= */
+function getDirectVideoUrl(rawUrl) {
+    try {
+        const url = new URL(rawUrl, window.location.href);
+        return /\.(mp4|webm|ogg|mov|m4v)$/i.test(url.pathname) ? url.href : '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function getYouTubeEmbedUrl(rawUrl) {
+    try {
+        const url = new URL(rawUrl);
+        const host = url.hostname.replace(/^www\./, '').toLowerCase();
+        let videoId = '';
+        if (host === 'youtu.be') videoId = url.pathname.split('/').filter(Boolean)[0] || '';
+        if (host === 'youtube.com' || host === 'm.youtube.com') {
+            if (url.pathname === '/watch') videoId = url.searchParams.get('v') || '';
+            else if (/^\/(embed|shorts)\//.test(url.pathname)) videoId = url.pathname.split('/')[2] || '';
+        }
+        return /^[\w-]{6,20}$/.test(videoId) ? `https://www.youtube-nocookie.com/embed/${videoId}` : '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function renderChatMessage(text) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = DOMPurify.sanitize(marked.parse(String(text || '')));
+
+    wrapper.querySelectorAll('a[href]').forEach(link => {
+        const href = link.href;
+        const directVideo = getDirectVideoUrl(href);
+        if (directVideo) {
+            const video = document.createElement('video');
+            video.src = directVideo;
+            video.controls = true;
+            video.preload = 'metadata';
+            video.playsInline = true;
+            video.setAttribute('controlsList', 'nodownload');
+            link.replaceWith(video);
+            return;
+        }
+
+        const youtubeEmbed = getYouTubeEmbedUrl(href);
+        if (youtubeEmbed) {
+            const frameWrap = document.createElement('div');
+            frameWrap.className = 'chat-video-embed';
+            const frame = document.createElement('iframe');
+            frame.src = youtubeEmbed;
+            frame.title = 'Video YouTube';
+            frame.loading = 'lazy';
+            frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+            frame.allowFullscreen = true;
+            frame.referrerPolicy = 'strict-origin-when-cross-origin';
+            frameWrap.appendChild(frame);
+            link.replaceWith(frameWrap);
+        }
+    });
+
+    return wrapper.innerHTML;
+}
+
 function appendMsg(r, scroll=true){
     const history = document.getElementById('chat-history');
     const isUser = !r.is_bot;
@@ -431,7 +515,7 @@ function appendMsg(r, scroll=true){
     const bubbleClass = isUser ? 'chat-bubble-user py-2 px-3 fs-4' : 'chat-bubble-ai py-2 px-3 fs-4';
     const voiceClass = r.via_voice ? ' via-voice-bubble' : '';
     const alignClass = isUser ? 'align-items-end' : 'align-items-start';
-    const cleanHTML = DOMPurify.sanitize(marked.parse(r.text));
+    const cleanHTML = renderChatMessage(r.text);
     const voiceBadge = r.via_voice
         ? `<span class="badge bg-purple-lt ms-1" title="Tin nhắn từ cuộc gọi AI"><i class="ti ti-microphone me-1"></i>Giọng nói</span>`
         : '';
@@ -475,6 +559,22 @@ async function loadMsgs(){
     } catch(err){ console.error(err); }
 }
 
+// send() tự vẽ tin nhắn ngay (optimistic) trong khi realtime subscribe bên dưới CŨNG vẽ lại
+// đúng record đó khi PocketBase báo về — 2 nguồn cùng vẽ 1 nội dung nếu không chặn. Đua nhau
+// theo thời gian thực (bot trả lời chậm hơn WS push của chính message đó khá thường xuyên),
+// nên không thể giả định bên nào tới trước — dùng 1 hàng đợi "giành quyền vẽ" đối xứng: bên
+// nào gọi trước thì được vẽ và giữ chỗ, bên gọi sau thấy chỗ đã bị giữ thì bỏ qua, không vẽ nữa.
+// Khớp theo is_bot+text (lúc vẽ optimistic chưa có id thật); hàng đợi ngắn, tự rụng phần tử cũ
+// nếu 1 trong 2 nguồn không bao giờ tới (mất kết nối WS) để không chặn nhầm tin nhắn sau này.
+const claimedRenders = [];
+function claimRender(text, is_bot) {
+    const idx = claimedRenders.findIndex((m) => m.is_bot === is_bot && m.text === text);
+    if (idx !== -1) { claimedRenders.splice(idx, 1); return false; }
+    claimedRenders.push({ text, is_bot });
+    if (claimedRenders.length > 20) claimedRenders.shift();
+    return true;
+}
+
 async function send(){
     const text = inputEl.value.trim();
     if(!text) return;
@@ -488,26 +588,52 @@ async function send(){
     history.scrollTop = history.scrollHeight;
 
     try {
-        await pb.collection("messages").create({ session: sessionId, tenant, username, text, is_bot: false });
-        await fetch(cfg.webhook, {
+        if (claimRender(text, false)) appendMsg({ text, is_bot: false, created: new Date().toISOString() });
+        const response = await fetch(WORKER_URL + "/chat", {
             method: "POST", headers: { "Content-Type":"application/json" },
-            body: JSON.stringify({ question: text, session: sessionId, tenant, platform: "web" })
+            body: JSON.stringify({ question: text, session: sessionId, tenant, username, client_meta: { platform: "web" } })
         });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            const error = new Error(data.error?.message || data.error || "Không gửi được tin nhắn");
+            error.code = data.error?.code || "CHAT_REQUEST_FAILED";
+            throw error;
+        }
+        if (claimRender(data.reply, true)) appendMsg({ text: data.reply, is_bot: true, created: new Date().toISOString() });
     } catch(err) {
-        await pb.collection("messages").create({
-            session: sessionId, tenant, username: cfg.bot_name,
-            text: "⚠️ Kết nối đang gián đoạn, vui lòng thử lại nhé!", is_bot: true
-        });
+        inputEl.value = text;
+        inputEl.dispatchEvent(new Event("input"));
+        const message = err.code === "MONTHLY_QUOTA_EXCEEDED"
+            ? "⚠️ Bạn đã hết lượt chat trong tháng này. Vui lòng nâng cấp gói để tiếp tục."
+            : `⚠️ ${err.message || "Kết nối đang gián đoạn, vui lòng thử lại nhé!"}`;
+        appendMsg({ text: message, is_bot: true, created: new Date().toISOString() });
+    } finally {
+        document.getElementById("typing-indicator").classList.add("hidden");
+        btnEl.disabled = inputEl.value.trim().length === 0;
+        inputEl.focus();
     }
-    inputEl.focus();
 }
 
 /* =========================================
    SESSION & SYNC
 ========================================= */
 const urlParams = new URLSearchParams(window.location.search);
-let sessionId = urlParams.get("session") || localStorage.getItem("s_"+tenant) || crypto.randomUUID();
-let username = urlParams.get("u") || localStorage.getItem("u_"+tenant) || randomName();
+// ?embed=1 — dùng khi nhúng trang này vào 1 trang khác đã có sẵn sidebar riêng (VD customer/
+// index.html liệt kê nhiều shop): ẩn sidebar "Ghi chú quan trọng/Tài liệu" của chính trang chat
+// để khỏi bị 2 sidebar chồng nhau, chỉ còn đúng 1 sidebar của trang bọc ngoài.
+if (urlParams.get("embed") === "1") {
+  // Bootstrap offcanvas-md tự set display:flex !important ở breakpoint md+ nên style.display
+  // hay .d-none đều bị nó đè lại — xoá thẳng khỏi DOM cho chắc thay vì cố ẩn bằng CSS.
+  document.getElementById("sidebar")?.remove();
+}
+// Link do tenant tạo (?session=...) luôn được tôn trọng trước tiên. Nếu không có link tường
+// minh và khách đã đăng nhập (cùng phiên PocketBase với landing.html/trang chính, chung
+// localStorage vì cùng domain chat.schoolsai.work), gắn cuộc chat vào tài khoản thay vì random
+// theo trình duyệt — đổi máy vẫn thấy lại đúng cuộc chat cũ. Chưa đăng nhập thì giữ nguyên hành
+// vi ẩn danh như trước.
+const loggedInAccount = pb.authStore.isValid ? pb.authStore.model : null;
+let sessionId = urlParams.get("session") || (loggedInAccount ? "acct_" + loggedInAccount.id : null) || localStorage.getItem("s_"+tenant) || crypto.randomUUID();
+let username = urlParams.get("u") || (loggedInAccount ? (loggedInAccount.name || loggedInAccount.email) : null) || localStorage.getItem("u_"+tenant) || randomName();
 
 localStorage.setItem("s_"+tenant, sessionId);
 localStorage.setItem("u_"+tenant, username);
@@ -516,6 +642,7 @@ const newUrl = new URL(window.location);
 newUrl.searchParams.set("bot", tenant);
 newUrl.searchParams.set("session", sessionId);
 newUrl.searchParams.set("u", username);
+if (urlParams.get("embed") === "1") newUrl.searchParams.set("embed", "1");
 window.history.replaceState(null, '', newUrl.toString());
 
 const sessionUrlInput = document.getElementById("session-url");
@@ -538,19 +665,46 @@ function copySessionUrl() {
    4. FILE UPLOAD & REALTIME
 ========================================= */
 const FILE_COLUMN = 'file'; 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[char]);
+}
 
 async function loadFileList() {
+    const fileList = document.getElementById('file-list');
+    if (!fileList) return; // Sidebar đã bị gỡ (embed=1) — không có nơi để hiện danh sách file.
     try {
-        const records = await pb.collection('tai_lieu').getList(1, 50, { filter: `session='${sessionId}' && tenant='${tenant}'`, sort: '-created' });
-        const fileList = document.getElementById('file-list');
-        fileList.innerHTML = ''; 
+        const [knowledgeResponse, uploadsResult] = await Promise.all([
+            fetch(`${WORKER_URL}/chat/knowledge?tenant=${encodeURIComponent(tenant)}`),
+            pb.collection('tai_lieu').getList(1, 50, { filter: `session='${sessionId}' && tenant='${tenant}'`, sort: '-created' })
+                .catch(() => ({ items: [] }))
+        ]);
+        const knowledgeData = await knowledgeResponse.json().catch(() => ({}));
+        if (!knowledgeResponse.ok) throw new Error(knowledgeData.error || `Lỗi ${knowledgeResponse.status}`);
+        const knowledgeDocs = knowledgeData.documents || [];
+        const uploads = uploadsResult.items || [];
+        fileList.innerHTML = '';
 
-        if (records.items.length === 0) {
+        if (knowledgeDocs.length === 0 && uploads.length === 0) {
             fileList.innerHTML = '<li class="text-secondary fst-italic text-center py-2">Chưa có tài liệu nào</li>';
             return;
         }
 
-        records.items.forEach(record => {
+        knowledgeDocs.forEach(doc => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="d-flex align-items-center gap-3 p-2 bg-blue-lt border rounded-3">
+                    <div class="avatar avatar-md bg-blue-lt rounded"><i class="ti ti-book-2 fs-2"></i></div>
+                    <div class="flex-fill min-w-0">
+                        <div class="fs-5 fw-bold text-body text-truncate" title="${escapeHtml(doc.title || 'Tài liệu kiến thức')}">${escapeHtml(doc.title || 'Tài liệu kiến thức')}</div>
+                        <div class="fs-6 text-secondary mt-1">Knowledge Base</div>
+                    </div>
+                </div>`;
+            fileList.appendChild(li);
+        });
+
+        uploads.forEach(record => {
             const fileName = record.original_name || "Tài liệu";
             const fileUrl = pb.files.getUrl(record, record[FILE_COLUMN]); 
             const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
@@ -640,7 +794,7 @@ async function handleFileUpload(event) {
 pb.collection("messages").subscribe("*", e => {
     if (e.record.tenant === tenant && e.record.session === sessionId) {
         if (e.action === "create") {
-            appendMsg(e.record);
+            if (claimRender(e.record.text, !!e.record.is_bot)) appendMsg(e.record);
             if (e.record.is_bot) {
                 document.getElementById("typing-indicator").classList.add("hidden");
                 const btn = document.getElementById("send-btn");

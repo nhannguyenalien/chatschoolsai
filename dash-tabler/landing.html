@@ -1,846 +1,426 @@
-<!DOCTYPE html>
-
-<html class="light" lang="vi"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>AIAgentic - Tăng tốc Doanh nghiệp với AI</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "inverse-surface": "#303032",
-                        "tertiary": "#000000",
-                        "on-secondary": "#ffffff",
-                        "surface-tint": "#565e74",
-                        "on-secondary-container": "#fefcff",
-                        "on-error": "#ffffff",
-                        "secondary-container": "#316bf3",
-                        "on-surface": "#1b1b1d",
-                        "on-primary-fixed": "#131b2e",
-                        "primary-fixed-dim": "#bec6e0",
-                        "on-background": "#1b1b1d",
-                        "surface-dim": "#dcd9db",
-                        "tertiary-fixed-dim": "#4cd7f6",
-                        "secondary-fixed-dim": "#b4c5ff",
-                        "primary-container": "#131b2e",
-                        "on-primary-container": "#7c839b",
-                        "surface-container-lowest": "#ffffff",
-                        "surface-container-low": "#f6f3f5",
-                        "background": "#ffffff",
-                        "on-tertiary": "#ffffff",
-                        "tertiary-container": "#001f26",
-                        "secondary-fixed": "#dbe1ff",
-                        "inverse-primary": "#bec6e0",
-                        "surface": "#ffffff",
-                        "secondary": "#0051d5",
-                        "on-tertiary-container": "#0090a9",
-                        "on-surface-variant": "#45464d",
-                        "surface-container-highest": "#e4e2e4",
-                        "on-tertiary-fixed": "#001f26",
-                        "on-primary-fixed-variant": "#3f465c",
-                        "surface-variant": "#e4e2e4",
-                        "error": "#ba1a1a",
-                        "on-secondary-fixed": "#00174b",
-                        "outline-variant": "#c6c6cd",
-                        "tertiary-fixed": "#acedff",
-                        "on-error-container": "#93000a",
-                        "on-secondary-fixed-variant": "#003ea8",
-                        "on-primary": "#ffffff",
-                        "primary": "#000000",
-                        "on-tertiary-fixed-variant": "#004e5c",
-                        "inverse-on-surface": "#f3f0f2",
-                        "error-container": "#ffdad6",
-                        "surface-container-high": "#eae7e9",
-                        "surface-bright": "#ffffff",
-                        "primary-fixed": "#dae2fd",
-                        "surface-container": "#f0edef",
-                        "outline": "#76777d"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.25rem",
-                        "lg": "0.5rem",
-                        "xl": "0.75rem",
-                        "2xl": "1.5rem",
-                        "3xl": "2rem",
-                        "4xl": "3rem",
-                        "full": "9999px"
-                    },
-                    "spacing": {
-                        "stack-md": "16px",
-                        "margin-desktop": "48px",
-                        "stack-sm": "8px",
-                        "gutter": "24px",
-                        "unit": "4px",
-                        "margin-mobile": "16px",
-                        "stack-xs": "4px",
-                        "stack-lg": "32px",
-                        "container-max": "1280px",
-                        "stack-xl": "64px",
-                        "stack-2xl": "96px"
-                    },
-                    "fontFamily": {
-                        "display-lg-mobile": ["Inter"],
-                        "body-md": ["Inter"],
-                        "display-lg": ["Inter"],
-                        "body-lg": ["Inter"],
-                        "label-md": ["JetBrains Mono"],
-                        "headline-lg": ["Inter"],
-                        "headline-xl": ["Inter"],
-                        "label-sm": ["JetBrains Mono"],
-                        "body-sm": ["Inter"]
-                    },
-                    "fontSize": {
-                        "display-lg-mobile": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "800" }],
-                        "body-md": ["16px", { "lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400" }],
-                        "display-lg": ["80px", { "lineHeight": "1.05", "letterSpacing": "-0.04em", "fontWeight": "900" }],
-                        "body-lg": ["20px", { "lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "500" }],
-                        "label-md": ["14px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "600" }],
-                        "headline-lg": ["32px", { "lineHeight": "1.3", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-                        "headline-xl": ["48px", { "lineHeight": "1.2", "letterSpacing": "-0.03em", "fontWeight": "800" }],
-                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.04em", "fontWeight": "600" }],
-                        "body-sm": ["16px", { "lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400" }]
-                    }
-                }
-            }
-        }
-    </script>
-<style>
-        .glass-card {
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 10px 40px -10px rgba(0, 81, 213, 0.1);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .glass-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 20px 40px -10px rgba(0, 81, 213, 0.2);
-            border-color: rgba(0, 81, 213, 0.3);
-        }
-        .text-gradient {
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-image: linear-gradient(135deg, #0051d5, #9333ea, #06b6d4);
-        }
-        .blob-1 {
-            background: linear-gradient(to right, #3b82f6, #8b5cf6);
-            filter: blur(80px);
-            opacity: 0.3;
-            animation: float 10s ease-in-out infinite;
-        }
-        .blob-2 {
-            background: linear-gradient(to right, #06b6d4, #3b82f6);
-            filter: blur(100px);
-            opacity: 0.25;
-            animation: float 12s ease-in-out infinite reverse;
-        }
-        .blob-3 {
-            background: linear-gradient(to right, #8b5cf6, #ec4899);
-            filter: blur(90px);
-            opacity: 0.2;
-            animation: float 14s ease-in-out infinite;
-        }
-        @keyframes float {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(30px, -50px) scale(1.1); }
-            66% { transform: translate(-20px, 20px) scale(0.9); }
-        }
-        .play-button-overlay {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(8px);
-            transition: all 0.3s ease;
-        }
-        .group:hover .play-button-overlay {
-            transform: scale(1.1);
-            background: #0051d5;
-            color: white;
-        }
-        .organic-shape {
-            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-            animation: morph 8s ease-in-out infinite alternate;
-        }
-        @keyframes morph {
-            0% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-            100% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
-        }
-        @keyframes marquee {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-            animation: marquee 30s linear infinite;
-            display: flex;
-            width: fit-content;
-        }
-        .toggle-checkbox:checked {
-            right: 0;
-            border-color: #0051d5;
-        }
-        .toggle-checkbox:checked + .toggle-label {
-            background-color: #0051d5;
-        }
-        #login-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(11,28,48,0.6); backdrop-filter: blur(8px); transition: opacity 0.2s; } 
-#login-modal.hidden { display: none; }
-.login-card { background: #fff; border: 1px solid #bdc8ce; border-radius: 1rem; padding: 40px 36px; width: 100%; max-width: 400px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 20px 60px rgba(0,100,124,0.15); animation: slideUp 0.25s ease-out; } 
-@keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} } 
-.login-card::before { content:''; position:absolute; top:-40px; left:50%; transform:translateX(-50%); width:160px; height:160px; background: radial-gradient(circle, rgba(0,100,124,0.12) 0%, transparent 70%); pointer-events:none; }
-.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; width:100%; padding:13px 20px; background:#f8f9fa; border: 1px solid #ddd; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-.btn-google:hover { background: #e2e6ea; }
-.login-divider { display:flex; align-items:center; gap:12px; margin:18px 0; color:#9ca3af; font-size:13px; }
-.login-divider::before, .login-divider::after { content:""; flex:1; height:1px; background:#e5e7eb; }
-.login-input { width:100%; border:1px solid #d1d5db; border-radius:8px; padding:11px 12px; margin-bottom:10px; outline:none; }
-.login-input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-.btn-password-login { width:100%; border:0; border-radius:8px; padding:12px 20px; color:#fff; background:#111827; font-weight:600; cursor:pointer; }
-.btn-password-login:disabled, .btn-google:disabled { cursor:not-allowed; opacity:.65; }
-.login-error { color:#dc2626; font-size:13px; margin-top:10px; text-align:left; }
-    </style>
-<script>
-        function togglePricing() {
-            const isAnnual = document.getElementById('pricing-toggle').checked;
-            
-            const startupPrice = document.getElementById('startup-price');
-            const startupLabel = document.getElementById('startup-label');
-            const enterprisePrice = document.getElementById('enterprise-price');
-            
-            if (isAnnual) {
-                startupPrice.innerText = '$16.5';
-                startupLabel.innerText = '/tháng (thanh toán hàng năm)';
-            } else {
-                startupPrice.innerText = '$19';
-                startupLabel.innerText = '/tháng';
-            }
-        }
-    </script>
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Schools AI — Hội thoại, nội dung và chăm sóc khách hàng trong một không gian AI.">
+<title>Schools AI — Nhẹ việc hơn, tiến xa hơn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared/landing.css?v=20260925-6lang">
 </head>
-<body class="bg-background text-on-background font-body-md antialiased scroll-smooth selection:bg-secondary selection:text-white">
-<!-- TopNavBar -->
-<nav class="bg-white/70 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-outline-variant/20 shadow-sm transition-all duration-300 ease-in-out">
-<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
-<div class="text-headline-lg font-display-lg text-on-surface tracking-tighter flex items-center gap-2">
-<div class="w-10 h-10 rounded-full bg-gradient-to-tr from-secondary to-cyan-400 flex items-center justify-center text-white shadow-lg">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">neurology</span>
-</div>
-                AIAgentic
-            </div>
-<div class="hidden md:flex items-center gap-gutter">
-<a class="text-on-surface hover:text-secondary font-label-md text-label-md py-2 transition-colors" href="#solutions">Giải pháp</a>
-<a class="text-on-surface hover:text-secondary font-label-md text-label-md py-2 transition-colors" href="#demo">Cách hoạt động</a>
-<a class="text-on-surface hover:text-secondary font-label-md text-label-md py-2 transition-colors" href="#pricing">Bảng giá</a>
-<a class="text-on-surface hover:text-secondary font-label-md text-label-md py-2 transition-colors" href="#downloads">Tải ứng dụng</a>
-</div>
-<div class="flex items-center gap-4">
-<button onclick="openLoginModal()" class="px-5 md:px-8 py-3 rounded-full bg-secondary text-white font-label-md text-label-md hover:bg-secondary-container hover:text-white transition-all shadow-[0_4px_14px_0_rgba(0,81,213,0.39)] hover:shadow-[0_6px_20px_rgba(0,81,213,0.23)] transform hover:-translate-y-0.5">
-                    Bắt đầu dùng thử miễn phí
-                </button>
-</div>
-</div>
+<body>
+<a data-copy="skip" class="skip" href="#main">Đến nội dung</a>
+<header>
+<div class="container nav">
+<a class="brand" href="landing.html">
+<span class="brand-mark" aria-hidden="true">✳</span>schools<span class="brand-ai">ai</span>
+<span class="brand-dot">.</span>
+</a>
+<nav aria-label="Main">
+<a data-copy="nav_features" href="#features">Tính năng</a>
+<a data-copy="nav_how" href="#how">Cách hoạt động</a>
+<a data-copy="nav_download" href="#downloads">Tải ứng dụng</a>
 </nav>
-<main class="pt-[90px] relative overflow-hidden">
-<!-- Global Blobs -->
-<div class="absolute top-0 left-[-10%] w-[600px] h-[600px] rounded-full blob-1 -z-10"></div>
-<div class="absolute top-[20%] right-[-5%] w-[500px] h-[500px] rounded-full blob-2 -z-10"></div>
-<div class="absolute bottom-[10%] left-[20%] w-[700px] h-[700px] rounded-full blob-3 -z-10"></div>
-<!-- HERO -->
-<section class="relative min-h-[90vh] flex items-center justify-center px-margin-mobile md:px-margin-desktop py-stack-xl lg:py-stack-2xl">
-
-<div class="absolute inset-0 bg-black/40 -z-10"></div>
-<div class="max-w-container-max mx-auto grid grid-cols-1 lg:grid-cols-2 gap-stack-lg items-center relative z-10">
-<div class="space-y-stack-md max-w-2xl">
-<div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 shadow-sm backdrop-blur-md text-white">
-<span class="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse"></span>
-<span class="font-label-md text-label-sm font-bold uppercase tracking-widest text-white">Khai phá Sức mạnh AI</span>
+<div class="nav-actions">
+<select id="language" aria-label="Ngôn ngữ / Language">
+<option value="vi">VI · Tiếng Việt</option>
+<option value="en">EN · English</option>
+<option value="ja">JA · 日本語</option>
+<option value="es">ES · Español</option>
+<option value="fr">FR · Français</option>
+<option value="ko">KO · 한국어</option>
+</select>
+<button data-copy="login" class="button small" data-login>Đăng nhập ↗</button>
 </div>
-<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-white leading-[1.05] drop-shadow-lg">
-                        Tăng tốc tăng trưởng với <br/><span class="text-cyan-400">AI Agent</span> hoạt động 24/7
-                    </h1>
-<p class="font-body-lg text-body-lg text-gray-200 max-w-xl drop-shadow-md">
-                        Triển khai các AI Agent cực kỳ thông minh giúp tự động xử lý hỗ trợ, mở rộng nội dung và thúc đẩy doanh số. Nhanh chóng, liên tục và hoàn toàn đồng điệu với phong cách thương hiệu của bạn.
-                    </p>
-<div class="flex flex-col sm:flex-row gap-4 pt-stack-sm">
-<button class="px-8 py-4 rounded-full bg-secondary text-white font-label-md text-label-md hover:bg-secondary-container transition-all shadow-[0_8px_30px_rgb(0,81,213,0.3)] flex items-center justify-center gap-2 group transform hover:-translate-y-1">
-                            Kích hoạt Agent ngay
-                            <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">rocket_launch</span>
+</div>
+</header>
+<main id="main">
+<section class="container hero">
+<div class="hero-copy">
+<p data-copy="eyebrow" class="eyebrow">TRỢ LÝ AI, ĐỒNG ĐỘI CỦA BẠN</p>
+<h1>
+<span data-copy="hero_1" >Nhẹ việc hơn.</span>
+<br>
+<span data-copy="hero_2" class="highlight">Tiến xa hơn.</span>
+</h1>
+<p data-copy="intro" class="intro">Một không gian cho hội thoại, nội dung và chăm sóc khách hàng. Để AI lo việc lặp lại, bạn tập trung vào điều mình làm tốt nhất.</p>
+<div class="hero-actions">
+<button data-copy="start" class="button primary" data-login>Bắt đầu cùng Schools AI ↗</button>
+<a data-copy="explore" href="#features" class="text-link">Khám phá tính năng ↓</a>
+</div>
+<p data-copy="hero_note" class="fine">Kết nối tri thức của bạn. Làm việc theo cách của bạn.</p>
+</div>
+<div class="hero-art">
+<div class="orbit" aria-hidden="true">✳</div>
+<div class="workspace-preview">
+<div class="preview-top">
+<span class="mini-mark">✳</span>
+<strong>
+<span data-copy="your_space" >Không gian của bạn</span>
+</strong>
+<span class="status-dot">
+</span>
+</div>
+<div class="preview-body">
+<h2 data-copy="greeting" >Chào bạn, cùng làm điều hay nhé!</h2>
+<p data-copy="preview_sub" class="muted">Một chút AI. Thêm nhiều thời gian cho bạn.</p>
+<div class="preview-tabs" role="group" aria-label="Demo">
+<button data-demo="chat" aria-pressed="true">
+<span data-copy="tab_chat" >Hội thoại</span>
 </button>
-<button class="px-8 py-4 rounded-full bg-white/10 backdrop-blur-md border border-white/30 text-white font-label-md text-label-md hover:bg-white/20 transition-all flex items-center justify-center gap-2 shadow-sm">
-<span class="material-symbols-outlined text-cyan-400">play_circle</span>
-                            Xem cách hoạt động
-                        </button>
-</div>
-<div class="pt-stack-lg flex items-center gap-4 text-white">
-<div class="flex -space-x-3">
-<img alt="User" class="w-12 h-12 rounded-full border-2 border-slate-800 object-cover shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlWwJx3vyT1oUXGHVWq0R9qSBxjI5j3h6XFMi21c6XPvjgPJFzzQzyKRurvyP0hjtSCbNuDDtu90LM-DneozPM1WiTIB2_cW3jma85VLQT_mLhNEUG-t64p59SFm9G5U52rHfm3H7pK5HeC5q2cipSWw4JiL8_Yd_cgZDlgibBjH5Px5CYW-60M8CZcZjd9jQug29FrU3YxbcM8HBeiXiY_lL_L7jeXa7ZHwCx3IEuVXJIH9o61lgfOYhU_Pajb5bDCNYyz0PPSbAj"/>
-<img alt="User" class="w-12 h-12 rounded-full border-2 border-slate-800 object-cover shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDIL8KwpaixUtR80NkGdJb4pbmLH5NsLuyVCLciJw0Ibc2QPbVjHpxwCRwq4Htc6gBEnuAVorw53Xe-4dZAbbxlumDZG9Wt9a2tIJTckvf5bzS9BvD3wsMc0hUC7jWV_grNLoOidJOwXS8o2i2-_6R5RkOgEUuCzG-h2_PnF59069Kdyeayznh8v1dCqf4fsliDyRn5X3TQmwxTUVlxSYSK57pPcsQ3omJ8uqzMSoMAWkEBpL0Do8xH1OXBft0oRVGbfghq2L005SwQ"/>
-<img alt="User" class="w-12 h-12 rounded-full border-2 border-slate-800 object-cover shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXqkWhN84n4Lj4LukabGbTNCszzYk6AbP8cV8mI_U7AQvESJ23WHlgKcAQOhWChJx4JiaTmSNCCdcacexhT9Ui_jTNeLAGo7_Kq4dr1-t677EwufwOAQm-DZ2ljDiGnMNOfrDSVLMIqPZvMeW7xvRlGWVrYyhdF5CJUThlUZENzUUc28LmVs3X3CKmPhey5u7FvJ4npfCumUl6PZaEugV6y_oHrVQHsw93P2ceIG9mZjpWtTdnZ2TOsqIm8q2zZWlFHlu-lVYSmhSZ"/>
-<div class="w-12 h-12 rounded-full border-2 border-slate-800 bg-gradient-to-br from-purple-100 to-cyan-100 flex items-center justify-center font-bold text-secondary text-sm shadow-md">+2k</div>
-</div>
-<p class="font-body-sm font-semibold drop-shadow-md">Tham gia cùng hơn 2.000 thương hiệu phát triển mạnh mẽ.</p>
-</div>
-</div>
-<div class="relative w-full aspect-square lg:aspect-auto lg:h-[600px] mt-stack-lg lg:mt-0 flex items-center justify-center">
-<div class="absolute inset-0 bg-gradient-to-tr from-secondary/20 to-cyan-400/20 organic-shape blur-2xl"></div>
-<div class="relative w-[90%] h-[90%] rounded-[40px] overflow-hidden shadow-2xl border-4 border-white/20 bg-slate-900 group cursor-pointer">
-<img alt="3D AI Workspace Illustration" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 mix-blend-screen opacity-80" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtUDH6kuYboLoJrWuoU4awWhhnP6N5DIZ9uKB7kNmIPhZf2JSD2d_HD1todAilnpCF88oTOPeaGzCreyH8cHQz0YJHdOcwasvjy9JbwO0ss-6smGtTekU6MWHKwa3Wn5gr4imSq2JxsDr0pKQfiHHv6jE0xvDgEq6BOrRAKnMlyuNjwKVoeq3bIh4Pld0DfVEq5OMgOQiopfYvNnOZKdMpGvLsdbKowHrmcr6xS7pAnBguRkYIJRpfXaOt_42xBsmdpvintbAvgHa0"/>
-<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-<div class="absolute bottom-6 left-6 right-6 flex justify-between items-end">
-<div class="bg-white/10 backdrop-blur-md px-6 py-3 rounded-full border border-white/20 shadow-lg">
-<p class="font-bold text-white flex items-center gap-2">
-<span class="w-3 h-3 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)]"></span> Agent Đang hoạt động
-                                </p>
-</div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- TRUSTED BY MARQUEE -->
-<section class="py-8 border-y border-outline-variant/10 bg-surface-container-lowest/50 backdrop-blur-sm overflow-hidden relative z-10">
-<div class="text-center mb-6 max-w-container-max mx-auto px-margin-mobile">
-<p class="font-label-md text-on-surface-variant uppercase tracking-widest text-sm font-bold">Được tin dùng bởi các doanh nghiệp dẫn đầu</p>
-</div>
-<div class="flex overflow-hidden relative w-full">
-<div class="animate-marquee flex items-center gap-16 px-8">
-<!-- First Set -->
-<div class="flex items-center gap-16 min-w-full justify-around pr-16">
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Google</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Microsoft</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Amazon</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Meta</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Apple</span>
-</div>
-<!-- Second Set for seamless loop -->
-<div class="flex items-center gap-16 min-w-full justify-around pr-16">
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Google</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Microsoft</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Amazon</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Meta</span>
-<span class="text-3xl font-black text-on-surface/30 tracking-tighter hover:text-on-surface/60 transition-colors">Apple</span>
-</div>
-</div>
-</div>
-</section>
-<!-- HOW IT WORKS / DEMO VIDEO -->
-<section class="py-stack-2xl px-margin-mobile md:px-margin-desktop relative" id="demo">
-<div class="max-w-container-max mx-auto">
-<div class="text-center max-w-3xl mx-auto mb-stack-xl">
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">Khám phá sức mạnh thực tế</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Xem cách AI của chúng tôi tích hợp mượt mà vào quy trình làm việc của bạn, đảm nhận những việc nhàm chán để bạn có thể tập trung vào tăng trưởng.</p>
-</div>
-<div class="relative max-w-5xl mx-auto rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.1)] border-8 border-white group cursor-pointer">
-<img alt="Demo Video Thumbnail" class="w-full aspect-[16/9] object-cover transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcuRa82QHj1Ygwg7J2mW8rEGlyNeuNiGVQFHoYItb0sJgTbj7zIRr1XqECLkLEAWPdQ1TbZrtY7qV4liOtMZuLom5Pxr4MaBIHpj6nsSt5jMbBhWOQn3xWzRdNioGTC70NI75_5pHO3bgrcMEnMI34rwAeWcoMUl54x07PQ6Rno1Nj88WVGL5Ap0hhtVIyBvKFjnKNbVhT_x-xQ9XH8tjm9mRLgIN2f1a3zsZX3fIaSmnJ6D22bS_gvf4w4RJqWkHRcIKATLungr3C"/>
-<div class="absolute inset-0 bg-secondary/10 group-hover:bg-transparent transition-colors duration-300"></div>
-<!-- Play Button Overlay -->
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-24 h-24 rounded-full play-button-overlay flex items-center justify-center shadow-2xl pl-2">
-<span class="material-symbols-outlined text-[48px] text-secondary group-hover:text-white transition-colors">play_arrow</span>
-</div>
-</div>
-<div class="absolute bottom-6 left-8">
-<span class="px-4 py-2 bg-black/50 backdrop-blur-md text-white rounded-full font-label-sm font-bold tracking-wider uppercase">Xem Video • 2:30</span>
-</div>
-</div>
-</div>
-</section>
-<!-- VIDEO TESTIMONIALS -->
-<section class="py-stack-xl px-margin-mobile md:px-margin-desktop relative bg-gradient-to-b from-transparent to-surface-container-low/50" id="success-stories">
-<div class="max-w-container-max mx-auto relative z-10">
-<div class="text-center max-w-3xl mx-auto mb-stack-xl">
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">Câu chuyện thành công từ khách hàng</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Nghe cách các thương hiệu hàng đầu đang mở rộng quy mô vận hành với AIAgentic.</p>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-<!-- Video Card 1 -->
-<div class="glass-card rounded-[32px] overflow-hidden group cursor-pointer relative border-4 border-white">
-<img alt="Testimonial 1" class="w-full aspect-video object-cover transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlWwJx3vyT1oUXGHVWq0R9qSBxjI5j3h6XFMi21c6XPvjgPJFzzQzyKRurvyP0hjtSCbNuDDtu90LM-DneozPM1WiTIB2_cW3jma85VLQT_mLhNEUG-t64p59SFm9G5U52rHfm3H7pK5HeC5q2cipSWw4JiL8_Yd_cgZDlgibBjH5Px5CYW-60M8CZcZjd9jQug29FrU3YxbcM8HBeiXiY_lL_L7jeXa7ZHwCx3IEuVXJIH9o61lgfOYhU_Pajb5bDCNYyz0PPSbAj"/>
-<div class="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors duration-300"></div>
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-16 h-16 rounded-full play-button-overlay flex items-center justify-center shadow-lg pl-1">
-<span class="material-symbols-outlined text-[32px] text-secondary group-hover:text-white transition-colors">play_arrow</span>
-</div>
-</div>
-<div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-<p class="text-white font-bold text-lg mb-1">"Giải quyết hỗ trợ nhanh gấp 10 lần"</p>
-<p class="text-white/80 font-body-sm">Sarah J., VP of Ops</p>
-</div>
-</div>
-<!-- Video Card 2 -->
-<div class="glass-card rounded-[32px] overflow-hidden group cursor-pointer relative border-4 border-white">
-<img alt="Testimonial 2" class="w-full aspect-video object-cover transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDIL8KwpaixUtR80NkGdJb4pbmLH5NsLuyVCLciJw0Ibc2QPbVjHpxwCRwq4Htc6gBEnuAVorw53Xe-4dZAbbxlumDZG9Wt9a2tIJTckvf5bzS9BvD3wsMc0hUC7jWV_grNLoOidJOwXS8o2i2-_6R5RkOgEUuCzG-h2_PnF59069Kdyeayznh8v1dCqf4fsliDyRn5X3TQmwxTUVlxSYSK57pPcsQ3omJ8uqzMSoMAWkEBpL0Do8xH1OXBft0oRVGbfghq2L005SwQ"/>
-<div class="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors duration-300"></div>
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-16 h-16 rounded-full play-button-overlay flex items-center justify-center shadow-lg pl-1">
-<span class="material-symbols-outlined text-[32px] text-secondary group-hover:text-white transition-colors">play_arrow</span>
-</div>
-</div>
-<div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-<p class="text-white font-bold text-lg mb-1">"Nội dung được mở rộng không giới hạn"</p>
-<p class="text-white/80 font-body-sm">Mark T., CMO</p>
-</div>
-</div>
-<!-- Video Card 3 -->
-<div class="glass-card rounded-[32px] overflow-hidden group cursor-pointer relative border-4 border-white hidden md:block">
-<img alt="Testimonial 3" class="w-full aspect-video object-cover transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXqkWhN84n4Lj4LukabGbTNCszzYk6AbP8cV8mI_U7AQvESJ23WHlgKcAQOhWChJx4JiaTmSNCCdcacexhT9Ui_jTNeLAGo7_Kq4dr1-t677EwufwOAQm-DZ2ljDiGnMNOfrDSVLMIqPZvMeW7xvRlGWVrYyhdF5CJUThlUZENzUUc28LmVs3X3CKmPhey5u7FvJ4npfCumUl6PZaEugV6y_oHrVQHsw93P2ceIG9mZjpWtTdnZ2TOsqIm8q2zZWlFHlu-lVYSmhSZ"/>
-<div class="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors duration-300"></div>
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-16 h-16 rounded-full play-button-overlay flex items-center justify-center shadow-lg pl-1">
-<span class="material-symbols-outlined text-[32px] text-secondary group-hover:text-white transition-colors">play_arrow</span>
-</div>
-</div>
-<div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-<p class="text-white font-bold text-lg mb-1">"Doanh thu tăng gấp đôi trong Q3"</p>
-<p class="text-white/80 font-body-sm">Elena R., Trưởng phòng Bán hàng</p>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- SERVICES / SHOWCASE GRID -->
-<section class="py-stack-2xl px-margin-mobile md:px-margin-desktop relative" id="solutions">
-<div class="max-w-container-max mx-auto relative z-10">
-<div class="flex flex-col md:flex-row justify-between items-end mb-stack-xl gap-6">
-<div class="max-w-2xl">
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">Danh mục AI Agent</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Đội ngũ chuyên gia AI thế hệ mới của bạn. Chuyên biệt, không ngừng nghỉ và được xây dựng để mở rộng những tham vọng lớn nhất của bạn.</p>
-</div>
-<button class="px-6 py-3 rounded-full bg-white border-2 border-secondary text-secondary font-bold hover:bg-secondary hover:text-white transition-all shadow-sm">
-                        Xem tất cả Agent
-                    </button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-<!-- Agent Card 1 -->
-<div class="glass-card rounded-[32px] p-2 flex flex-col h-full group">
-<div class="relative w-full aspect-video rounded-[24px] overflow-hidden mb-6 bg-blue-50/80 shadow-inner">
-<img alt="Agent visual" class="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay group-hover:scale-110 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDessAyIPCsxWG2PBLXolmIz9aSibYwiokEVqW6wjQ3ySh3fFxoD9uWUh-vymIDdZvATzY5rGOl321AKc3ATJ9bO5aQqzyZJBMpAaA7knBFR-acfGwSi6KZNUjGzaHszSpDUVUi64_lbUu8GU3QCAz43zve0a4g-C1-RQRR6SMUXV-C3V_vB2lld05GCh0CtkZL8VF2lgmAQEq9mMneYg_ekHE93TEEjJBgHn00TG7eQ5Ubix1TLGPYyyXa7D7YSNpTYOuW3VNNijG2"/>
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-24 h-24 rounded-full bg-white/50 backdrop-blur-md flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-500">
-<span class="material-symbols-outlined text-[48px] text-blue-500">support_agent</span>
-</div>
-</div>
-<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-<div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-blue-600 shadow-sm">Hỗ trợ Gen</div>
-</div>
-<div class="px-6 pb-8 flex-grow flex flex-col">
-<h3 class="font-headline-lg text-2xl text-on-surface mb-3 font-bold">CX Tự động</h3>
-<p class="font-body-md text-on-surface-variant mb-6 flex-grow">Cung cấp hỗ trợ tức thì, chính xác, 24/7 giải quyết các yêu cầu trong khi đội ngũ của bạn đang ngủ. Không có độ trễ.</p>
-<a class="inline-flex items-center gap-2 font-label-md text-label-md text-secondary group-hover:text-cyan-500 font-bold uppercase tracking-wide" href="#" onclick="openLoginModal(); return false;">
-                                Kích hoạt Agent <span class="material-symbols-outlined text-lg bg-secondary/10 rounded-full p-1 group-hover:bg-cyan-500/10">arrow_forward</span>
-</a>
-</div>
-</div>
-<!-- Agent Card 2 -->
-<div class="glass-card rounded-[32px] p-2 flex flex-col h-full group">
-<div class="relative w-full aspect-video rounded-[24px] overflow-hidden mb-6 bg-purple-50/80 shadow-inner">
-<img alt="Agent visual" class="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay group-hover:scale-110 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJTRKo_ykXRBhVmxIGblsdd8FLvoN-jsoPVhUrRH6JdmixsZjyDPdAMpHBSi8XL0aqN3vprpokCRo7xhd5LkH7cFEfUEU29kLXM4HyxKXsPlrW9YL3tkQtXrbmfa66hObuWO__t3IsGYW2BlIP31BMny001wQLFgmTDhXcQnFD3SVCeDshOpemQo0RjxKfU9LPI2GLbM8U_PKyqaYynrRWrR0qiCp5lwo-7Wc4PuyZfvB3tAMd81gVGNruaCpNa1xNLeD8t51Dp78f"/>
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-24 h-24 rounded-full bg-white/50 backdrop-blur-md flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-500">
-<span class="material-symbols-outlined text-[48px] text-purple-500">campaign</span>
-</div>
-</div>
-<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-<div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-purple-600 shadow-sm">Nội dung Gen</div>
-</div>
-<div class="px-6 pb-8 flex-grow flex flex-col">
-<h3 class="font-headline-lg text-2xl text-on-surface mb-3 font-bold">Nội dung Lan truyền</h3>
-<p class="font-body-md text-on-surface-variant mb-6 flex-grow">Tạo các bài viết và bài đăng trên mạng xã hội sắc sảo, đúng với thương hiệu ở quy mô cực lớn. Giữ cho nguồn cấp dữ liệu luôn mới mẻ.</p>
-<a class="inline-flex items-center gap-2 font-label-md text-label-md text-purple-600 group-hover:text-purple-400 font-bold uppercase tracking-wide" href="#" onclick="openLoginModal(); return false;">
-                                Kích hoạt Agent <span class="material-symbols-outlined text-lg bg-purple-100 rounded-full p-1">arrow_forward</span>
-</a>
-</div>
-</div>
-<!-- Agent Card 3 -->
-<div class="glass-card rounded-[32px] p-2 flex flex-col h-full group">
-<div class="relative w-full aspect-video rounded-[24px] overflow-hidden mb-6 bg-cyan-50/80 shadow-inner">
-<img alt="Agent visual" class="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay group-hover:scale-110 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIBl5PtHDjPbjf0gp5Q-I5N_yJoomQAcY69tA_O6ldH-Bc8kpF9MADGnO2l_uwgzAY65kpgCs7oGdkof3LHRgTaFwawRKgHZZM-p22DBMmIF_XK3iVT-uPpVXbHXfGcrEwMWOO3LpEYWJVNH1kOjUBFaeJTIQwPhurkarWcNHsvzfPffTDJQpgRwXxGVr1qUw5qiVKqrCMxfQpP8VQUaIvDscXMAIhfGG_LFJ0EI6mr4lMIMOlxIfe4zJte8ZXzazL-_exQrd5yTnK"/>
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="w-24 h-24 rounded-full bg-white/50 backdrop-blur-md flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-500">
-<span class="material-symbols-outlined text-[48px] text-cyan-500">rocket</span>
-</div>
-</div>
-<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-<div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-cyan-600 shadow-sm">Bán hàng Gen</div>
-</div>
-<div class="px-6 pb-8 flex-grow flex flex-col">
-<h3 class="font-headline-lg text-2xl text-on-surface mb-3 font-bold">Hack Tăng trưởng</h3>
-<p class="font-body-md text-on-surface-variant mb-6 flex-grow">Đánh giá khách hàng tiềm năng, đặt lịch họp và xử lý tiếp cận với độ chính xác tuyệt đối. Doanh thu không bao giờ ngừng.</p>
-<a class="inline-flex items-center gap-2 font-label-md text-label-md text-cyan-600 group-hover:text-blue-500 font-bold uppercase tracking-wide" href="#" onclick="openLoginModal(); return false;">
-                                Kích hoạt Agent <span class="material-symbols-outlined text-lg bg-cyan-100 rounded-full p-1">arrow_forward</span>
-</a>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- VISUAL GALLERY -->
-<section class="py-stack-xl px-margin-mobile md:px-margin-desktop relative overflow-hidden" id="gallery">
-<div class="max-w-container-max mx-auto relative z-10">
-<div class="text-center mb-stack-xl max-w-2xl mx-auto">
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">Hệ sinh thái Agent Sống động</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Một cái nhìn trực quan về tương lai siêu hiệu quả của quy trình tự động hóa.</p>
-</div>
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 auto-rows-[200px]">
-<div class="col-span-2 row-span-2 rounded-[32px] overflow-hidden relative group border-4 border-white shadow-xl">
-<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDo8heQWf1b606K97YKHfMN_C_xXPbZ7RJ7HaK3b7D2hyc_ZJQNJ566oRtVJl38Hbb0_n7pmf6eezU6WGwmP5UjqV5wSa-bMQY_aIfxhofusoxQOuLzhC1MeWnKVKgPHfq96XcE8racwiOlkgETIA33UPHKRIzRO5c259siLR2_rptANhvEQWeUws__d3KfovNPF4spyGpc2NTd5BfcxIyltUP-gAgKdvubXlL0ltRA4YklrWw9B5NwAyyh_3pnMD64jKjRYYSZ_Wpz"/>
-<div class="absolute inset-0 bg-gradient-to-tr from-secondary/40 to-transparent mix-blend-multiply"></div>
-<div class="absolute bottom-6 left-6 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full font-bold text-sm shadow-sm">Bản đồ Neural</div>
-</div>
-<div class="rounded-[32px] overflow-hidden relative group border-4 border-white shadow-lg">
-<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCz3aiipANCJXxvMK4r86HdmzoK8WW0cRSQ4H0IvMWc0vh5TyV2FMNowlkni3HLWoegqaH4HACszH4i9e9raUz0c51jwvFo8ROPdIlPgvD_8wm6cTlDM7AJMQIpZijvH4VhVvHrGdxi1LPoe0jiHMlX5xDFy9_jIwBjSmH0Mm3lGzyRXrAEtarmXzqQ3sTGRu0K4xrojCC98prmOTK9CQFaRPDsBfQoEFLOhysa-a9cSQGZtzNps_oaBaidSPrZdnYwW853efQheYJd"/>
-<div class="absolute inset-0 bg-purple-500/20 mix-blend-overlay"></div>
-</div>
-<div class="rounded-[32px] overflow-hidden relative group border-4 border-white shadow-lg">
-<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCy24hj0F7nC8eD52SPw8AMmG4OdANKktQZbmBrT0AOaGxQYVFixVt2GhqW5yVSJA8mjvt_KL2rZkCq2n1ymy9oYAj-8ZdxGi4-Dc_h20tQriXSkg0JpIFnrWfksSRI-sf9yrB6avF77YjbyEHzSOd5B1eTD1rM-tJdWFaPW4Hr4NdjfDpC-PikqSwSUdpniB12Zw8IvCJQmXzTUWxraksxBgy9V_iELWRHJtS5Ov-cHqQB9Lp3AwphnrJkWAni_SU0O0mjiOAdOkBY"/>
-<div class="absolute inset-0 bg-cyan-500/20 mix-blend-overlay"></div>
-</div>
-<div class="col-span-2 rounded-[32px] overflow-hidden relative group border-4 border-white shadow-lg">
-<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAlRRWfQnhMAobxuOlTmaA_wRzxcWAxoF8TcJd9Po97qUNKND_-29PAwfUKNqKnQxwVdZX6bgfdeiRSR9sF1-nULiw6AB18mafjiNCb1Ly04AScoQkubS9cyR3JsmGTOlpfG0yy6gYFdLD5St0ZjwDZkGv_s2eT4q5qhWKjX_kVp4AwdC3YjRq0R2rJ5xrJikQJ4BcS5JcTQZLwGT8fJ7TdX4AtK5S6eE8F2K-kQMWr5_7AleQSfhOrtmyPCeYv7FP8SGJdhigcrlu1"/>
-<div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-<div class="absolute bottom-6 left-6 text-white font-bold text-lg">Luồng dữ liệu Toàn cầu</div>
-</div>
-</div>
-</div>
-</section>
-<!-- PRICING -->
-<section class="py-stack-2xl px-margin-mobile md:px-margin-desktop relative overflow-hidden" id="omnichannel">
-<div class="max-w-container-max mx-auto relative z-10">
-<div class="text-center max-w-3xl mx-auto mb-stack-xl">
-<div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-50/80 border border-cyan-500/20 shadow-sm backdrop-blur-sm mb-4">
-<span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
-<span class="font-label-md text-label-sm text-cyan-600 font-bold uppercase tracking-widest">Sức mạnh Đa kênh</span>
-</div>
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">AI Agent Tương tác Đa kênh</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Tự động hóa tương tác khách hàng 24/7 trên mọi nền tảng. Các agent của chúng tôi phản hồi bình luận, trả lời tin nhắn riêng và giải quyết yêu cầu ngay lập tức.</p>
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-<!-- Central Visual: Multi-Channel Hub -->
-<div class="relative aspect-square flex items-center justify-center">
-<div class="absolute inset-0 bg-gradient-to-tr from-secondary/10 to-purple-500/10 organic-shape blur-3xl"></div>
-<div class="relative w-full max-w-md aspect-square glass-card rounded-full flex items-center justify-center border-4 border-white shadow-2xl">
-<div class="text-center">
-<div class="w-24 h-24 rounded-full bg-gradient-to-tr from-secondary to-purple-600 flex items-center justify-center text-white mx-auto mb-4 shadow-lg">
-<span class="material-symbols-outlined text-[48px]">hub</span>
-</div>
-<p class="font-bold text-on-surface">Trung tâm Đa kênh</p>
-<p class="text-xs text-on-surface-variant">Đồng bộ 4 Nền tảng</p>
-</div>
-<!-- Floating Icons -->
-<div class="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center text-blue-600 border border-gray-100 animate-bounce" style="animation-duration: 3s;">
-<span class="material-symbols-outlined text-3xl">chat</span>
-</div>
-<div class="absolute top-1/4 -right-4 w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center text-blue-800 border border-gray-100 animate-bounce" style="animation-delay: 0.5s; animation-duration: 3.5s;">
-<span class="material-symbols-outlined text-3xl">facebook</span>
-</div>
-<div class="absolute bottom-1/4 -left-4 w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center text-purple-600 border border-gray-100 animate-bounce" style="animation-delay: 1s; animation-duration: 4s;">
-<span class="material-symbols-outlined text-3xl">photo_camera</span>
-</div>
-<div class="absolute -bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center text-green-600 border border-gray-100 animate-bounce" style="animation-delay: 1.5s; animation-duration: 3.2s;">
-<span class="material-symbols-outlined text-3xl">call</span>
-</div>
-</div>
-</div>
-<!-- Channel Grid -->
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-<div class="glass-card p-6 rounded-[24px] border border-white/50">
-<div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
-<span class="material-symbols-outlined">forum</span>
-</div>
-<h4 class="font-bold text-on-surface mb-2">Trò chuyện Trực tiếp &amp; Web</h4>
-<p class="text-sm text-on-surface-variant">Giải quyết tức thì cho khách truy cập web với widget được tùy chỉnh thương hiệu.</p>
-</div>
-<div class="glass-card p-6 rounded-[24px] border border-white/50">
-<div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center mb-4">
-<span class="material-symbols-outlined">public</span>
-</div>
-<h4 class="font-bold text-on-surface mb-2">Facebook</h4>
-<p class="text-sm text-on-surface-variant">Tự động trả lời bình luận và quản lý các yêu cầu qua Messenger ở quy mô lớn.</p>
-</div>
-<div class="glass-card p-6 rounded-[24px] border border-white/50">
-<div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4">
-<span class="material-symbols-outlined">alternate_email</span>
-</div>
-<h4 class="font-bold text-on-surface mb-2">Instagram</h4>
-<p class="text-sm text-on-surface-variant">Biến tin nhắn riêng và lượt nhắc trong Story thành cơ hội bán hàng tức thì.</p>
-</div>
-<div class="glass-card p-6 rounded-[24px] border border-white/50">
-<div class="w-12 h-12 rounded-xl bg-green-50 text-green-600 flex items-center justify-center mb-4">
-<span class="material-symbols-outlined">chat_bubble</span>
-</div>
-<h4 class="font-bold text-on-surface mb-2">WhatsApp</h4>
-<p class="text-sm text-on-surface-variant">Nhắn tin an toàn, tự động trên ứng dụng chat phổ biến nhất thế giới.</p>
-</div>
-</div>
-</div>
-</div>
-</section><section class="py-stack-2xl px-margin-mobile md:px-margin-desktop relative" id="pricing">
-<div class="max-w-container-max mx-auto z-10 relative">
-<div class="text-center max-w-3xl mx-auto mb-stack-xl">
-<span class="px-4 py-1.5 rounded-full bg-purple-100 text-purple-700 font-bold text-sm tracking-wider uppercase mb-4 inline-block">Không phí ẩn</span>
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">Mở rộng quy mô không giới hạn</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant mb-8">Giá cả minh bạch, đơn giản để nạp năng lượng cho đội ngũ của bạn.</p>
-<div class="flex items-center justify-center mb-12">
-<div class="relative inline-block w-48 align-middle select-none transition duration-200 ease-in bg-gray-200 rounded-full">
-<input class="toggle-checkbox absolute block w-24 h-10 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 opacity-0" id="pricing-toggle" name="toggle" onchange="togglePricing()" type="checkbox"/>
-<label class="toggle-label block overflow-hidden h-10 rounded-full bg-surface-container cursor-pointer relative" for="pricing-toggle">
-<div class="absolute inset-y-0 left-0 w-1/2 flex items-center justify-center text-sm font-bold text-on-surface transition-colors z-20">Hàng tháng</div>
-<div class="absolute inset-y-0 right-0 w-1/2 flex items-center justify-center text-sm font-bold text-on-surface transition-colors z-20">Hàng năm</div>
-<div class="absolute top-1 left-1 bg-white w-[calc(50%-4px)] h-8 rounded-full shadow-md transition-transform duration-300 ease-in-out z-10 toggle-slider"></div>
-</label>
-</div>
-<style>
-                        #pricing-toggle:checked ~ label .toggle-slider {
-                            transform: translateX(100%);
-                        }
-                    </style>
-<span class="ml-4 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full uppercase tracking-wider">Tiết kiệm 20%</span>
-</div>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto items-center">
-<!-- Pro Plan -->
-<div class="glass-card rounded-[32px] p-stack-lg bg-white/80 border-2 border-transparent hover:border-blue-200">
-<h3 class="font-headline-lg text-2xl font-bold text-on-surface mb-2">Startup Hustle</h3>
-<p class="font-body-sm text-on-surface-variant mb-6">Hoàn hảo cho các nhóm nhỏ đang khởi động tăng trưởng.</p>
-<div class="mb-8">
-<span class="font-display-lg-mobile text-5xl font-black text-on-background" id="startup-price">$499</span>
-<span class="font-body-md text-on-surface-variant font-medium" id="startup-label">/tháng</span>
-</div>
-<ul class="space-y-4 mb-8">
-<li class="flex items-center gap-3 font-body-md font-medium text-on-surface"><span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center material-symbols-outlined text-sm">check</span> 1 Agent Chuyên trách</li>
-<li class="flex items-center gap-3 font-body-md font-medium text-on-surface"><span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center material-symbols-outlined text-sm">check</span> Cơ sở Tri thức Cốt lõi</li>
-<li class="flex items-center gap-3 font-body-md font-medium text-on-surface"><span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center material-symbols-outlined text-sm">check</span> Hỗ trợ Tiêu chuẩn</li>
-</ul>
-<button class="w-full py-4 rounded-full bg-blue-50 text-secondary font-bold text-lg hover:bg-blue-100 transition-colors">Bắt đầu xây dựng</button>
-</div>
-<!-- Enterprise Plan -->
-<div class="rounded-[32px] p-stack-lg bg-gradient-to-br from-secondary to-purple-600 text-white shadow-2xl relative transform md:-translate-y-4 border-4 border-white/20 backdrop-blur-xl">
-<div class="absolute -top-4 right-8 bg-gradient-to-r from-cyan-400 to-blue-400 text-white px-4 py-1.5 rounded-full font-bold uppercase tracking-widest text-xs shadow-lg">Không giới hạn</div>
-<h3 class="font-headline-lg text-2xl font-bold text-white mb-2">Quy mô Doanh nghiệp</h3>
-<p class="font-body-sm text-blue-100 mb-6">Quy mô thay thế toàn bộ đội ngũ làm việc.</p>
-<div class="mb-8 flex items-end">
-<span class="font-display-lg-mobile text-5xl font-black text-white" id="enterprise-price">Tùy chỉnh</span>
-</div>
-<ul class="space-y-4 mb-8">
-<li class="flex items-center gap-3 font-body-md font-medium"><span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center material-symbols-outlined text-sm">check</span> Không giới hạn Agent</li>
-<li class="flex items-center gap-3 font-body-md font-medium"><span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center material-symbols-outlined text-sm">check</span> Điều phối Đa Agent</li>
-<li class="flex items-center gap-3 font-body-md font-medium"><span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center material-symbols-outlined text-sm">check</span> Kết nối Slack 24/7 Ưu tiên</li>
-</ul>
-<button class="w-full py-4 rounded-full bg-white text-secondary font-black text-lg hover:bg-gray-50 transition-colors shadow-lg">Liên hệ Bán hàng</button>
-</div>
-</div>
-</div>
-</section>
-<!-- APP DOWNLOADS -->
-<section class="py-stack-2xl px-margin-mobile md:px-margin-desktop bg-surface-container-low" id="downloads">
-<div class="max-w-container-max mx-auto">
-<div class="text-center max-w-3xl mx-auto mb-stack-xl">
-<div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-md text-label-sm font-bold uppercase tracking-widest mb-5">
-<span class="material-symbols-outlined text-base">download</span>
-                            Bản mới nhất
-                        </div>
-<h2 class="font-headline-xl text-headline-xl text-on-background mb-stack-sm">Tải Schools AI cho thiết bị của bạn</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Các bản cài được tự động build và cập nhật từ GitHub. Chọn đúng hệ điều hành để tải xuống.</p>
-</div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
-<a class="glass-card rounded-3xl p-7 flex flex-col min-h-[260px]" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-Android.apk">
-<div class="w-14 h-14 rounded-2xl bg-green-100 text-green-700 flex items-center justify-center mb-6"><span class="material-symbols-outlined text-3xl">android</span></div>
-<h3 class="font-headline-lg text-2xl text-on-surface mb-2">Android</h3>
-<p class="text-on-surface-variant mb-6 flex-1">File APK cài trực tiếp trên điện thoại và máy tính bảng Android.</p>
-<span class="font-bold text-secondary inline-flex items-center gap-2">Tải APK <span class="material-symbols-outlined">download</span></span>
-</a>
-<a class="glass-card rounded-3xl p-7 flex flex-col min-h-[260px]" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-Windows-x64.zip">
-<div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center mb-6"><span class="material-symbols-outlined text-3xl">window</span></div>
-<h3 class="font-headline-lg text-2xl text-on-surface mb-2">Windows</h3>
-<p class="text-on-surface-variant mb-6 flex-1">Bản Windows 64-bit dạng portable, tải về và giải nén để chạy.</p>
-<span class="font-bold text-secondary inline-flex items-center gap-2">Tải Windows <span class="material-symbols-outlined">download</span></span>
-</a>
-<a class="glass-card rounded-3xl p-7 flex flex-col min-h-[260px]" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-macOS-unsigned.dmg">
-<div class="w-14 h-14 rounded-2xl bg-gray-200 text-gray-800 flex items-center justify-center mb-6"><span class="material-symbols-outlined text-3xl">laptop_mac</span></div>
-<h3 class="font-headline-lg text-2xl text-on-surface mb-2">macOS</h3>
-<p class="text-on-surface-variant mb-6 flex-1">Bản DMG thử nghiệm. macOS có thể hiện cảnh báo cho đến khi hoàn tất ký ứng dụng.</p>
-<span class="font-bold text-secondary inline-flex items-center gap-2">Tải DMG <span class="material-symbols-outlined">download</span></span>
-</a>
-<a class="glass-card rounded-3xl p-7 flex flex-col min-h-[260px]" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-iOS-unsigned.zip">
-<div class="w-14 h-14 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center mb-6"><span class="material-symbols-outlined text-3xl">phone_iphone</span></div>
-<h3 class="font-headline-lg text-2xl text-on-surface mb-2">iOS</h3>
-<p class="text-on-surface-variant mb-6 flex-1">Bản kỹ thuật chưa ký dành cho kiểm thử; khách hàng sẽ cài qua TestFlight/App Store sau khi ký.</p>
-<span class="font-bold text-secondary inline-flex items-center gap-2">Tải bản kiểm thử <span class="material-symbols-outlined">download</span></span>
-</a>
-</div>
-<p class="text-center text-sm text-on-surface-variant mt-8">Bạn cũng có thể xem toàn bộ phiên bản và ghi chú cập nhật tại <a class="font-bold text-secondary hover:underline" href="https://github.com/nhannguyenalien/chatschoolsai/releases">GitHub Releases</a>.</p>
-</div>
-</section>
-<!-- FINAL CTA -->
-<section class="py-stack-2xl px-margin-mobile md:px-margin-desktop relative overflow-hidden mb-8">
-<div class="max-w-5xl mx-auto bg-gradient-to-r from-cyan-400 via-secondary to-purple-500 rounded-[40px] p-12 md:p-20 text-center relative shadow-2xl border-4 border-white">
-<div class="absolute inset-0 bg-white/10 backdrop-blur-sm rounded-[36px]"></div>
-<div class="relative z-10">
-<h2 class="font-display-lg-mobile md:font-headline-xl text-[40px] md:text-[56px] text-white font-black mb-6 leading-tight tracking-tight">Sẵn sàng thống trị thị trường của bạn?</h2>
-<p class="font-body-lg text-white/90 font-medium mb-10 max-w-2xl mx-auto text-xl">Ngừng lãng phí thời gian vào các tác vụ thủ công. Triển khai đội ngũ AI của bạn ngay hôm nay và theo dõi các chỉ số của bạn bùng nổ.</p>
-<button class="px-10 py-5 rounded-full bg-white text-secondary font-black text-xl hover:scale-105 transition-transform shadow-xl inline-flex items-center gap-3">
-                        Bắt đầu hành trình AI ngay
-                        <span class="material-symbols-outlined font-bold">bolt</span>
+<button data-demo="content" aria-pressed="false">
+<span data-copy="tab_content" >Nội dung</span>
+</button>
+<button data-demo="loyalty" aria-pressed="false">
+<span data-copy="tab_loyalty" >Tích điểm</span>
 </button>
 </div>
+<div class="demo" aria-live="polite">
+<div class="bubble user" id="demo-question">
+</div>
+<div class="ai-response">
+<span class="mini-mark">✳</span>
+<div>
+<strong>Schools AI</strong>
+<p id="demo-answer">
+</p>
+<span class="source" id="demo-source">
+</span>
+</div>
+</div>
+</div>
+<div class="preview-bottom">
+<span class="status-dot">
+</span>
+<span data-copy="demo_label" >Nội dung minh họa · Khám phá bằng các thẻ phía trên</span>
+</div>
+</div>
+</div>
+<div class="floating-note">
+<span aria-hidden="true">↗</span>
+<div>
+<strong data-copy="float_title" >Thêm thời gian sáng tạo</strong>
+<small data-copy="float_sub" >Bớt những việc lặp lại</small>
+</div>
+</div>
+</div>
+</section>
+<section class="channels container">
+<p data-copy="channels" class="eyebrow">KẾT NỐI NHỮNG CÔNG CỤ BẠN ĐANG DÙNG</p>
+<div>
+<span>Messenger</span>
+<span>Instagram</span>
+<span>Zalo</span>
+<span>WordPress</span>
+<span>Sanity</span>
+<a href="https://apic.schoolsai.work/docs#marketplace">API ↗</a>
+</div>
+</section>
+<section class="container video-section" id="videos">
+<div class="section-heading">
+<div>
+<p data-copy="video_kicker" class="eyebrow">XEM SCHOOLS AI HOẠT ĐỘNG</p>
+<h2 data-copy="video_heading" >Một góc nhìn. Nhiều cảm hứng.</h2>
+</div>
+<p data-copy="video_intro" >Khám phá trải nghiệm thực tế qua các video giới thiệu và hướng dẫn.</p>
+</div>
+<div class="video-grid">
+<article class="video-card">
+<button class="video-cover" data-video="overview" aria-label="Phát video">
+<span class="cover-art" aria-hidden="true">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</span>
+<span class="play" aria-hidden="true">▶</span>
+<span data-copy="video_soon" class="video-placeholder">Video sắp ra mắt</span>
+</button>
+<h3 data-copy="video_overview" >Gặp gỡ cộng sự AI của bạn</h3>
+<p data-copy="video_desc_overview" >Khám phá không gian làm việc cùng Schools AI.</p>
+<p class="video-status" role="status">
+</p>
+</article>
+<article class="video-card">
+<button class="video-cover" data-video="walkthrough" aria-label="Phát video">
+<span class="cover-art" aria-hidden="true">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</span>
+<span class="play" aria-hidden="true">▶</span>
+<span data-copy="video_soon" class="video-placeholder">Video sắp ra mắt</span>
+</button>
+<h3 data-copy="video_walkthrough" >Từ cuộc chat đến hành động</h3>
+<p data-copy="video_desc_walkthrough" >Xem cách kết nối tri thức và chăm sóc khách hàng.</p>
+<p class="video-status" role="status">
+</p>
+</article>
+</div>
+</section>
+<section class="section container" id="features">
+<div class="section-heading">
+<div>
+<p data-copy="feature_kicker" class="eyebrow">ÍT THAO TÁC HƠN. NHIỀU KHẢ NĂNG HƠN.</p>
+<h2 data-copy="feature_heading" >Một bộ công cụ. Nhiều cách bứt phá.</h2>
+</div>
+<p data-copy="feature_intro" >Từ cuộc trò chuyện đầu tiên đến lần khách quay lại tiếp theo.</p>
+</div>
+<div class="feature-grid">
+<article class="feature-card tone-0">
+<div class="illustration" aria-hidden="true">
+<div class="mini-panel">
+<div class="mini-line short">
+</div>
+<div class="mini-bubble">
+</div>
+<div class="mini-bubble">
+</div>
+<div class="mini-line">
+</div>
+</div>
+</div>
+<span class="feature-icon" aria-hidden="true">✳</span>
+<h3 data-copy="chat_title" >Hội thoại có ngữ cảnh</h3>
+<p data-copy="chat_desc" >Trả lời từ kho kiến thức, ghi nhớ ngữ cảnh khách hàng và chuyển tiếp cho nhân viên khi cần.</p>
+<a data-copy="chat_link" href="https://apic.schoolsai.work/docs#post-chat">Khám phá tính năng ↗</a>
+</article>
+<article class="feature-card tone-1">
+<div class="illustration" aria-hidden="true">
+<span class="voice-circle">◉</span>
+<div class="bars">
+<i style="--height:15px">
+</i>
+<i style="--height:30px">
+</i>
+<i style="--height:50px">
+</i>
+<i style="--height:65px">
+</i>
+<i style="--height:35px">
+</i>
+<i style="--height:55px">
+</i>
+<i style="--height:75px">
+</i>
+<i style="--height:42px">
+</i>
+<i style="--height:23px">
+</i>
+</div>
+</div>
+<span class="feature-icon" aria-hidden="true">◉</span>
+<h3 data-copy="voice_title" >Nói chuyện với AI</h3>
+<p data-copy="voice_desc" >Hội thoại AI bằng giọng nói theo từng lượt. Kết nối cuộc gọi trực tiếp giữa nhân viên và khách hàng.</p>
+<a data-copy="voice_link" href="https://apic.schoolsai.work/docs#post-ai-voice-turn">Khám phá tính năng ↗</a>
+</article>
+<article class="feature-card tone-2">
+<div class="illustration" aria-hidden="true">
+<div class="calendar">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+</div>
+<span class="feature-icon" aria-hidden="true">↗</span>
+<h3 data-copy="content_title" >Từ ý tưởng đến bài đăng</h3>
+<p data-copy="content_desc" >Lập kế hoạch nội dung, tạo bài SEO, dịch, duyệt và lên lịch đăng trên các kênh đã kết nối.</p>
+<a data-copy="content_link" href="https://apic.schoolsai.work/docs#post-content-cluster">Khám phá tính năng ↗</a>
+</article>
+<article class="feature-card tone-3">
+<div class="illustration" aria-hidden="true">
+<div class="reward">★</div>
+<div class="mini-panel" style="width:95px">
+<div class="mini-line">
+</div>
+<div class="mini-line short">
+</div>
+<span>+ ✦ ✦ ✦</span>
+</div>
+</div>
+<span class="feature-icon" aria-hidden="true">♡</span>
+<h3 data-copy="loyalty_title" >Cho khách lý do quay lại</h3>
+<p data-copy="loyalty_desc" >Quản lý khách hàng thân thiết, tích và đổi điểm, cùng các chiến dịch quay thưởng.</p>
+<a data-copy="loyalty_link" href="https://apic.schoolsai.work/docs#loyalty">Khám phá tính năng ↗</a>
+</article>
+<article class="feature-card tone-4">
+<div class="illustration" aria-hidden="true">
+<div class="mini-panel">
+<span style="font-size:30px">▤</span>
+<div class="mini-line">
+</div>
+<div class="mini-line short">
+</div>
+</div>
+<span class="mini-mark">✳</span>
+</div>
+<span class="feature-icon" aria-hidden="true">▧</span>
+<h3 data-copy="learn_title" >Mỗi bài học, một trợ lý</h3>
+<p data-copy="learn_desc" >Tạo bot theo nội dung từng bài học và trợ lý chung cho toàn bộ khóa học.</p>
+<a data-copy="learn_link" href="https://apic.schoolsai.work/docs#post-lessons">Khám phá tính năng ↗</a>
+</article>
+<article class="feature-card tone-5">
+<div class="illustration" aria-hidden="true">
+<div class="mini-nodes">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+</div>
+<span class="feature-icon" aria-hidden="true">⌘</span>
+<h3 data-copy="workspace_title" >Một nơi, nhiều workspace</h3>
+<p data-copy="workspace_desc" >Quản lý các workspace riêng biệt, kết nối API bên ngoài và cấu hình bằng hội thoại với Agent.</p>
+<a data-copy="workspace_link" href="https://apic.schoolsai.work/docs#get-account-workspaces">Khám phá tính năng ↗</a>
+</article>
+</div>
+</section>
+<section class="how-section" id="how">
+<div class="container section">
+<div class="section-heading">
+<div>
+<p data-copy="how_kicker" class="eyebrow">BẮT ĐẦU THẬT ĐƠN GIẢN</p>
+<h2 data-copy="how_heading" >Từ ý tưởng đến cộng sự AI.</h2>
+</div>
+<button data-copy="how_cta" class="button" data-login>Tạo không gian của bạn ↗</button>
+</div>
+<div class="steps">
+<article>
+<span class="step-number">01</span>
+<h3 data-copy="step0" >Mang tri thức của bạn vào</h3>
+<p data-copy="step_desc0" >Thêm tài liệu và nội dung để AI trả lời đúng ngữ cảnh.</p>
+</article>
+<article>
+<span class="step-number">02</span>
+<h3 data-copy="step1" >Kết nối và cá nhân hóa</h3>
+<p data-copy="step_desc1" >Chọn kênh, thiết lập trợ lý và tùy chỉnh trải nghiệm chat.</p>
+</article>
+<article>
+<span class="step-number">03</span>
+<h3 data-copy="step2" >Sẵn sàng làm việc cùng nhau</h3>
+<p data-copy="step_desc2" >Theo dõi hội thoại, duyệt nội dung và chăm sóc khách hàng trong dashboard.</p>
+</article>
+</div>
+</div>
+</section>
+<section id="downloads" class="section container">
+<div class="section-heading">
+<div>
+<p data-copy="download_kicker" class="eyebrow">Ở ĐÂU CŨNG CÓ ĐỒNG ĐỘI</p>
+<h2 data-copy="download_heading" >Làm việc theo nhịp của bạn.</h2>
+</div>
+<a data-copy="releases" class="text-link" href="https://github.com/nhannguyenalien/chatschoolsai/releases">Xem các phiên bản ↗</a>
+</div>
+<div class="download-grid">
+<a class="download-card" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-Android.apk">
+<strong>Android</strong>
+<span data-copy="download_Android" >Tải APK cài trực tiếp ↗</span>
+</a>
+<a class="download-card" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-Windows-x64.zip">
+<strong>Windows</strong>
+<span data-copy="download_Windows" >Bản portable 64-bit ↗</span>
+</a>
+<a class="download-card" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-macOS-unsigned.dmg">
+<strong>macOS</strong>
+<span data-copy="download_macOS" >Bản DMG thử nghiệm, chưa ký ↗</span>
+</a>
+<a class="download-card" href="https://github.com/nhannguyenalien/chatschoolsai/releases/download/client-latest/Schools-AI-iOS-unsigned.zip">
+<strong>iOS</strong>
+<span data-copy="download_iOS" >Bản kỹ thuật chưa ký, dành cho kiểm thử ↗</span>
+</a>
+</div>
+</section>
+<section class="container faq-section">
+<h2 data-copy="faq_heading" >Bạn có thể đang tò mò…</h2>
+<div>
+<details>
+<summary data-copy="faq_q0" >Schools AI làm được những gì?</summary>
+<p data-copy="faq_a0" >Hỗ trợ hội thoại dựa trên tri thức, AI giọng nói, nội dung đa kênh, khách hàng thân thiết và bot bài học. Bạn chọn tính năng phù hợp với workspace của mình.</p>
+</details>
+<details>
+<summary data-copy="faq_q1" >Tôi có thể kết nối hệ thống sẵn có không?</summary>
+<p data-copy="faq_a1" >Có. API hỗ trợ kết nối dữ liệu khách hàng, tin nhắn chủ động và công cụ tra cứu bên ngoài. Tài liệu API có hướng dẫn xác thực và từng endpoint.</p>
+</details>
+<details>
+<summary data-copy="faq_q2" >Gói dịch vụ và hạn mức được xem ở đâu?</summary>
+<p data-copy="faq_a2" >Đăng nhập và mở mục Thanh toán để xem gói dịch vụ, hạn mức và mức sử dụng của tài khoản.</p>
+</details>
+</div>
+</section>
+<section class="container final-wrap">
+<div class="final-cta">
+<span class="cta-star" aria-hidden="true">✳</span>
+<div>
+<h2 data-copy="final_heading" >Việc hay đang chờ bạn.</h2>
+<p data-copy="final_desc" >Để Schools AI giúp bạn bắt đầu.</p>
+</div>
+<button data-copy="final_start" class="button primary" data-login>Cùng bắt đầu nhé ↗</button>
 </div>
 </section>
 </main>
-<!-- Footer -->
-<footer class="bg-white pt-stack-xl pb-8 border-t border-gray-100">
-<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-12">
-<div class="col-span-1 md:col-span-1">
-<div class="text-headline-lg font-display-lg text-on-surface mb-6 flex items-center gap-2 font-black">
-<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-secondary to-cyan-400 flex items-center justify-center text-white">
-<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">neurology</span>
-</div>
-                    AIAgentic
-                </div>
-<p class="font-body-md text-on-surface-variant font-medium mb-6">Xây dựng tương lai siêu hiệu quả của tự động hóa doanh nghiệp.</p>
-</div>
-<div class="col-span-1 md:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-8">
-<div>
-<h4 class="font-label-md text-label-md text-on-surface mb-6 font-bold uppercase tracking-wider">Các Agent</h4>
-<ul class="space-y-4">
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Hỗ trợ Gen</a></li>
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Nội dung Gen</a></li>
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Bán hàng Gen</a></li>
-</ul>
-</div>
-<div>
-<h4 class="font-label-md text-label-md text-on-surface mb-6 font-bold uppercase tracking-wider">Về chúng tôi</h4>
-<ul class="space-y-4">
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Câu chuyện của chúng tôi</a></li>
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Nghề nghiệp (Chúng tôi đang tuyển dụng!)</a></li>
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Liên hệ</a></li>
-</ul>
-</div>
-<div class="col-span-2 md:col-span-1">
-<h4 class="font-label-md text-label-md text-on-surface mb-6 font-bold uppercase tracking-wider">Pháp lý</h4>
-<ul class="space-y-4">
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Bảo mật</a></li>
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">Điều khoản</a></li>
-<li><a class="font-body-sm font-medium text-on-surface-variant hover:text-secondary transition-colors" href="#">An ninh</a></li>
-</ul>
-</div>
-</div>
-</div>
-<div class="text-center pt-8 border-t border-gray-100">
-<p class="font-body-sm font-medium text-gray-400">© 2024 AIAgentic. Đã đăng ký Bản quyền. Luôn táo bạo.</p>
-</div>
+<footer class="container">
+<a class="brand" href="landing.html">schools<span class="brand-ai">ai</span>.</a>
+<p data-copy="footer" >© 2026 Schools AI. Cùng bạn làm điều hay.</p>
+<a data-copy="docs" href="https://apic.schoolsai.work/docs">Tài liệu API ↗</a>
 </footer>
-
-<div id="login-modal" class="hidden">
-    <div class="login-card">
-        <h2 class="text-2xl font-bold mb-2 text-gray-800">Chào mừng trở lại</h2>
-        <p class="text-gray-500 mb-6">Đăng nhập để truy cập Dashboard của bạn</p>
-        
-        <button id="btn-login-google" class="btn-google">
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" class="w-5 h-5" />
-            Tiếp tục với Google
-        </button>
-
-        <div class="login-divider">hoặc</div>
-        <form id="password-login-form">
-            <input id="login-email" class="login-input" type="email" autocomplete="email" placeholder="Email" required>
-            <input id="login-password" class="login-input" type="password" autocomplete="current-password" placeholder="Mật khẩu" required>
-            <button id="btn-password-login" class="btn-password-login" type="submit">Đăng nhập bằng email</button>
-            <p id="login-error" class="login-error hidden" role="alert"></p>
-        </form>
-        
-        <button onclick="closeLoginModal()" class="mt-4 text-sm text-gray-400 hover:text-gray-600">
-            Đóng
-        </button>
-    </div>
+<dialog id="login-modal" aria-labelledby="login-title">
+<div class="login-card">
+<button data-copy="close" class="close-dialog" id="close-login">Đóng ✕</button>
+<span class="brand-mark" aria-hidden="true">✳</span>
+<h2 data-copy="welcome" id="login-title">Chào mừng trở lại</h2>
+<p data-copy="login_sub" >Không gian AI của bạn đang chờ.</p>
+<button data-copy="google" id="btn-login-google" class="button google">Tiếp tục với Google</button>
+<p data-copy="or" class="divider">hoặc đăng nhập bằng email</p>
+<form id="password-login-form">
+<label data-copy="email" for="login-email">Email</label>
+<input id="login-email" type="email" autocomplete="email" required>
+<label data-copy="password" for="login-password">Mật khẩu</label>
+<input id="login-password" type="password" autocomplete="current-password" required>
+<button data-copy="password_login" id="btn-password-login" class="button primary" type="submit">Đăng nhập</button>
+</form>
+<p id="login-error" role="alert" hidden>
+</p>
 </div>
-
-<script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
-
-<script src="_shared/config.js"></script>
-<script src="_shared/auth.js"></script>
-
-<script>
-    // 3. Nếu mở trang Landing mà ĐÃ ĐĂNG NHẬP -> Đá thẳng vào Dashboard index.html luôn
-    // Dùng window.PB để trình duyệt không báo lỗi "is not defined"
-    document.addEventListener("DOMContentLoaded", () => {
-        if (window.PB && window.PB.authStore.isValid) {
-            window.location.href = "index.html";
-        }
-    });
-
-    // 4. Logic bật/tắt Modal Đăng Nhập trên Landing
-    const loginModal = document.getElementById("login-modal");
-    function openLoginModal(e) {
-        if (e) e.preventDefault();
-        loginModal.classList.remove("hidden");
-    }
-    function closeLoginModal() {
-        loginModal.classList.add("hidden");
-    }
-
-    // Tự động quét các nút CTA trên Landing để gắn sự kiện bật Modal Login
-    document.addEventListener("DOMContentLoaded", () => {
-        const allButtons = document.querySelectorAll("button");
-        const ctaButtons = Array.from(allButtons).filter(btn => 
-            btn.textContent.includes('Bắt đầu') || 
-            btn.textContent.includes('Kích hoạt')
-        );
-        ctaButtons.forEach(btn => btn.addEventListener("click", openLoginModal));
-        
-        const navBtn = document.querySelector("nav button");
-        if (navBtn) navBtn.addEventListener("click", openLoginModal);
-    });
-
-    // 5. Logic Đăng nhập bằng Google OAuth2
-    document.getElementById('btn-login-google')?.addEventListener('click', async () => {
-        try {
-            if (!window.PB) throw new Error("Thư viện hệ thống chưa được tải!");
-            
-            const authMethods = await window.PB.collection('tenants').listAuthMethods();
-            const providers = authMethods.oauth2?.providers || authMethods.authProviders || [];
-            const googleProvider = providers.find(p => p.name === 'google');
-
-            if (!googleProvider) throw new Error("Chưa cấu hình Google Auth trên Admin");
-
-            localStorage.setItem('provider', JSON.stringify(googleProvider));
-            
-            // Chuyển hướng sang trang login Google
-            window.location.href = googleProvider.authUrl + window.location.origin;
-        } catch (err) {
-            alert(err.message || "Lỗi kết nối Google.");
-        }
-    });
-
-    // 6. Đăng nhập bằng mật khẩu đã tạo sau lần xác thực Google.
-    document.getElementById('password-login-form')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const button = document.getElementById('btn-password-login');
-        const errorEl = document.getElementById('login-error');
-        const email = document.getElementById('login-email').value.trim();
-        const password = document.getElementById('login-password').value;
-
-        errorEl.classList.add('hidden');
-        button.disabled = true;
-        button.textContent = 'Đang đăng nhập...';
-
-        try {
-            await window.PB.collection('tenants').authWithPassword(email, password);
-            const user = window.PB.authStore.model;
-            if (!user?.tenant) {
-                window.PB.authStore.clear();
-                throw new Error('Tài khoản chưa được cấp tenant.');
-            }
-            localStorage.setItem('loginMethod', 'password');
-            window.location.href = 'index.html';
-        } catch (err) {
-            errorEl.textContent = err?.status === 400
-                ? 'Email hoặc mật khẩu không đúng.'
-                : (err?.message || 'Không thể đăng nhập. Vui lòng thử lại.');
-            errorEl.classList.remove('hidden');
-            button.disabled = false;
-            button.textContent = 'Đăng nhập bằng email';
-        }
-    });
+</dialog>
+<script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js">
 </script>
-</body></html>
+<script src="_shared/config.js">
+</script>
+<script src="_shared/auth.js">
+</script>
+<script src="_shared/landing-videos.js?v=20260925-6lang">
+</script>
+<script src="_shared/landing.js?v=20260925-6lang">
+</script>
+</body>
+</html>

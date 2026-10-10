@@ -359,12 +359,9 @@ let _editModal, _detailModal;
 
 // ── BOOT ──
 (async () => {
-  if (!PB.authStore.isValid) { showLoginModal(); return; }
-  try { await PB.collection('tenants').authRefresh(); }
-  catch { PB.authStore.clear(); showLoginModal(); return; }
-  const user = PB.authStore.model;
-  if (!user.tenant) { PB.authStore.clear(); showLoginModal(); return; }
-  window.TENANT = user.tenant; window.AUTH_USER = user;
+  await requireAuth();
+  const user = window.AUTH_USER;
+  if (!user || !window.TENANT) return;
   hideLoginModal();
   renderSidebar(user);
   applyUserUI(user);
@@ -395,8 +392,9 @@ async function doLogin() {
   try {
     await PB.collection('tenants').authWithPassword(email, pass);
     const user=PB.authStore.model;
-    if (!user.tenant) throw new Error('Chưa được cấp tenant');
-    window.TENANT=user.tenant; window.AUTH_USER=user;
+    const tenantContext = await initializeTenantContext(user);
+    if (!tenantContext.activeTenant) throw new Error('Chưa được cấp tenant');
+    window.TENANT=tenantContext.activeTenant; window.AUTH_USER=user;
     hideLoginModal(); applyUserUI(user); await loadPosts();
   } catch(e) { showLoginError(e.message||'Sai tài khoản hoặc mật khẩu'); btn.disabled=false; btn.innerHTML='Đăng nhập'; }
 }

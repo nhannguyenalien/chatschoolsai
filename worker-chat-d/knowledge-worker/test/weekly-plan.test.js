@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   WeeklyPlanError, allocatePillarCounts, assertReadyForGeneration, buildWeeklyMessages, estimateWeeklyUnits,
-  interleaveByPillar, normalizePillars, normalizePlanConfig, parsePillars, parseWeeklyPosts, pickWeekSlots
+  interleaveByPillar, isAutoRunDue, localDayAndHour, normalizePillars, normalizePlanConfig, parsePillars, parseWeeklyPosts, pickWeekSlots, serializePlanConfig
 } from "../src/domain/content-plans/weeklyPlan.js";
 
 test("normalizePlanConfig dùng mặc định hợp lý và loại giá trị sai", () => {
@@ -98,4 +98,33 @@ test("buildWeeklyMessages nêu số bài theo từng nhóm, quy tắc của ch�
   assert.match(messages[1].content, /"Khuyến mãi" x 2/);
   assert.match(messages[1].content, /không dùng emoji/);
   assert.match(messages[1].content, /Bài cũ/);
+});
+
+test("normalizePlanConfig đọc cấu hình tự chạy hàng tuần với mặc định Chủ nhật 20:00, tắt", () => {
+  const off = normalizePlanConfig({});
+  assert.deepEqual([off.autoEnabled, off.autoDay, off.autoHour], [false, "sun", 20]);
+  const on = normalizePlanConfig({ auto_enabled: true, auto_day: "fri", auto_hour: 7 });
+  assert.deepEqual([on.autoEnabled, on.autoDay, on.autoHour], [true, "fri", 7]);
+  const bad = normalizePlanConfig({ auto_enabled: "yes", auto_day: "xyz", auto_hour: 99 });
+  assert.deepEqual([bad.autoEnabled, bad.autoDay, bad.autoHour], [false, "sun", 20]);
+  assert.equal(normalizePlanConfig({ auto_hour: 0 }).autoHour, 0);
+});
+
+test("serializePlanConfig rồi normalize lại giữ nguyên cấu hình", () => {
+  const original = normalizePlanConfig({ posts_per_week: 5, platforms: ["facebook"], pillars: [{ name: "A", weight: 3 }], auto_enabled: true, auto_day: "mon", auto_hour: 9, notes: "n" });
+  const again = normalizePlanConfig(JSON.stringify(serializePlanConfig(original)));
+  assert.deepEqual(again, original);
+});
+
+test("localDayAndHour và isAutoRunDue tính theo múi giờ của tenant", () => {
+  const sundayEvening = new Date("2026-10-11T13:30:00Z"); // 20:30 Chủ nhật giờ VN
+  assert.deepEqual(localDayAndHour(sundayEvening, "Asia/Ho_Chi_Minh"), { day: "sun", hour: 20 });
+  assert.deepEqual(localDayAndHour(sundayEvening, "UTC"), { day: "sun", hour: 13 });
+  const cfg = (extra) => normalizePlanConfig({ auto_enabled: true, auto_day: "sun", auto_hour: 20, timezone: "Asia/Ho_Chi_Minh", ...extra });
+  assert.equal(isAutoRunDue(cfg(), sundayEvening), true);
+  assert.equal(isAutoRunDue(cfg(), new Date("2026-10-11T12:59:00Z")), false); // 19:59 VN, chưa tới giờ
+  assert.equal(isAutoRunDue(cfg(), new Date("2026-10-11T16:30:00Z")), true); // 23:30 VN, chạy bù cùng ngày
+  assert.equal(isAutoRunDue(cfg(), new Date("2026-10-11T17:30:00Z")), false); // 00:30 thứ Hai VN
+  assert.equal(isAutoRunDue(cfg({ auto_enabled: false }), sundayEvening), false);
+  assert.equal(isAutoRunDue(cfg({ timezone: "UTC", auto_hour: 13 }), sundayEvening), true);
 });

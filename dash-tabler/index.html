@@ -13,7 +13,7 @@
     <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
     
     <script src="_shared/config.js"></script>
-    <script src="_shared/auth.js"></script>
+    <script src="_shared/auth.js?v=quota-20260927"></script>
     <script src="_shared/ui.js"></script>
     <script src="_shared/i18n.js?v=20261007-3"></script>
     <script src="_shared/sidebar.js"></script>
@@ -246,16 +246,21 @@
                             });
                         }
 
-                        if (!user.tenant) {
-                            PB.authStore.clear();
-                            throw new Error("Tài khoản Google chưa được gắn với cửa hàng. Liên hệ admin để cấp tenant.");
+                        localStorage.removeItem('provider');
+
+                        const tenantContext = await initializeTenantContext(user);
+                        if (!tenantContext.activeTenant) {
+                            // Không có tenant = tài khoản khách hàng, không phải lỗi — đưa sang
+                            // khu vực dành cho khách thay vì báo lỗi rồi đăng xuất.
+                            window.history.replaceState(null, '', window.location.pathname);
+                            window.location.href = "customer/";
+                            return;
                         }
 
-                        localStorage.removeItem('provider');
                         window.history.replaceState(null, '', window.location.pathname);
                         
                         // Set biến global như auth.js yêu cầu
-                        window.TENANT = user.tenant;
+                        window.TENANT = tenantContext.activeTenant;
                         window.AUTH_USER = user;
                         localStorage.setItem('loginMethod', 'google');
                     } catch (err) {
@@ -310,12 +315,13 @@
         try {
             await PB.collection("tenants").authWithPassword(emailInput, passwordInput);
             const user = PB.authStore.model;
-            if (!user.tenant) {
+            const tenantContext = await initializeTenantContext(user);
+            if (!tenantContext.activeTenant) {
                 PB.authStore.clear();
                 throw new Error("Tài khoản chưa được cấp tenant.");
             }
 
-            window.TENANT = user.tenant;
+            window.TENANT = tenantContext.activeTenant;
             window.AUTH_USER = user;
             localStorage.setItem('loginMethod', 'password');
 
@@ -356,10 +362,7 @@
 
     async function loadAllMessages() {
         try {
-            const rows = await PB.collection("messages").getList(1, 5000, { 
-                sort: "-created",
-                filter: `tenant = "${window.TENANT}"` 
-            });
+            const rows = await loadWorkspaceMessages(window.TENANT);
             allMessages = rows.items;
             
             renderStats();
@@ -367,6 +370,8 @@
             renderChart(7);
         } catch (err) {
             console.error("Lỗi lấy dữ liệu chat:", err);
+            document.getElementById("stat-total-messages").textContent = "Lỗi tải";
+            document.getElementById("top-sessions-list").textContent = "Không tải được tin nhắn. Vui lòng thử lại.";
         }
     }
 

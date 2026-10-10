@@ -286,18 +286,22 @@
     }
 
     async function persistChatMessage(role, content) {
-        try {
-            await PB.collection("agent_chat_messages").create({ tenant: tenantRef, role, content });
-        } catch (err) {
-            console.error("Lỗi lưu lịch sử chat:", err);
-        }
+        const response = await fetch(`${WORKER_URL}/api/v1/agent-chat/history`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${chatApiKey}` },
+            body: JSON.stringify({ role, content })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Lỗi ${response.status}`);
+        return data;
     }
 
     async function fetchHistoryPage(page) {
-        const result = await PB.collection("agent_chat_messages").getList(page, HISTORY_PAGE_SIZE, {
-            sort: "-created",
-            filter: `tenant="${tenantRef}"`
+        const response = await fetch(`${WORKER_URL}/api/v1/agent-chat/history?page=${page}`, {
+            headers: { Authorization: `Bearer ${chatApiKey}` }
         });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || `Lỗi ${response.status}`);
         historyTotalPages = result.totalPages;
         // items trả về mới nhất trước -> đảo lại cho đúng thứ tự thời gian trong trang này
         return result.items.slice().reverse().map(item => ({
@@ -313,6 +317,7 @@
             historyPage = 1;
         } catch (err) {
             chatHistory = [];
+            showToast("Lỗi tải lịch sử: " + err.message, "error");
         }
         renderChatMessages();
     }
@@ -354,7 +359,12 @@
         input.value = "";
         isSending = true;
         renderChatMessages();
-        persistChatMessage("user", text);
+        try {
+            await persistChatMessage("user", text);
+        } catch (err) {
+            console.error("Lỗi lưu tin nhắn người dùng:", err);
+            showToast("Không lưu được lịch sử: " + err.message, "error");
+        }
         const btn = document.getElementById("chat-send-btn");
         btn.disabled = true;
         try {
@@ -368,7 +378,12 @@
             const reply = data.reply || "(không có phản hồi)";
             if (data.pending_action) pendingProposals[data.pending_action.id] = { state: "pending" };
             chatHistory.push({ role: "assistant", content: reply, time: nowLabel(), pendingAction: data.pending_action || null });
-            persistChatMessage("assistant", reply);
+            try {
+                await persistChatMessage("assistant", reply);
+            } catch (err) {
+                console.error("Lỗi lưu phản hồi Agent:", err);
+                showToast("Agent đã trả lời nhưng chưa lưu được lịch sử: " + err.message, "error");
+            }
         } catch (err) {
             chatHistory.push({ role: "assistant", content: "Lỗi: " + err.message, error: true, time: nowLabel() });
         } finally {

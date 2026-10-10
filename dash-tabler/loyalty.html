@@ -105,6 +105,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
 <script>
   let loyaltyApiKey = '';
+  let loyaltyApiKeyPromise = null;
   let campaignCache = new Map();
   const money = new Intl.NumberFormat('vi-VN');
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -115,10 +116,22 @@
 
   async function getApiKey() {
     if (loyaltyApiKey) return loyaltyApiKey;
-    const result = await PB.collection('bot_configs').getList(1, 2, { filter: `tenant = "${window.TENANT}"` });
-    if (result.items.length !== 1 || !result.items[0].api_key) throw new Error('Hãy tạo API key trong trang Cấu hình bot trước.');
-    loyaltyApiKey = result.items[0].api_key;
-    return loyaltyApiKey;
+    // loadProgram() và loadCampaigns() chạy song song khi mở trang. PocketBase SDK
+    // tự hủy request trùng nhau, vì vậy dùng chung một promise thay vì tạo hai request.
+    if (!loyaltyApiKeyPromise) {
+      loyaltyApiKeyPromise = PB.collection('bot_configs')
+        .getList(1, 2, { filter: `tenant = "${window.TENANT}"` })
+        .then(result => {
+          if (result.items.length !== 1 || !result.items[0].api_key) throw new Error('Hãy tạo API key trong trang Cấu hình bot trước.');
+          loyaltyApiKey = result.items[0].api_key;
+          return loyaltyApiKey;
+        })
+        .catch(error => {
+          loyaltyApiKeyPromise = null;
+          throw error;
+        });
+    }
+    return loyaltyApiKeyPromise;
   }
 
   async function loyaltyFetch(path, options = {}) {

@@ -11,6 +11,51 @@
         return;
     }
 
+    // 0. GIAO DIỆN TUỲ CHỈNH — đọc từ thẻ <script>, dùng để dựng template ở widget.html.
+    // Không có đây thì widget vẫn chạy đúng như mặc định cũ (không phá override cũ trên web khách).
+    function shadeColor(hex, percent) {
+        const n = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+        if (!n) return hex;
+        const num = parseInt(n[1], 16);
+        const clamp = (v) => Math.max(0, Math.min(255, v));
+        const r = clamp(((num >> 16) & 0xff) + Math.round((percent / 100) * 255));
+        const g = clamp(((num >> 8) & 0xff) + Math.round((percent / 100) * 255));
+        const b = clamp((num & 0xff) + Math.round((percent / 100) * 255));
+        return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+    }
+    const accentColor = /^#[0-9a-f]{6}$/i.test(scriptTag.getAttribute('data-color') || '') ? scriptTag.getAttribute('data-color') : '#0050cb';
+    const accentColorDark = shadeColor(accentColor, -20);
+    const accentNum = parseInt(accentColor.slice(1), 16);
+    const accentRgb = `${(accentNum >> 16) & 0xff},${(accentNum >> 8) & 0xff},${accentNum & 0xff}`;
+    const side = scriptTag.getAttribute('data-position') === 'left' ? 'left' : 'right';
+    const windowRadius = Math.max(0, Math.min(28, parseInt(scriptTag.getAttribute('data-radius'), 10) || 12));
+    const bubbleRadius = Math.max(8, Math.min(24, windowRadius + 6));
+    // 'bubble' (mặc định, cũ) = cửa sổ nổi góc màn hình. 'sidebar' = panel cao hết màn hình,
+    // áp sát mép trái/phải như 1 thanh bên — cùng 1 file chat-widget.js phục vụ cả 2 kiểu, không
+    // cần 2 bản riêng, để chỉnh 1 chỗ (nhắn tin, gọi thoại...) là cả 2 kiểu đều được cập nhật.
+    const displayStyle = scriptTag.getAttribute('data-style') === 'sidebar' ? 'sidebar' : 'bubble';
+    const isSidebar = displayStyle === 'sidebar';
+    const windowPositionCSS = isSidebar
+        ? `top: 0; bottom: 0; ${side}: 0; width: 380px; height: 100vh;`
+        : `bottom: 1.5rem; ${side}: 1.5rem; width: 380px; height: 600px;`;
+    const windowRadiusCSS = isSidebar ? '0' : `${windowRadius}px`;
+    const windowShadowCSS = isSidebar ? `${side === 'right' ? '-12px' : '12px'} 0 40px rgba(0,0,0,0.16)` : '0 12px 48px rgba(0,0,0,0.14)';
+    const windowHiddenTransformCSS = isSidebar ? `translateX(${side === 'right' ? '100%' : '-100%'})` : 'scale(0) translateY(40px)';
+    const windowTransformOriginCSS = isSidebar ? `${side} center` : `bottom ${side}`;
+
+    // Đa ngôn ngữ cho GIAO DIỆN widget (khác với "response_language" của bot — đây chỉ là chữ
+    // trên nút/placeholder, không phải nội dung AI trả lời). Mặc định vi để không đổi hành vi cũ.
+    const WIDGET_I18N = {
+        vi: { subtitle: 'Hỗ trợ viên', close: 'Đóng', call: 'Gọi thoại cho hỗ trợ viên', mute: 'Tắt mic', unmute: 'Bật mic', end: 'Kết thúc', incomingTitle: 'Hỗ trợ viên', incoming: 'Đang gọi đến...', decline: 'Từ chối', accept: 'Nghe', placeholder: 'Nhập tin nhắn...', send: 'Gửi', footer: 'Được bảo vệ bởi Fluid Conversations', openChat: 'Mở chat', errConn: 'Lỗi kết nối tới AI.', errNetwork: 'Đường truyền có vấn đề. Vui lòng thử lại.' },
+        en: { subtitle: 'Support', close: 'Close', call: 'Call support', mute: 'Mute', unmute: 'Unmute', end: 'End', incomingTitle: 'Support', incoming: 'Incoming call...', decline: 'Decline', accept: 'Accept', placeholder: 'Type a message...', send: 'Send', footer: 'Protected by Fluid Conversations', openChat: 'Open chat', errConn: 'Connection error.', errNetwork: 'Connection issue. Please try again.' },
+        ja: { subtitle: 'サポート', close: '閉じる', call: 'サポートに電話', mute: 'ミュート', unmute: 'ミュート解除', end: '終了', incomingTitle: 'サポート', incoming: '着信中...', decline: '拒否', accept: '応答', placeholder: 'メッセージを入力...', send: '送信', footer: 'Fluid Conversations によって保護されています', openChat: 'チャットを開く', errConn: '接続エラーです。', errNetwork: '通信に問題があります。もう一度お試しください。' },
+        es: { subtitle: 'Soporte', close: 'Cerrar', call: 'Llamar a soporte', mute: 'Silenciar', unmute: 'Activar audio', end: 'Finalizar', incomingTitle: 'Soporte', incoming: 'Llamada entrante...', decline: 'Rechazar', accept: 'Aceptar', placeholder: 'Escribe un mensaje...', send: 'Enviar', footer: 'Protegido por Fluid Conversations', openChat: 'Abrir chat', errConn: 'Error de conexión.', errNetwork: 'Problema de conexión. Inténtalo de nuevo.' },
+        fr: { subtitle: 'Assistance', close: 'Fermer', call: "Appeler l'assistance", mute: 'Muet', unmute: 'Activer le son', end: 'Terminer', incomingTitle: 'Assistance', incoming: 'Appel entrant...', decline: 'Refuser', accept: 'Accepter', placeholder: 'Écrivez un message...', send: 'Envoyer', footer: 'Protégé par Fluid Conversations', openChat: 'Ouvrir le chat', errConn: 'Erreur de connexion.', errNetwork: 'Problème de connexion. Veuillez réessayer.' },
+        ko: { subtitle: '고객지원', close: '닫기', call: '상담원에게 전화', mute: '음소거', unmute: '음소거 해제', end: '종료', incomingTitle: '고객지원', incoming: '수신 전화 중...', decline: '거절', accept: '수락', placeholder: '메시지를 입력하세요...', send: '보내기', footer: 'Fluid Conversations 제공', openChat: '채팅 열기', errConn: '연결 오류입니다.', errNetwork: '연결에 문제가 있습니다. 다시 시도해 주세요.' },
+    };
+    const widgetLangKey = WIDGET_I18N[scriptTag.getAttribute('data-lang')] ? scriptTag.getAttribute('data-lang') : 'vi';
+    const wt = WIDGET_I18N[widgetLangKey];
+
     // 2. FONTS & CSS
     document.head.insertAdjacentHTML('beforeend', `
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -31,25 +76,24 @@
 
             #ai-chat-window {
                 position: fixed;
-                bottom: 1.5rem; right: 1.5rem;
-                width: 380px; height: 600px;
+                ${windowPositionCSS}
                 background: #f8f9ff;
-                border-radius: 12px;
+                border-radius: ${windowRadiusCSS};
                 overflow: hidden;
                 display: flex; flex-direction: column;
-                box-shadow: 0 12px 48px rgba(0,0,0,0.14);
+                box-shadow: ${windowShadowCSS};
                 z-index: 999999;
                 font-family: 'Inter', sans-serif;
                 transition: transform 0.3s cubic-bezier(0.2,0,0,1), opacity 0.3s cubic-bezier(0.2,0,0,1);
-                transform-origin: bottom right;
+                transform-origin: ${windowTransformOriginCSS};
             }
             #ai-chat-window.ai-hidden {
-                transform: scale(0) translateY(40px);
+                transform: ${windowHiddenTransformCSS};
                 opacity: 0;
                 pointer-events: none;
             }
             @media (max-width: 640px) {
-                #ai-chat-window { width: 100%; height: 100dvh; bottom: 0; right: 0; border-radius: 0; }
+                #ai-chat-window { width: 100%; height: 100dvh; bottom: 0; left: 0; right: 0; border-radius: 0; }
             }
 
             #ai-chat-header {
@@ -95,7 +139,7 @@
             #ai-call-bar {
                 display: none; align-items: center; justify-content: space-between; gap: 8px;
                 padding: 8px 16px; background: #eef4ff; border-bottom: 1px solid #dbe6ff;
-                font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: #0050cb;
+                font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: ${accentColor};
                 flex-shrink: 0;
             }
             #ai-call-bar.ai-call-visible { display: flex; }
@@ -168,16 +212,16 @@
                 background: #eceef3; color: #191c20;
                 font-size: 15px; line-height: 22px;
                 padding: 10px 14px;
-                border-radius: 18px 18px 18px 4px;
+                border-radius: ${bubbleRadius}px ${bubbleRadius}px ${bubbleRadius}px 4px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             }
 
             .ai-msg-user { display: flex; justify-content: flex-end; margin-top: 12px; max-width: 85%; align-self: flex-end; }
             .ai-msg-user .ai-bubble {
-                background: #0050cb; color: #ffffff;
+                background: ${accentColor}; color: #ffffff;
                 font-size: 15px; line-height: 22px;
                 padding: 10px 14px;
-                border-radius: 18px 18px 4px 18px;
+                border-radius: ${bubbleRadius}px ${bubbleRadius}px 4px ${bubbleRadius}px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.12);
             }
 
@@ -214,7 +258,7 @@
                 display: flex; align-items: center; justify-content: center;
                 color: #5c5f61; flex-shrink: 0; margin-bottom: 2px; transition: color 0.15s;
             }
-            #ai-input-row .ai-icon-btn:hover { color: #0050cb; }
+            #ai-input-row .ai-icon-btn:hover { color: ${accentColor}; }
             #ai-chat-input {
                 flex: 1; background: transparent; border: none; outline: none;
                 resize: none; font-family: 'Inter', sans-serif;
@@ -224,22 +268,22 @@
             #ai-chat-input::placeholder { color: #c2c6d8; }
             #ai-send-btn {
                 width: 36px; height: 36px; border-radius: 50%;
-                background: #0050cb; color: #fff;
+                background: ${accentColor}; color: #fff;
                 border: none; cursor: pointer; flex-shrink: 0;
                 display: flex; align-items: center; justify-content: center;
-                box-shadow: 0 2px 6px rgba(0,80,203,0.3);
+                box-shadow: 0 2px 6px rgba(${accentRgb},0.3);
                 transition: background 0.15s; margin-bottom: 2px;
             }
-            #ai-send-btn:hover { background: #003fa4; }
+            #ai-send-btn:hover { background: ${accentColorDark}; }
             #ai-footer-note { text-align: center; margin-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #727687; }
 
             #ai-btn-fab {
-                position: fixed; bottom: 1.5rem; right: 1.5rem;
+                position: fixed; bottom: 1.5rem; ${side}: 1.5rem;
                 width: 60px; height: 60px; border-radius: 50%;
-                background: #0050cb; color: #fff;
+                background: ${accentColor}; color: #fff;
                 border: none; cursor: pointer;
                 display: flex; align-items: center; justify-content: center;
-                box-shadow: 0 8px 24px rgba(0,80,203,0.35);
+                box-shadow: 0 8px 24px rgba(${accentRgb},0.35);
                 z-index: 999998;
                 transition: transform 0.2s, opacity 0.2s;
             }
@@ -251,7 +295,7 @@
     // 3. SESSION
     let session = localStorage.getItem('ai_session_' + tenant);
     if (!session) {
-        session = 'sess_' + Math.random().toString(36).substring(2, 11);
+        session = 'sess_' + crypto.randomUUID();
         localStorage.setItem('ai_session_' + tenant, session);
     }
 
@@ -268,14 +312,14 @@
                     </div>
                     <div>
                         <h2>${botName}</h2>
-                        <p>Hỗ trợ viên</p>
+                        <p>${wt.subtitle}</p>
                     </div>
                 </div>
                 <div id="ai-header-actions">
-                    <button id="ai-btn-call" title="Gọi thoại cho hỗ trợ viên">
+                    <button id="ai-btn-call" title="${wt.call}">
                         <span class="material-symbols-outlined" style="font-size:20px;">call</span>
                     </button>
-                    <button id="ai-btn-close" title="Đóng">
+                    <button id="ai-btn-close" title="${wt.close}">
                         <span class="material-symbols-outlined" style="font-size:20px;">close</span>
                     </button>
                 </div>
@@ -287,21 +331,21 @@
                     <span id="ai-call-timer" style="display:none;">00:00</span>
                 </div>
                 <div id="ai-call-actions">
-                    <button id="ai-call-mute" style="display:none;">Tắt mic</button>
-                    <button id="ai-call-end">Kết thúc</button>
+                    <button id="ai-call-mute" style="display:none;">${wt.mute}</button>
+                    <button id="ai-call-end">${wt.end}</button>
                 </div>
             </div>
             <div id="ai-incoming-call-overlay">
                 <div class="ai-incoming-avatar">
                     <span class="material-symbols-outlined" style="font-size:36px;">support_agent</span>
                 </div>
-                <h3>Hỗ trợ viên</h3>
-                <p>Đang gọi đến...</p>
+                <h3>${wt.incomingTitle}</h3>
+                <p>${wt.incoming}</p>
                 <div id="ai-incoming-call-actions">
-                    <button id="ai-incoming-decline" title="Từ chối">
+                    <button id="ai-incoming-decline" title="${wt.decline}">
                         <span class="material-symbols-outlined" style="font-size:26px;">call_end</span>
                     </button>
-                    <button id="ai-incoming-accept" title="Nghe">
+                    <button id="ai-incoming-accept" title="${wt.accept}">
                         <span class="material-symbols-outlined" style="font-size:26px;">call</span>
                     </button>
                 </div>
@@ -323,22 +367,22 @@
                     <button class="ai-icon-btn" tabindex="-1">
                         <span class="material-symbols-outlined" style="font-size:22px;">add_circle</span>
                     </button>
-                    <textarea id="ai-chat-input" placeholder="Nhập tin nhắn..." rows="1"></textarea>
-                    <button id="ai-send-btn" title="Gửi">
+                    <textarea id="ai-chat-input" placeholder="${wt.placeholder}" rows="1"></textarea>
+                    <button id="ai-send-btn" title="${wt.send}">
                         <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;font-size:20px;">send</span>
                     </button>
                 </div>
-                <div id="ai-footer-note">Được bảo vệ bởi Fluid Conversations</div>
+                <div id="ai-footer-note">${wt.footer}</div>
             </div>
         </div>
-        <button id="ai-btn-fab" title="Mở chat">
+        <button id="ai-btn-fab" title="${wt.openChat}">
             <span class="material-symbols-outlined" style="font-size:28px;">chat</span>
         </button>
     `;
     document.body.appendChild(root);
 
     // 5. CONSTANTS & DOM REFS
-    const WORKER_URL      = "https://knowledge-worker.toidayhoc.workers.dev";
+    const WORKER_URL      = "https://apic.schoolsai.work";
     const HISTORY_KEY     = 'ai_history_' + tenant + '_' + session;
     const MAX_HISTORY     = 60;
 
@@ -382,9 +426,9 @@
             return '<div style="position:relative;padding-bottom:56.25%;height:0;margin-top:8px;border-radius:10px;overflow:hidden;"><iframe src="https://www.youtube.com/embed/' + id + '" frameborder="0" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></div>';
         });
         // Markdown link
-        text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" style="color:#0050cb;text-decoration:underline;">$1</a>');
+        text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" style="color:${accentColor};text-decoration:underline;">$1</a>`);
         // URL trần
-        text = text.replace(/(?<![("'=])(https?:\/\/[^\s<"]+)/g, '<a href="$1" target="_blank" style="color:#0050cb;text-decoration:underline;">$1</a>');
+        text = text.replace(/(?<![("'=])(https?:\/\/[^\s<"]+)/g, `<a href="$1" target="_blank" style="color:${accentColor};text-decoration:underline;">$1</a>`);
         // Xuống dòng
         text = text.replace(/\n/g, '<br>');
         return text;
@@ -423,6 +467,10 @@
     
 
     function startRealtimeListener() {
+        // Public PocketBase subscriptions expose records across tenants. Realtime
+        // support is disabled until the Worker issues a scoped session token.
+        return;
+
         if (eventSource) return;
 
         eventSource = new EventSource("https://nhannguyen123-chat.hf.space/api/realtime");
@@ -725,7 +773,7 @@
         if (!callLocalStream) return;
         callMuted = !callMuted;
         callLocalStream.getAudioTracks().forEach(function(t) { t.enabled = !callMuted; });
-        callMuteBtn.textContent = callMuted ? 'Bật mic' : 'Tắt mic';
+        callMuteBtn.textContent = callMuted ? wt.unmute : wt.mute;
     }
 
     function handleCallRecord(record) {
@@ -822,7 +870,7 @@
             textarea.disabled = false;
             textarea.focus();
 
-            var reply = (data && data.reply) ? data.reply : "<span style='color:#ba1a1a'>Lỗi kết nối tới AI.</span>";
+            var reply = (data && data.reply) ? data.reply : "<span style='color:#ba1a1a'>" + wt.errConn + "</span>";
 
             // Render tin bot
             appendBotMessage(reply);
@@ -835,7 +883,7 @@
         } catch (err) {
             typingIndicator.style.display = 'none';
             textarea.disabled = false;
-            appendBotMessage("<span style='color:#ba1a1a'>Đường truyền có vấn đề. Vui lòng thử lại.</span>");
+            appendBotMessage("<span style='color:#ba1a1a'>" + wt.errNetwork + "</span>");
         }
         chatBody.scrollTop = chatBody.scrollHeight;
     }
