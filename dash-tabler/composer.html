@@ -494,7 +494,7 @@
           <div class="modal-body">
             <div class="mb-3">
               <label class="form-label">Tên gợi nhớ</label>
-              <input type="text" id="upload-media-label" class="form-control" placeholder="VD: Ảnh nội thất phòng khách">
+              <input type="text" id="upload-media-label" class="form-control" placeholder="Bỏ trống để AI tự mô tả ảnh (VD: Ảnh nội thất phòng khách)">
             </div>
             <div class="mb-3">
               <label class="form-label">Loại</label>
@@ -1472,7 +1472,7 @@
             : m.status === 'error' ? '<span class="badge bg-red-lt">Lỗi</span>' : '';
         const actionBtn = mode === 'picker'
             ? `<button class="btn btn-sm btn-primary w-100 pick-btn">Chọn</button>`
-            : `<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-secondary w-100 edit-media-btn" title="Đổi tên"><i class="ti ti-pencil"></i></button><button class="btn btn-sm btn-outline-danger w-100 delete-media-btn" title="Xóa"><i class="ti ti-trash"></i></button></div>`;
+            : `<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-secondary w-100 edit-media-btn" title="Đổi tên"><i class="ti ti-pencil"></i></button><button class="btn btn-sm btn-outline-primary w-100 describe-media-btn" title="AI tự mô tả ảnh (đặt tên theo nội dung)"><i class="ti ti-sparkles"></i></button><button class="btn btn-sm btn-outline-danger w-100 delete-media-btn" title="Xóa"><i class="ti ti-trash"></i></button></div>`;
         return `
           <div class="col-md-3">
             <div class="card">
@@ -1512,6 +1512,20 @@
                     loadMediaLibrary();
                 } catch (err) {
                     showToast('Lỗi đổi tên: ' + err.message, 'error');
+                }
+            });
+            col.querySelector('.describe-media-btn').addEventListener('click', async (event) => {
+                const btn = event.currentTarget;
+                btn.disabled = true;
+                try {
+                    const res = await fetch(`${WORKER_URL}/api/account/media/${m.id}/describe`, { method: 'POST', headers: { Authorization: PB.authStore.token } });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || res.status);
+                    showToast('AI đã đặt tên: ' + data.media.label, 'success');
+                    loadMediaLibrary();
+                } catch (err) {
+                    showToast('Lỗi AI mô tả ảnh: ' + err.message, 'error');
+                    btn.disabled = false;
                 }
             });
             col.querySelector('.delete-media-btn').addEventListener('click', async () => {

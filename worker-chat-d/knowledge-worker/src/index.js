@@ -1,5 +1,6 @@
 import { AccountQuotaStore, bonusRemaining, effectivePlan, messageLimit, storageLimit } from "./domain/billing/accountQuota.js";
 import { createMediaStore, MediaError } from "./domain/media/mediaStore.js";
+import { buildDescribeMessages, cleanDescription, isGenericLabel } from "./domain/media/imageLabel.js";
 import {
   IMAGE_MODES, allowsAi, buildImagePrompt, buildPickMessages, heuristicPick,
   normalizeImagePolicy, parsePickedItem, selectLibraryCandidates, usesLibrary
@@ -299,6 +300,11 @@ var index_default = {
       const accountMediaDeleteMatch = url.pathname.match(/^\/api\/account\/media\/([A-Za-z0-9]+)$/);
       if (accountMediaDeleteMatch && request.method === "DELETE") {
         return await handleAccountMediaDelete(request, env2, cors, accountMediaDeleteMatch[1]);
+      }
+      const accountMediaDescribeMatch = url.pathname.match(/^\/api\/account\/media\/([A-Za-z0-9]+)\/describe$/);
+      if (accountMediaDescribeMatch && request.method === "POST") {
+        const limited = enforceRateLimit(request, "media-describe", 60, 60 * 60 * 1000);
+        return limited || await handleAccountMediaDescribe(request, env2, cors, accountMediaDescribeMatch[1]);
       }
       if (accountMediaDeleteMatch && request.method === "PATCH") {
         return await handleAccountMediaUpdate(request, env2, cors, accountMediaDeleteMatch[1]);
@@ -2573,15 +2579,82 @@ async function handleAccountMediaUpload(request, env, cors) {
   const file = form.get("file");
   if (!file || typeof file === "string") return Response.json({ error: "Thiếu file" }, { status: 400, headers: cors });
   try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const tenant = String(form.get("tenant"));
+    let label = String(form.get("label") || "");
+    // Người dùng không đặt nhãn (hoặc chỉ là tên file/mã máy ảnh) -> AI nhìn ảnh và mô tả để chọn ảnh theo nội dung bài sau này.
+    if (isGenericLabel(label || file.name) && String(file.type || "").startsWith("image/")) {
+      label = await describeImageForLabel(env, access.token, tenant, bytes, file.type) || label;
+    }
     const stored = await createTenantMediaStore(env, access.token, access.account.id).store({
-      tenant: String(form.get("tenant")), bytes: new Uint8Array(await file.arrayBuffer()), contentType: file.type,
-      label: String(form.get("label") || file.name || ""), source: "upload"
+      tenant, bytes, contentType: file.type,
+      label: label || file.name || "", source: "upload"
     });
     return Response.json({ success: true, media: stored }, { status: 201, headers: cors });
   } catch (err) {
     return mediaErrorResponse(err, cors);
   }
 }
+
+// Nhờ AI (model có đọc ảnh) mô tả ảnh thành 1 nhãn ngắn. Không bao giờ ném lỗi: lỗi -> "" và giữ nhãn cũ.
+var IMAGE_LABEL_MAX_BYTES = 5 * 1024 * 1024;
+var IMAGE_LABEL_LANGUAGES = { vi: "Vietnamese", en: "English", ja: "Japanese", es: "Spanish", fr: "French", ko: "Korean", zh: "Chinese" };
+async function describeImageForLabel(env, pbToken, tenant, bytes, contentType) {
+  try {
+    if (!env.OPENAI_KEY || !bytes?.byteLength || bytes.byteLength > IMAGE_LABEL_MAX_BYTES) return "";
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(contentType || "")) return "";
+    const cfg = await loadTenantImageConfig(env, pbToken, tenant);
+    const language = IMAGE_LABEL_LANGUAGES[String(cfg?.response_language || "").toLowerCase()] || "Vietnamese";
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    const dataUrl = `data:${contentType};base64,${btoa(binary)}`;
+    const res = await createMeteredAiFetch(env, tenant, pbToken)(`${env.OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: env.OPENAI_VISION_MODEL || env.OPENAI_CHAT_MODEL || "gpt-4o-mini", messages: buildDescribeMessages(dataUrl, language) }),
+      timeout: 3e4
+    });
+    if (!res.ok) { console.error(`[Image] AI mô tả ảnh lỗi ${res.status}:`, (await res.text()).slice(0, 200)); return ""; }
+    const data = await res.json();
+    return cleanDescription(data.choices?.[0]?.message?.content);
+  } catch (err) {
+    console.error("[Image] Lỗi AI mô tả ảnh:", err);
+    return "";
+  }
+}
+__name(describeImageForLabel, "describeImageForLabel");
+
+// Mô tả lại 1 ảnh đã có trong thư viện bằng AI rồi cập nhật nhãn.
+async function handleAccountMediaDescribe(request, env, cors, id) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: cors });
+  const token = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records/${encodeURIComponent(id)}`, { headers: { Authorization: token } });
+  if (res.status === 404) return json({ error: "Not found" }, 404);
+  if (!res.ok) return json({ error: "Media unavailable" }, 503);
+  const record = await res.json();
+  const access = await resolveMediaTenantAccess(request, env, record.tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  if (record.type !== "image") return json({ error: "Chỉ mô tả được ảnh" }, 400);
+  let bytes = null;
+  let contentType = "";
+  if (record.r2_key && env.MEDIA_BUCKET) {
+    const object = await env.MEDIA_BUCKET.get(record.r2_key);
+    if (object) { bytes = new Uint8Array(await object.arrayBuffer()); contentType = object.httpMetadata?.contentType || ""; }
+  } else {
+    const fileUrl = record.url || (record.file ? `${env.PB_URL}/api/files/media_library/${record.id}/${encodeURIComponent(record.file)}` : "");
+    const file = fileUrl ? await fetchWithTimeout(fileUrl, { timeout: 2e4 }) : null;
+    if (file?.ok) { bytes = new Uint8Array(await file.arrayBuffer()); contentType = (file.headers.get("content-type") || "").split(";")[0]; }
+  }
+  if (!bytes) return json({ error: "Không đọc được file ảnh" }, 502);
+  const label = await describeImageForLabel(env, token, record.tenant, bytes, contentType);
+  if (!label) return json({ error: "AI chưa mô tả được ảnh này (ảnh quá lớn, sai định dạng hoặc AI tạm lỗi)" }, 502);
+  const patch = await fetchWithTimeout(`${env.PB_URL}/api/collections/media_library/records/${encodeURIComponent(id)}`, {
+    method: "PATCH", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify({ label })
+  });
+  if (!patch.ok) return json({ error: "Không cập nhật được nhãn" }, 502);
+  return json({ success: true, media: { id, label } });
+}
+__name(handleAccountMediaDescribe, "handleAccountMediaDescribe");
 
 async function handleAccountMediaDelete(request, env, cors, id) {
   const account = await resolveOwnAccountRecord(request, env);
