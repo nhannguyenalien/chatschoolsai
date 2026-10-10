@@ -3409,6 +3409,9 @@ function brandTextColor(value) {
 }
 __name(brandTextColor, "brandTextColor");
 
+// Lề theo tỉ lệ ảnh. Facebook hiển thị ảnh ngang trong khung hẹp hơn (~3-4% mỗi bên bị cắt) nên lề ngang phải đủ lớn.
+var BRAND_MARGIN_X = 0.06;
+var BRAND_MARGIN_Y = 0.04;
 var BRAND_OPACITY = { "100": 100, "80": 80, "60": 60, "40": 40 };
 var BRAND_BORDER = { none: 0, thin: 2, thick: 5 };
 var BRAND_TEXT_BG = { none: "", dark: "000000", light: "ffffff" };
@@ -3432,7 +3435,7 @@ function buildBrandTransformation(cfg, logoPublicId) {
     const layer = [`l_${logoPublicId}`, `c_scale,fl_relative,w_${w}`];
     if (borderPx) layer.push(`bo_${borderPx}px_solid_white`);
     if (o < 100) layer.push(`o_${o}`);
-    layer.push(`fl_layer_apply,g_${g},x_0.03,y_0.03,fl_relative`);
+    layer.push(`fl_layer_apply,g_${g},x_${BRAND_MARGIN_X},y_${BRAND_MARGIN_Y},fl_relative`);
     parts.push(layer.join("/"));
   }
   const text = String(cfg.brand_text || "").trim().slice(0, 80);
@@ -3447,7 +3450,7 @@ function buildBrandTransformation(cfg, logoPublicId) {
     const layer = [`l_text:Arial_200_bold:${cloudinaryTextEscape(text)},co_${color}${bg}`, `c_fit,fl_relative,w_0.9,h_${h}`];
     if (borderPx && !bgHex) layer.push(`bo_${borderPx}px_solid_${color === "white" ? "black" : "white"}`);
     if (o < 100) layer.push(`o_${o}`);
-    layer.push(`fl_layer_apply,g_${g},x_0.03,y_0.03,fl_relative`);
+    layer.push(`fl_layer_apply,g_${g},x_${BRAND_MARGIN_X},y_${BRAND_MARGIN_Y},fl_relative`);
     parts.push(layer.join("/"));
   }
   return parts.join("/");
