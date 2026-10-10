@@ -93,6 +93,7 @@ test("buildWeeklyMessages nêu số bài theo từng nhóm, quy tắc của ch�
   const messages = buildWeeklyMessages({ config, counts: [5, 2], businessContext: "Cửa hàng IT", kbTitles: ["Bảng giá"], recentTitles: ["Bài cũ"], languageName: "Vietnamese" });
   assert.match(messages[0].content, /exactly 7 posts/);
   assert.match(messages[0].content, /hashtags/);
+  assert.match(messages[0].content, /never mention the knowledge base/);
   assert.match(messages[1].content, /"Mẹo" x 5/);
   assert.match(messages[1].content, /"Khuyến mãi" x 2/);
   assert.match(messages[1].content, /không dùng emoji/);

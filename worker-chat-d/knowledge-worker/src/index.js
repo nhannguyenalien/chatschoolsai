@@ -2842,7 +2842,7 @@ var ACCOUNT_DATA_COLLECTIONS = {
   rss_sources: ["GET", "POST", "PATCH", "DELETE"],
   publish_schedules: ["GET", "POST", "PATCH", "DELETE"],
   media_library: ["GET"],
-  weekly_plans: ["GET"]
+  weekly_plans: ["GET", "DELETE"]
 };
 async function handleAccountData(request, env, cors, url, collection, id) {
   const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
