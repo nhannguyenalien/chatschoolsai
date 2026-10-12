@@ -30,6 +30,7 @@ import { createTelegramContentPlanningWebhook } from "./adapters/telegram/conten
 import { createGoogleAnalyticsIntegration } from "./integrations/googleAnalytics.js";
 import { createFacebookInsightsIntegration } from "./integrations/facebookInsights.js";
 import { createMetaAdsIntegration } from "./integrations/metaAds.js";
+import { MCP_SERVER_TOOL_NAME, gatherMcpContext, parseMcpServer } from "./integrations/mcpClient.js";
 import { createAdsRepository } from "./repositories/pocketbase/adsRepository.js";
 import { createAdsService } from "./workflows/adsService.js";
 import { handleAdsRoute } from "./api/ads.js";
@@ -1016,6 +1017,43 @@ async function lookupSourcesWithHistory(env, pbToken, tenant, session, question)
 }
 __name(lookupSourcesWithHistory, "lookupSourcesWithHistory");
 
+// MCP server của tenant (khai báo như 1 bản ghi agent_tools tên "mcp_server": url_template = URL /mcp,
+// headers_template = {"Authorization":"Bearer ..."}). Mỗi tenant chỉ tra dữ liệu bằng server của chính mình.
+async function loadTenantMcpServer(env, pbToken, tenant) {
+  const filter = `tenant='${escFilterValue(tenant)}' && is_active=true && name='${MCP_SERVER_TOOL_NAME}'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/agent_tools/records?perPage=1&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+  if (!res.ok) return null;
+  const server = parseMcpServer((await res.json()).items?.[0]);
+  if (!server) return null;
+  try { assertSafeExternalUrl(server.url); } catch { return null; }
+  return server;
+}
+__name(loadTenantMcpServer, "loadTenantMcpServer");
+
+// Tra dữ liệu thật qua MCP rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
+async function buildMcpContext(env, pbToken, tenant, session, question, reservedQuota) {
+  try {
+    const server = await loadTenantMcpServer(env, pbToken, tenant);
+    if (!server || !env.OPENAI_KEY) return "";
+    const filter = `tenant='${escFilterValue(tenant)}' && session='${escFilterValue(session)}'`;
+    const hist = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records?perPage=6&sort=-created&fields=text,is_bot&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+    const history = hist.ok ? ((await hist.json()).items || []).reverse().map((m) => ({ role: m.is_bot ? "assistant" : "user", content: String(m.text || "").slice(0, 1000) })) : [];
+    const last = history[history.length - 1];
+    if (!last || last.role !== "user" || last.content !== question.slice(0, 1000)) history.push({ role: "user", content: question });
+    const model = env.MCP_CHAT_MODEL || env.MARKETPLACE_CHAT_MODEL || "gpt-4o-mini";
+    return await gatherMcpContext({
+      server, fetchImpl: fetchExternalUrlSafely, cacheKey: `${tenant}:${server.url}`,
+      chatFetch: createMeteredAiFetch(env, tenant, pbToken, reservedQuota),
+      chatUrl: `${env.OPENAI_BASE_URL}/chat/completions`, apiKey: env.OPENAI_KEY, model,
+      extraBody: toolCallReasoning(model), history
+    });
+  } catch (err) {
+    console.error(`[Chat] MCP tra cứu lỗi (tenant ${tenant}):`, err.message);
+    return "";
+  }
+}
+__name(buildMcpContext, "buildMcpContext");
+
 async function handleChat(request, env, cors, reservedQuota = null) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";
@@ -1108,6 +1146,8 @@ async function handleChat(request, env, cors, reservedQuota = null) {
     const contextBlocks = [];
     if (lesson) contextBlocks.push(formatLessonContentForBot(lesson));
     if (customerContext) contextBlocks.push(formatCustomerContextForBot(customerContext));
+    const mcpContext = await buildMcpContext(env, pbToken, tenant, session, question, reservedQuota);
+    if (mcpContext) contextBlocks.push(mcpContext);
     const contextualQuestion = contextBlocks.length
       ? `${contextBlocks.join("\n\n")}\n\nCÂU HỎI HIỆN TẠI CỦA KHÁCH:\n${question}`
       : question;
@@ -8895,7 +8935,7 @@ __name(logAgentDecision, "logAgentDecision");
 // Tool do khách tự khai báo bằng JSON (không cần code) — lưu trong collection agent_tools.
 async function loadCustomAgentTools(env, pbToken, tenant) {
   const res = await fetchWithTimeout(
-    `${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true`)}`,
+    `${env.PB_URL}/api/collections/agent_tools/records?perPage=50&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}' && is_active=true && name!='${MCP_SERVER_TOOL_NAME}'`)}`,
     { headers: { Authorization: pbToken } }
   );
   if (!res.ok) return [];

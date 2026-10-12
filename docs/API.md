@@ -530,3 +530,18 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 - `POST /api/v1/wordpress/test` kiểm tra URL, Application Password và quyền xuất bản của tài khoản WordPress trước khi đưa cấu hình vào luồng đăng bài.
 - Tất cả input string đi vào PocketBase filter đều đã qua `escFilterValue()` để chống injection — không cần tự escape phía client.
 - Chưa có rate limiting trên các endpoint `/api/v1/*` — nếu hệ thống ngoài gọi tần suất cao, cân nhắc thêm giới hạn ở tầng Cloudflare (Rate Limiting Rules) theo path `/api/v1/*`.
+
+## Kết nối MCP (tra cứu dữ liệu thật trong chat)
+
+Mỗi tenant có thể gắn 1 MCP server (Streamable HTTP) để bot chat tư vấn bằng dữ liệu của chính tenant đó (vd bất động sản, sản phẩm). Khai báo bằng 1 bản ghi `agent_tools` tên **`mcp_server`** (không cần migrate):
+
+```bash
+curl -X POST "$WORKER/api/v1/agent-tools" -H "Authorization: Bearer $TENANT_API_KEY" -H "Content-Type: application/json" -d '{
+  "name": "mcp_server",
+  "description": "MCP BĐS",
+  "url_template": "https://estatein-real-estate.pages.dev/mcp",
+  "headers_template": "{\"Authorization\":\"Bearer <MCP_API_KEY>\"}"
+}'
+```
+
+Mỗi tin khách, `handleChat` lấy tool từ `tools/list`, cho model chọn gọi `tools/call` (tối đa 3 vòng, 4 lệnh/vòng), rồi đưa kết quả vào context của AnythingLLM. Lỗi MCP thì bỏ qua, chat vẫn chạy. Mỗi tin có MCP tốn thêm 1–2 lượt gọi model (tính vào quota). Model đổi qua env `MCP_CHAT_MODEL` (mặc định `MARKETPLACE_CHAT_MODEL` rồi `gpt-4o-mini`).
