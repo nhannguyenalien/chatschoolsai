@@ -256,18 +256,19 @@
     // /embed và /doc trên worker xác thực bằng api_key CỦA TENANT (bot_configs.api_key), không
     // phải token đăng nhập PocketBase của admin — 2 thứ khác hẳn nhau (xem authenticateTenantRequest
     // trong index.js). Gửi nhầm PB.authStore.token luôn ra 401. Cache chung 1 promise đang chạy,
-    // giống getApiKey() ở loyalty.html/composer.html, để tránh 2 lượt gọi đầu cùng bắn trùng
-    // PB.collection('bot_configs').getList() rồi bị PocketBase SDK auto-cancel.
+    // giống composer.html, để tránh 2 lượt gọi đầu cùng bắn trùng request.
     let knowledgeApiKey = '';
     let knowledgeApiKeyPromise = null;
     async function getKnowledgeApiKey() {
         if (knowledgeApiKey) return knowledgeApiKey;
         if (!knowledgeApiKeyPromise) {
-            knowledgeApiKeyPromise = PB.collection('bot_configs')
-                .getList(1, 2, { filter: `tenant = "${window.TENANT}"` })
-                .then(configs => {
-                    if (configs.items.length !== 1 || !configs.items[0].api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
-                    knowledgeApiKey = configs.items[0].api_key;
+            // Cùng API với trang Cấu hình bot: worker chọn bản ghi chính, không phụ thuộc
+            // việc bảng bot_configs có trùng bản ghi hay quyền đọc trả về rỗng.
+            knowledgeApiKeyPromise = fetch(`${WORKER_URL}/api/account/bot-config?tenant=${encodeURIComponent(window.TENANT)}`, { headers: { Authorization: PB.authStore.token }, cache: 'no-store' })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.record?.api_key) throw new Error('Tenant cần đúng một API key trong Cấu hình bot.');
+                    knowledgeApiKey = data.record.api_key;
                     return knowledgeApiKey;
                 })
                 .catch(error => { knowledgeApiKeyPromise = null; throw error; });
