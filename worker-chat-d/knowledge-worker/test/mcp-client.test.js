@@ -82,3 +82,10 @@ test("gatherToolContext works with plain custom tools (no MCP) and tells the bot
   assert.match(ctx, /T-table/);
   assert.match(ctx, /https:\/\/shop\.test/);
 });
+
+test("compactToolResult keeps a YouTube link that sits past the description cut-off", () => {
+  const html = `<p>${"mô tả dài ".repeat(80)}</p><p><a href="https://www.youtube.com/watch?v=abc123" target="_blank">Xem video</a></p><!-- <iframe src="https://hidden.test/x"></iframe> -->`;
+  const out = compactToolResult(JSON.stringify({ name: "Camera", description: html }));
+  assert.match(out, /VIDEO: https:\/\/www\.youtube\.com\/watch\?v=abc123/);
+  assert.doesNotMatch(out, /hidden\.test/);
+});

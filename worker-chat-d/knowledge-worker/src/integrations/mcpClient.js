@@ -87,10 +87,21 @@ const RETRIEVAL_PROMPT = "Bạn là bộ tra cứu dữ liệu cho chatbot của
 
 const NOISE_KEYS = new Set(["srcset", "sizes", "thumbnail", "_links", "links", "yoast_head", "yoast_head_json", "_embedded"]);
 const VIDEO_TAG = /<(?:video|source|iframe|embed)\b[^>]*?\bsrc=["']([^"']+)["'][^>]*>/gi;
+const URL_ATTR = /\b(?:href|src|data-src)=["']([^"']+)["']/gi;
+const VIDEO_URL = /(?:youtube\.com|youtu\.be|vimeo\.com|tiktok\.com\/@[^/]+\/video|facebook\.com\/[^"']*\/videos)|\.(?:mp4|webm|mov|m3u8)(?:[?#]|$)/i;
+
+// URL video trong HTML (thẻ video/iframe, hoặc link YouTube/Vimeo/mp4...) — lấy trước khi cắt ngắn mô tả để không bị mất.
+function extractVideoUrls(html) {
+  const found = new Set();
+  const withoutComments = String(html).replace(/<!--[\s\S]*?-->/g, " ");
+  for (const m of withoutComments.matchAll(VIDEO_TAG)) found.add(m[1]);
+  for (const m of withoutComments.matchAll(URL_ATTR)) if (VIDEO_URL.test(m[1])) found.add(m[1]);
+  return [...found].map((u) => u.replace(/&amp;/g, "&")).slice(0, 3);
+}
 
 function plainText(value) {
   return String(value)
-    .replace(VIDEO_TAG, (_, url) => ` VIDEO: ${url} `)
+    .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/<(?:br|\/p|\/li|\/h\d)\s*\/?>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#0?39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -99,8 +110,10 @@ function plainText(value) {
 
 function compactValue(value, depth = 0) {
   if (typeof value === "string") {
-    const text = /<[a-z!/]/i.test(value) ? plainText(value) : value;
-    return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+    if (!/<[a-z!/]/i.test(value)) return value.length > 300 ? `${value.slice(0, 300)}…` : value;
+    const text = plainText(value);
+    const videos = extractVideoUrls(value).map((u) => ` VIDEO: ${u}`).join("");
+    return (text.length > 300 ? `${text.slice(0, 300)}…` : text) + videos;
   }
   if (Array.isArray(value)) return value.slice(0, 20).map((v) => compactValue(v, depth + 1));
   if (value && typeof value === "object") {
@@ -120,7 +133,7 @@ function compactValue(value, depth = 0) {
 export function compactToolResult(raw, maxChars = MAX_RESULT_CHARS) {
   const text = String(raw ?? "");
   let out;
-  try { out = JSON.stringify(compactValue(JSON.parse(text))); } catch { out = /<[a-z!/]/i.test(text) ? plainText(text) : text; }
+  try { out = JSON.stringify(compactValue(JSON.parse(text))); } catch { out = /<[a-z!/]/i.test(text) ? plainText(text) + extractVideoUrls(text).map((u) => ` VIDEO: ${u}`).join("") : text; }
   return out.length > maxChars ? `${out.slice(0, maxChars)}…[đã cắt bớt]` : out;
 }
 
