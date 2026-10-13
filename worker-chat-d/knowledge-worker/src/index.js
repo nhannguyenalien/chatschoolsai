@@ -30,6 +30,7 @@ import { createTelegramContentPlanningWebhook } from "./adapters/telegram/conten
 import { createGoogleAnalyticsIntegration } from "./integrations/googleAnalytics.js";
 import { createFacebookInsightsIntegration } from "./integrations/facebookInsights.js";
 import { createMetaAdsIntegration } from "./integrations/metaAds.js";
+import { markdownToChannelText } from "./domain/chat/channelText.js";
 import { MCP_SERVER_TOOL_NAME, callMcpTool, gatherToolContext, listMcpTools, mcpToolToOpenAi, parseMcpServer } from "./integrations/mcpClient.js";
 import { createAdsRepository } from "./repositories/pocketbase/adsRepository.js";
 import { createAdsService } from "./workflows/adsService.js";
@@ -1722,7 +1723,7 @@ async function handleTelegramChatFallback(env, pbToken, chatId, text) {
     const chatRes = await handleChat(chatRequest, env, { "Content-Type": "application/json" });
     const chatData = await chatRes.json().catch(() => ({}));
     const reply = chatData.reply || "Xin lỗi, hiện tại m\xECnh chưa thể trả lời c\xE2u n\xE0y.";
-    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, reply);
+    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, markdownToChannelText(reply, { keepImageLinks: true }));
   } catch (err) {
     console.error("[Telegram Chat Fallback] Lỗi:", err);
   }
@@ -4484,7 +4485,9 @@ async function replyToMetaWithAi(env, page, platform, session, senderId, display
   } catch (err) {
     console.error("[Meta Messaging] AI không khả dụng, dùng phản hồi dự phòng:", err);
   }
+  // Ảnh/link lấy từ reply gốc (còn markdown) để gửi đính kèm; chữ gửi đi thì đổi sang chữ thuần vì các kênh này không render markdown.
   const outboundMedia = [...extractOutboundMediaFromText(reply), ...autoMedia].slice(0, 10);
+  reply = markdownToChannelText(reply, { platform });
   if (platform === "whatsapp") {
     // WhatsApp giới hạn ~4096 ký tự/tin: gửi lần lượt các đoạn, đoạn cuối kèm media.
     const parts = splitWhatsAppText(reply);
@@ -4530,6 +4533,11 @@ async function processMetaCommentEvent(env, pbToken, platform, pageId, commentId
   }
   // Bình luận chỉ đính kèm được 1 ảnh mỗi phản hồi và không đính kèm được video: phản hồi đầu = chữ + ảnh 1,
   // mỗi ảnh còn lại là 1 phản hồi riêng; video để link trong câu trả lời.
+  const commentSeen = new Set(commentMedia.map((item) => item.url));
+  for (const item of extractOutboundMediaFromText(reply)) {
+    if ((item.type === "image" || item.type === "video") && !commentSeen.has(item.url)) { commentSeen.add(item.url); commentMedia.push(item); }
+  }
+  reply = markdownToChannelText(reply, { platform });
   const commentImages = commentMedia.filter((item) => item.type === "image").map((item) => item.url);
   const commentVideoLinks = commentMedia.filter((item) => item.type === "video").map((item) => item.url);
   if (commentVideoLinks.length) reply = `${reply}\n\nVideo: ${commentVideoLinks.join("\n")}`;
