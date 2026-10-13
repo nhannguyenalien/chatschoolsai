@@ -1036,6 +1036,36 @@
                 { key: "BOT_TOKEN", label: "Token bot Telegram", placeholder: "dán bot token vào đây" }
             ]
         },
+        woocommerce: {
+            label: "WooCommerce — Tư vấn sản phẩm",
+            description: "Cho bot tra cứu sản phẩm thật của shop WooCommerce (tên, giá, ảnh, link, danh mục) để tư vấn khách. Chỉ đọc, dùng Store API công khai nên không cần API key. Nhập đúng địa chỉ gốc của shop; nếu WordPress nằm trong thư mục con thì thêm vào, vd: shop.com/store.",
+            setupFields: [
+                { key: "DOMAIN", label: "Địa chỉ shop WooCommerce (không cần https://)", placeholder: "shop.example.com hoặc example.com/store" }
+            ],
+            tools: [
+                {
+                    name: "search_products",
+                    description: "Tìm sản phẩm của cửa hàng theo từ khóa (tên, mô tả). Dùng khi khách hỏi/tìm/so sánh/gợi ý sản phẩm. Để trống keyword để xem sản phẩm nổi bật.",
+                    method: "GET",
+                    url: "https://{{DOMAIN}}/wp-json/wc/store/v1/products?search={keyword}&per_page=8",
+                    params: '{"type":"object","properties":{"keyword":{"type":"string","description":"Từ khóa tìm kiếm, vd: table, bag, camera"}},"required":[]}'
+                },
+                {
+                    name: "list_categories",
+                    description: "Liệt kê danh mục sản phẩm của cửa hàng.",
+                    method: "GET",
+                    url: "https://{{DOMAIN}}/wp-json/wc/store/v1/products/categories?per_page=50",
+                    params: '{"type":"object","properties":{},"required":[]}'
+                },
+                {
+                    name: "get_products_by_category",
+                    description: "Lấy sản phẩm theo id danh mục (lấy id từ list_categories).",
+                    method: "GET",
+                    url: "https://{{DOMAIN}}/wp-json/wc/store/v1/products?category={category_id}&per_page=8",
+                    params: '{"type":"object","properties":{"category_id":{"type":"string","description":"ID danh mục"}},"required":["category_id"]}'
+                }
+            ]
+        },
         generic_webhook: {
             label: "Webhook chung (POST)",
             name: "generic_webhook",
@@ -1078,25 +1108,31 @@
     async function submitToolTemplate(key) {
         const tpl = TOOL_TEMPLATES[key];
         if (!tpl) return;
-        let url = tpl.url, headers = tpl.headers;
+        const values = {};
         for (const f of tpl.setupFields) {
-            const val = document.getElementById(`tpl-field-${f.key}`).value.trim();
+            let val = document.getElementById(`tpl-field-${f.key}`).value.trim();
             if (!val) {
                 showToast(`Thiếu "${f.label}"`, "error");
                 return;
             }
-            url = url.split(`{{${f.key}}}`).join(val);
-            headers = headers.split(`{{${f.key}}}`).join(val);
+            // Khách hay dán cả "https://shop.com/" — bỏ giao thức và dấu / thừa để URL luôn đúng dạng.
+            if (f.key === "DOMAIN") val = val.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+            values[f.key] = val;
         }
+        const fill = (text) => Object.entries(values).reduce((acc, [k, v]) => acc.split(`{{${k}}}`).join(v), text || "");
+        // Một mẫu có thể tạo nhiều tool (tpl.tools); mẫu 1 tool dùng chính các trường của mẫu.
+        const defs = tpl.tools || [tpl];
         // Điền các field ẩn (nâng cao) bằng giá trị đã thay xong, rồi tái dùng đúng logic lưu có sẵn.
-        document.getElementById("ct-name").value = tpl.name;
-        document.getElementById("ct-description").value = tpl.description;
-        document.getElementById("ct-method").value = tpl.method;
-        document.getElementById("ct-url").value = url;
-        document.getElementById("ct-params").value = tpl.params;
-        document.getElementById("ct-headers").value = headers;
-        document.getElementById("ct-resultpath").value = tpl.resultPath;
-        await addCustomTool();
+        for (const def of defs) {
+            document.getElementById("ct-name").value = def.name;
+            document.getElementById("ct-description").value = def.description;
+            document.getElementById("ct-method").value = def.method;
+            document.getElementById("ct-url").value = fill(def.url);
+            document.getElementById("ct-params").value = def.params;
+            document.getElementById("ct-headers").value = fill(def.headers);
+            document.getElementById("ct-resultpath").value = def.resultPath || "";
+            if (!(await addCustomTool())) return;
+        }
         document.getElementById("tool-quick-setup").classList.add("d-none");
     }
 
@@ -1142,22 +1178,22 @@
 
         if (!/^[a-zA-Z0-9_]+$/.test(name)) {
             showToast("Tên tool chỉ được chứa chữ, số và gạch dưới (không dấu, không khoảng trắng)", "error");
-            return;
+            return false;
         }
         if (!url_template) {
             showToast("Thiếu URL", "error");
-            return;
+            return false;
         }
         try {
             JSON.parse(paramsRaw || "{}");
         } catch {
             showToast("JSON Schema tham số không hợp lệ", "error");
-            return;
+            return false;
         }
         if (headersRaw) {
             try { JSON.parse(headersRaw); } catch {
                 showToast("Headers không phải JSON hợp lệ", "error");
-                return;
+                return false;
             }
         }
         try {
@@ -1177,8 +1213,10 @@
             document.getElementById("ct-headers").value = "";
             document.getElementById("ct-resultpath").value = "";
             await loadCustomTools();
+            return true;
         } catch (err) {
             showToast("Lỗi thêm tool: " + err.message, "error");
+            return false;
         }
     }
 
