@@ -1068,6 +1068,20 @@ async function buildToolContext(env, pbToken, tenant, session, question, reserve
 }
 __name(buildToolContext, "buildToolContext");
 
+// Bot tư vấn chính nền tảng (tenant riêng): cùng 1 bot, 2 cấp. Chỉ chọn 1 đoạn hướng dẫn cố định, không cấp thêm quyền/dữ liệu.
+const PLATFORM_LEVEL_NOTES = Object.freeze({
+  public: "NGỮ CẢNH: Người hỏi là khách tham quan trang chủ, chưa đăng nhập. Giới thiệu tính năng, gói giá, lợi ích, cách đăng ký/dùng thử; không giả định họ đã có tài khoản; không đưa thông tin riêng của bất kỳ workspace nào.",
+  client: "NGỮ CẢNH: Người hỏi là khách hàng đã đăng nhập dashboard. Hướng dẫn thao tác từng bước theo đúng tên menu trong dashboard, cấu hình, xử lý sự cố, hạn mức và thanh toán. Không hứa thay đổi dữ liệu thay họ; nếu cần can thiệp của nhân viên thì chuyển người."
+});
+function platformLevelContext(env, tenant, body) {
+  if (tenant !== (env.PLATFORM_ADVISOR_TENANT || "chatschoolai")) return "";
+  const note = PLATFORM_LEVEL_NOTES[body.level];
+  if (!note) return "";
+  const page = typeof body.page_context === "string" ? body.page_context.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+  return page ? `${note}\nTrang/workspace hiện tại (do trình duyệt báo, chỉ để tham khảo): ${page}` : note;
+}
+__name(platformLevelContext, "platformLevelContext");
+
 async function handleChat(request, env, cors, reservedQuota = null) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";
@@ -1158,6 +1172,8 @@ async function handleChat(request, env, cors, reservedQuota = null) {
     const customerContext = await getCustomerContext(env, pbToken, tenant, session);
     const lesson = lessonId ? await getLessonContent(env, pbToken, tenant, lessonId) : null;
     const contextBlocks = [];
+    const levelContext = platformLevelContext(env, tenant, body);
+    if (levelContext) contextBlocks.push(levelContext);
     if (lesson) contextBlocks.push(formatLessonContentForBot(lesson));
     if (customerContext) contextBlocks.push(formatCustomerContextForBot(customerContext));
     const mcpContext = await buildToolContext(env, pbToken, tenant, session, question, reservedQuota);

@@ -3,6 +3,9 @@
     const scriptTag = document.currentScript;
     const tenant = scriptTag.getAttribute('data-tenant') || 'default_tenant';
     const botName = scriptTag.getAttribute('data-botname') || 'Support Assistant';
+    // Cấp tư vấn cho bot nền tảng (public | client) + ngữ cảnh trang; tenant thường không dùng.
+    const botLevel = ['public', 'client'].includes(scriptTag.getAttribute('data-level')) ? scriptTag.getAttribute('data-level') : '';
+    const pageContext = (scriptTag.getAttribute('data-context') || '').slice(0, 200);
     const allowedDomain = scriptTag.getAttribute('data-domain');
     const currentDomain = window.location.hostname;
 
@@ -862,7 +865,7 @@
             var res = await fetch(WORKER_URL + "/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tenant: tenant, session: session, question: text })
+                body: JSON.stringify({ tenant: tenant, session: session, question: text, level: botLevel || undefined, page_context: pageContext || undefined })
             });
             var data = await res.json();
 

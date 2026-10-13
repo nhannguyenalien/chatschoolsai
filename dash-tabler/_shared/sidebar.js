@@ -55,9 +55,27 @@ const SIDEBAR_NAV = [
 
 const sbT = (key, fallback) => (typeof t === 'function' ? t(key) : fallback);
 
+// Bot tư vấn nền tảng (tenant riêng "chatschoolai") — cấp 2 cho khách đã đăng nhập, hiện trên mọi trang dashboard.
+function mountAdvisorWidget() {
+  if (document.getElementById('advisor-widget-script') || document.getElementById('ai-chat-root')) return;
+  const s = document.createElement('script');
+  s.id = 'advisor-widget-script';
+  s.src = 'chat-widget.js?v=20261013-level';
+  s.setAttribute('data-tenant', 'chatschoolai');
+  s.setAttribute('data-botname', 'Schools AI');
+  s.setAttribute('data-color', '#0050cb');
+  s.setAttribute('data-position', 'right');
+  s.setAttribute('data-style', 'bubble');
+  s.setAttribute('data-level', 'client');
+  s.setAttribute('data-lang', typeof getLang === 'function' && ['vi', 'en', 'ja', 'es', 'fr', 'ko'].includes(getLang()) ? getLang() : 'vi');
+  s.setAttribute('data-context', `workspace=${window.TENANT || ''}; page=${window.location.pathname.split('/').pop() || 'index.html'}`);
+  document.body.appendChild(s);
+}
+
 function renderSidebar(user) {
   const el = document.getElementById('sidebar-placeholder');
   if (!el) return;
+  mountAdvisorWidget();
 
   const currentPage = window.location.pathname.split('/').pop() || 'index.html';
   const currentLang = typeof getLang === 'function' ? getLang() : 'vi';
