@@ -842,6 +842,11 @@ export const API_DOCS_HTML = String.raw`
       <span data-i18n-html="mp_v1_body">Vì endpoint <code>/marketplace-chat</code> mở cho khách hàng ẩn danh, tool có <code>method</code> khác <code>GET</code> bị <strong>chặn ở tầng code</strong> (không chỉ ở system prompt) khi gọi qua kênh này — tránh bị lợi dụng tạo/ghi dữ liệu hàng loạt qua chat. Đăng ký tool GET (search/đọc chi tiết) vẫn dùng bình thường.</span>
     </div>
 
+    <div class="callout" id="tenant-data-in-chat">
+      <h3>Dùng dữ liệu của bạn trong chat thường (WooCommerce / MCP)</h3>
+      <span>Chat thường (widget, trang chat, kênh mạng xã hội) tự tra dữ liệu thật của <strong>đúng tenant</strong> bằng các tool <code>GET</code> đã đăng ký (xem bên dưới) và tool tên <code>mcp_server</code> (MCP Streamable HTTP: <code>url_template</code> = URL <code>/mcp</code>, <code>headers_template</code> = <code>{"Authorization":"Bearer ..."}</code>). Với WooCommerce, vào dashboard → config → Custom Agent Tools → mẫu <strong>WooCommerce — Tư vấn sản phẩm</strong> rồi nhập địa chỉ shop: hệ thống tạo 3 tool dùng Store API công khai (<code>/wp-json/wc/store/v1/products</code>), không cần API key. Bot trả giá (tự chia theo <code>currency_minor_unit</code>), mô tả, ảnh, link; video chỉ có khi mô tả sản phẩm nhúng video. Mỗi tin khách tốn thêm 1–2 lượt gọi model. Chi tiết: docs/API.md, mục "Kết nối dữ liệu của bạn vào chat".</span>
+    </div>
+
     <div class="endpoint" id="get-agent-tools">
       <div class="sig"><span class="badge GET">GET</span><span class="path">/api/v1/agent-tools</span><span class="badge auth" data-i18n="badge_auth">cần API key</span></div>
       <p class="summary" data-i18n="ep_get_agent_tools_summary">Liệt kê các tool (API ngoài) tenant đã đăng ký.</p>

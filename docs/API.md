@@ -531,17 +531,53 @@ curl "$BASE/api/v1/status" -H "Authorization: Bearer $API_KEY"
 - Tất cả input string đi vào PocketBase filter đều đã qua `escFilterValue()` để chống injection — không cần tự escape phía client.
 - Chưa có rate limiting trên các endpoint `/api/v1/*` — nếu hệ thống ngoài gọi tần suất cao, cân nhắc thêm giới hạn ở tầng Cloudflare (Rate Limiting Rules) theo path `/api/v1/*`.
 
-## Kết nối MCP (tra cứu dữ liệu thật trong chat)
+## Kết nối dữ liệu của bạn vào chat (WooCommerce, MCP, tool GET)
 
-Mỗi tenant có thể gắn 1 MCP server (Streamable HTTP) để bot chat tư vấn bằng dữ liệu của chính tenant đó (vd bất động sản, sản phẩm). Khai báo bằng 1 bản ghi `agent_tools` tên **`mcp_server`** (không cần migrate):
+Chat thường (widget, trang chat, kênh mạng xã hội) tự tra **dữ liệu thật của đúng tenant đó** trước khi trả lời, để tư vấn sản phẩm/bất động sản... theo kho của khách. Mỗi tenant tự khai báo nguồn dữ liệu của mình; tenant khác không thấy và không dùng chung.
+
+Có 2 cách khai báo, có thể dùng cùng lúc:
+
+1. **Tool GET** (API chỉ đọc kiểu `url_template`, vd WooCommerce): khai báo trong dashboard (`config` → card "Custom Agent Tools") hoặc `POST /api/v1/agent-tools`. Chỉ tool `GET` được dùng ở chat khách hàng.
+2. **MCP server** (Streamable HTTP, JSON-RPC qua POST): khai báo bằng 1 tool tên **`mcp_server`** (xem bên dưới). Bot tự lấy danh sách tool từ `tools/list`.
+
+### WooCommerce (cách nhanh nhất)
+
+Dashboard → `config` → "Custom Agent Tools" → chọn mẫu **WooCommerce — Tư vấn sản phẩm** → nhập địa chỉ shop (vd `shop.com`, hoặc `shop.com/store` nếu WordPress nằm trong thư mục con; có hay không `https://` đều được) → thêm. Mẫu tạo 3 tool chỉ đọc dùng **Store API công khai** của WooCommerce (không cần API key):
+
+| Tool | URL |
+|---|---|
+| `search_products` | `https://<shop>/wp-json/wc/store/v1/products?search={keyword}&per_page=8` |
+| `list_categories` | `https://<shop>/wp-json/wc/store/v1/products/categories?per_page=50` |
+| `get_products_by_category` | `https://<shop>/wp-json/wc/store/v1/products?category={category_id}&per_page=8` |
+
+Kiểm tra trước: mở `https://<shop>/wp-json/wc/store/v1/products?per_page=1` trong trình duyệt, thấy JSON là dùng được. Nếu trả 404/401 thì plugin bảo mật hoặc cấu hình permalink đang chặn `/wp-json`.
+
+### MCP server
 
 ```bash
 curl -X POST "$WORKER/api/v1/agent-tools" -H "Authorization: Bearer $TENANT_API_KEY" -H "Content-Type: application/json" -d '{
   "name": "mcp_server",
-  "description": "MCP BĐS",
+  "description": "MCP bất động sản",
   "url_template": "https://estatein-real-estate.pages.dev/mcp",
   "headers_template": "{\"Authorization\":\"Bearer <MCP_API_KEY>\"}"
 }'
 ```
 
-Mỗi tin khách, `handleChat` lấy tool từ `tools/list`, cho model chọn gọi `tools/call` (tối đa 3 vòng, 4 lệnh/vòng), rồi đưa kết quả vào context của AnythingLLM. Lỗi MCP thì bỏ qua, chat vẫn chạy. Mỗi tin có MCP tốn thêm 1–2 lượt gọi model (tính vào quota). Model đổi qua env `MCP_CHAT_MODEL` (mặc định `MARKETPLACE_CHAT_MODEL` rồi `gpt-4o-mini`).
+### Cách chat dùng dữ liệu
+
+- Mỗi tin khách, model quyết định có cần tra không (tối đa 3 vòng, 4 lệnh mỗi vòng), gọi tool, rồi kết quả được đưa vào ngữ cảnh để bot trả lời đúng giọng đã cấu hình. Câu hỏi không cần dữ liệu (chào hỏi...) thì không gọi tool.
+- Kết quả được nén (bỏ HTML, `srcset`...) nhưng giữ giá, link, URL ảnh và video. Bot chèn ảnh bằng Markdown, URL ảnh tương đối được ghép với domain của nguồn.
+- **Video:** WooCommerce Store API không có trường video riêng. Chỉ khi mô tả sản phẩm có nhúng `<video>`, `<iframe>`, YouTube thì bot mới có link video để gửi.
+- **Giá:** nếu dữ liệu có `currency_minor_unit` (WooCommerce trả `13000` với `2`) thì bot chia cho 10^n (130,00) và nêu đơn vị tiền tệ.
+- **Link bài đăng:** nếu nguồn chỉ trả `slug` chứ không trả URL (như MCP bất động sản), hãy thêm quy tắc vào System Prompt, vd: "mỗi bất động sản kèm link `https://<site>/properties/{slug}/`".
+- Lỗi tra cứu (nguồn dữ liệu chết, key sai...) bị bỏ qua, chat vẫn trả lời bằng kiến thức/knowledge sẵn có.
+- Mỗi tin khách tốn thêm 1–2 lượt gọi model (tính vào quota). Đổi model qua env `MCP_CHAT_MODEL` (mặc định `MARKETPLACE_CHAT_MODEL`, rồi `gpt-4o-mini`).
+- Chỉ đọc: tool khác `GET` không chạy ở chat khách hàng. Với MCP, hãy chỉ mở các tool chỉ đọc.
+
+### Xử lý lỗi thường gặp
+
+| Hiện tượng | Nguyên nhân |
+|---|---|
+| Dashboard báo "Failed to create record" khi thêm tool | Tài khoản có nhiều workspace và quy tắc PocketBase của `agent_tools` chưa theo membership. Chạy `scripts/pb-multitenant-migrate.mjs` (xem DRY RUN trước) hoặc đặt API Rules theo membership. |
+| Bot trả "chưa có dữ liệu" dù shop có hàng | Kiểm tra URL trong card Custom Agent Tools (có đúng thư mục con `/store`?) và thử URL đó trực tiếp trên trình duyệt. |
+| Tin nhắn đầu của tenant mới báo "Hệ thống AI đang bận" | Lần đầu tenant tạo workspace AI; gửi lại sau vài giây. |
