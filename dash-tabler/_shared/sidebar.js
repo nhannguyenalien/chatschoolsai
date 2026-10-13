@@ -60,7 +60,7 @@ function mountAdvisorWidget() {
   if (document.getElementById('advisor-widget-script') || document.getElementById('ai-chat-root')) return;
   const s = document.createElement('script');
   s.id = 'advisor-widget-script';
-  s.src = 'chat-widget.js?v=20261013-v4';
+  s.src = 'chat-widget.js?v=20261013-v5';
   s.setAttribute('data-tenant', 'chatschoolai');
   s.setAttribute('data-botname', 'Schools AI');
   s.setAttribute('data-color', '#0050cb');

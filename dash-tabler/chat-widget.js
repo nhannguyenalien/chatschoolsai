@@ -54,12 +54,12 @@
     // Đa ngôn ngữ cho GIAO DIỆN widget (khác với "response_language" của bot — đây chỉ là chữ
     // trên nút/placeholder, không phải nội dung AI trả lời). Mặc định vi để không đổi hành vi cũ.
     const WIDGET_I18N = {
-        vi: { helloPublic: 'Chào bạn! Cần mình tư vấn không? 👋', helloClient: 'Cần hỗ trợ gì không? 👋', subtitle: 'Hỗ trợ viên', close: 'Đóng', call: 'Gọi thoại cho hỗ trợ viên', mute: 'Tắt mic', unmute: 'Bật mic', end: 'Kết thúc', incomingTitle: 'Hỗ trợ viên', incoming: 'Đang gọi đến...', decline: 'Từ chối', accept: 'Nghe', placeholder: 'Nhập tin nhắn...', send: 'Gửi', footer: 'Được bảo vệ bởi Fluid Conversations', openChat: 'Mở chat', errConn: 'Lỗi kết nối tới AI.', errNetwork: 'Đường truyền có vấn đề. Vui lòng thử lại.' },
-        en: { helloPublic: 'Hi there! Need any help? 👋', helloClient: 'Need a hand? 👋', subtitle: 'Support', close: 'Close', call: 'Call support', mute: 'Mute', unmute: 'Unmute', end: 'End', incomingTitle: 'Support', incoming: 'Incoming call...', decline: 'Decline', accept: 'Accept', placeholder: 'Type a message...', send: 'Send', footer: 'Protected by Fluid Conversations', openChat: 'Open chat', errConn: 'Connection error.', errNetwork: 'Connection issue. Please try again.' },
-        ja: { helloPublic: 'こんにちは！ご相談はありますか？👋', helloClient: 'お困りですか？👋', subtitle: 'サポート', close: '閉じる', call: 'サポートに電話', mute: 'ミュート', unmute: 'ミュート解除', end: '終了', incomingTitle: 'サポート', incoming: '着信中...', decline: '拒否', accept: '応答', placeholder: 'メッセージを入力...', send: '送信', footer: 'Fluid Conversations によって保護されています', openChat: 'チャットを開く', errConn: '接続エラーです。', errNetwork: '通信に問題があります。もう一度お試しください。' },
-        es: { helloPublic: '¡Hola! ¿Te ayudo? 👋', helloClient: '¿Necesitas ayuda? 👋', subtitle: 'Soporte', close: 'Cerrar', call: 'Llamar a soporte', mute: 'Silenciar', unmute: 'Activar audio', end: 'Finalizar', incomingTitle: 'Soporte', incoming: 'Llamada entrante...', decline: 'Rechazar', accept: 'Aceptar', placeholder: 'Escribe un mensaje...', send: 'Enviar', footer: 'Protegido por Fluid Conversations', openChat: 'Abrir chat', errConn: 'Error de conexión.', errNetwork: 'Problema de conexión. Inténtalo de nuevo.' },
-        fr: { helloPublic: 'Bonjour ! Besoin d’aide ? 👋', helloClient: 'Besoin d’un coup de main ? 👋', subtitle: 'Assistance', close: 'Fermer', call: "Appeler l'assistance", mute: 'Muet', unmute: 'Activer le son', end: 'Terminer', incomingTitle: 'Assistance', incoming: 'Appel entrant...', decline: 'Refuser', accept: 'Accepter', placeholder: 'Écrivez un message...', send: 'Envoyer', footer: 'Protégé par Fluid Conversations', openChat: 'Ouvrir le chat', errConn: 'Erreur de connexion.', errNetwork: 'Problème de connexion. Veuillez réessayer.' },
-        ko: { helloPublic: '안녕하세요! 도와드릴까요? 👋', helloClient: '도움이 필요하세요? 👋', subtitle: '고객지원', close: '닫기', call: '상담원에게 전화', mute: '음소거', unmute: '음소거 해제', end: '종료', incomingTitle: '고객지원', incoming: '수신 전화 중...', decline: '거절', accept: '수락', placeholder: '메시지를 입력하세요...', send: '보내기', footer: 'Fluid Conversations 제공', openChat: '채팅 열기', errConn: '연결 오류입니다.', errNetwork: '연결에 문제가 있습니다. 다시 시도해 주세요.' },
+        vi: { minimize: 'Thu nhỏ', helloPublic: 'Chào bạn! Cần mình tư vấn không? 👋', helloClient: 'Cần hỗ trợ gì không? 👋', subtitle: 'Hỗ trợ viên', close: 'Đóng', call: 'Gọi thoại cho hỗ trợ viên', mute: 'Tắt mic', unmute: 'Bật mic', end: 'Kết thúc', incomingTitle: 'Hỗ trợ viên', incoming: 'Đang gọi đến...', decline: 'Từ chối', accept: 'Nghe', placeholder: 'Nhập tin nhắn...', send: 'Gửi', footer: 'Được bảo vệ bởi Fluid Conversations', openChat: 'Mở chat', errConn: 'Lỗi kết nối tới AI.', errNetwork: 'Đường truyền có vấn đề. Vui lòng thử lại.' },
+        en: { minimize: 'Minimize', helloPublic: 'Hi there! Need any help? 👋', helloClient: 'Need a hand? 👋', subtitle: 'Support', close: 'Close', call: 'Call support', mute: 'Mute', unmute: 'Unmute', end: 'End', incomingTitle: 'Support', incoming: 'Incoming call...', decline: 'Decline', accept: 'Accept', placeholder: 'Type a message...', send: 'Send', footer: 'Protected by Fluid Conversations', openChat: 'Open chat', errConn: 'Connection error.', errNetwork: 'Connection issue. Please try again.' },
+        ja: { minimize: '最小化', helloPublic: 'こんにちは！ご相談はありますか？👋', helloClient: 'お困りですか？👋', subtitle: 'サポート', close: '閉じる', call: 'サポートに電話', mute: 'ミュート', unmute: 'ミュート解除', end: '終了', incomingTitle: 'サポート', incoming: '着信中...', decline: '拒否', accept: '応答', placeholder: 'メッセージを入力...', send: '送信', footer: 'Fluid Conversations によって保護されています', openChat: 'チャットを開く', errConn: '接続エラーです。', errNetwork: '通信に問題があります。もう一度お試しください。' },
+        es: { minimize: 'Minimizar', helloPublic: '¡Hola! ¿Te ayudo? 👋', helloClient: '¿Necesitas ayuda? 👋', subtitle: 'Soporte', close: 'Cerrar', call: 'Llamar a soporte', mute: 'Silenciar', unmute: 'Activar audio', end: 'Finalizar', incomingTitle: 'Soporte', incoming: 'Llamada entrante...', decline: 'Rechazar', accept: 'Aceptar', placeholder: 'Escribe un mensaje...', send: 'Enviar', footer: 'Protegido por Fluid Conversations', openChat: 'Abrir chat', errConn: 'Error de conexión.', errNetwork: 'Problema de conexión. Inténtalo de nuevo.' },
+        fr: { minimize: 'Réduire', helloPublic: 'Bonjour ! Besoin d’aide ? 👋', helloClient: 'Besoin d’un coup de main ? 👋', subtitle: 'Assistance', close: 'Fermer', call: "Appeler l'assistance", mute: 'Muet', unmute: 'Activer le son', end: 'Terminer', incomingTitle: 'Assistance', incoming: 'Appel entrant...', decline: 'Refuser', accept: 'Accepter', placeholder: 'Écrivez un message...', send: 'Envoyer', footer: 'Protégé par Fluid Conversations', openChat: 'Ouvrir le chat', errConn: 'Erreur de connexion.', errNetwork: 'Problème de connexion. Veuillez réessayer.' },
+        ko: { minimize: '최소화', helloPublic: '안녕하세요! 도와드릴까요? 👋', helloClient: '도움이 필요하세요? 👋', subtitle: '고객지원', close: '닫기', call: '상담원에게 전화', mute: '음소거', unmute: '음소거 해제', end: '종료', incomingTitle: '고객지원', incoming: '수신 전화 중...', decline: '거절', accept: '수락', placeholder: '메시지를 입력하세요...', send: '보내기', footer: 'Fluid Conversations 제공', openChat: '채팅 열기', errConn: '연결 오류입니다.', errNetwork: '연결에 문제가 있습니다. 다시 시도해 주세요.' },
     };
     // data-lang="auto": theo ngôn ngữ của trang (html[lang] / localStorage 'lang') và đổi ngay khi khách đổi ngôn ngữ.
     const langAttr = scriptTag.getAttribute('data-lang');
@@ -326,6 +326,29 @@
             }
             #ai-hello.ai-hidden { display: none; }
             @keyframes ai-hello-in { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+            #ai-fab-min {
+                position: fixed; bottom: calc(1.5rem + 74px); ${side}: calc(1.5rem - 2px); width: 24px; height: 24px; border-radius: 50%;
+                border: 1px solid rgba(0,0,0,0.08); background: #fff; color: #424656; cursor: pointer; padding: 0;
+                display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+                z-index: 999999; opacity: 0.9; transition: opacity .2s, transform .2s;
+            }
+            #ai-fab-min:hover { opacity: 1; transform: scale(1.12); background: #f1f3f9; }
+            #ai-fab-min svg { width: 12px; height: 12px; }
+            #ai-btn-fab.ai-hidden ~ #ai-fab-min, #ai-btn-fab.ai-min ~ #ai-fab-min { display: none; }
+            #ai-btn-fab.ai-min, #ai-btn-fab.ai-min ~ #ai-hello { display: none !important; }
+            #ai-fab-tab {
+                display: none; position: fixed; bottom: 1.5rem; ${side}: -14px; width: 54px; height: 54px; border-radius: 50%;
+                border: 2px solid #fff; background: #fff url('${avatarUrl}') center 18% / 118% no-repeat; cursor: pointer; padding: 0;
+                box-shadow: 0 4px 16px rgba(${accentRgb},0.35); z-index: 999998; transition: ${side} .2s, transform .2s;
+            }
+            #ai-fab-tab:hover { ${side}: -2px; }
+            #ai-btn-fab.ai-min ~ #ai-fab-tab { display: block; }
+            #ai-btn-fab.ai-hidden ~ #ai-fab-tab { display: none !important; }
+            @media (max-width: 640px) {
+                #ai-btn-fab.ai-fab-avatar { width: 72px; height: 72px; }
+                #ai-fab-min { bottom: calc(1.5rem + 56px); }
+                #ai-hello { bottom: calc(1.5rem + 62px); max-width: 180px; }
+            }
             #ai-chat-header .ai-avatar.ai-avatar-img { background: transparent; }
             #ai-chat-header .ai-avatar.ai-avatar-img img { width: 100%; height: 100%; object-fit: contain; }
             .ai-bot-icon.ai-bot-icon-img { background: transparent !important; overflow: visible; }
@@ -423,6 +446,8 @@
             ${avatarUrl ? `<img src="${avatarUrl}" alt="${wt.openChat}" draggable="false">` : '<span class="material-symbols-outlined" style="font-size:28px;">chat</span>'}
         </button>
         ${avatarUrl && helloText ? `<div id="ai-hello"></div>` : ''}
+        ${avatarUrl ? `<button id="ai-fab-min" title="${wt.minimize}" data-wt-title="minimize" aria-label="${wt.minimize}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 6h8"/></svg></button>
+        <button id="ai-fab-tab" title="${wt.openChat}" data-wt-title="openChat" aria-label="${wt.openChat}"></button>` : ''}
     `;
     document.body.appendChild(root);
 
@@ -853,6 +878,18 @@
     callEndBtn.addEventListener('click', function() { endCall(); });
 
     const helloEl = document.getElementById('ai-hello');
+    // Thu nhỏ bubble khi che nội dung: ẩn ảnh, chỉ còn mấu nhỏ ở mép màn hình; nhớ lựa chọn.
+    const minKey = 'ai_fab_min_' + tenant + (botLevel ? '_' + botLevel : '');
+    function setMinimized(v) {
+        btnFab.classList.toggle('ai-min', v);
+        try { v ? localStorage.setItem(minKey, '1') : localStorage.removeItem(minKey); } catch (e) {}
+    }
+    const minBtn = document.getElementById('ai-fab-min'), tabBtn = document.getElementById('ai-fab-tab');
+    if (minBtn && tabBtn) {
+        minBtn.addEventListener('click', function(e) { e.stopPropagation(); setMinimized(true); });
+        tabBtn.addEventListener('click', function() { setMinimized(false); });
+        try { if (localStorage.getItem(minKey)) btnFab.classList.add('ai-min'); } catch (e) {}
+    }
     function helloFor() { return (helloAttr === 'auto' ? (botLevel === 'client' ? wt.helloClient : wt.helloPublic) : helloAttr) || helloAttr; }
     function applyWidgetLang(key) {
         if (!WIDGET_I18N[key] || WIDGET_I18N[key] === wt) return;
