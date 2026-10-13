@@ -478,6 +478,9 @@
     });
 
     function openPageModal(pc) {
+        // Bấm "Sửa" mà bản ghi thiếu id thì KHÔNG mở form: lưu lúc đó sẽ thành POST tạo kênh trùng.
+        if (pc && !pc.id) { showToast('Không nạp được bản ghi kênh (thiếu id) — tải lại trang rồi thử lại', 'error'); console.error('[sm-config] bản ghi pages_config thiếu id', pc); return; }
+        document.getElementById('page-modal').dataset.mode = pc ? 'edit' : 'new';
         document.getElementById('page-id-hidden').value = pc?.id || '';
         document.getElementById('page-platform').value = pc?.platform || 'facebook';
         document.getElementById('page-label').value = pc?.label || '';
@@ -496,6 +499,14 @@
 
     document.getElementById('save-page-btn').addEventListener('click', async () => {
         const id = document.getElementById('page-id-hidden').value;
+        if (!id && document.getElementById('page-modal').dataset.mode === 'edit') { showToast('Thiếu ID bản ghi — không lưu để tránh tạo kênh trùng. Tải lại trang rồi bấm Sửa lại.', 'error'); return; }
+        if (!id) {
+            const platform = document.getElementById('page-platform').value;
+            const pageId = document.getElementById('page-pageid').value.trim();
+            if (pageId && pagesConfigCache.some(pc => pc.platform === platform && String(pc.page_id || '').trim() === pageId)) {
+                showToast('Kênh này đã tồn tại — hãy bấm Sửa ở dòng tương ứng thay vì thêm mới', 'error'); return;
+            }
+        }
         let extraRaw = document.getElementById('page-extra').value.trim();
         let extraObj = {};
         if (extraRaw) {
