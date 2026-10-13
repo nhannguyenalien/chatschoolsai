@@ -9,7 +9,8 @@
     // Avatar dạng ảnh (vd. nhân vật vẫy tay): thay nút tròn bằng ảnh nổi + hoạt ảnh vẫy; data-hello = câu chào nhỏ cạnh ảnh.
     let avatarUrl = '';
     try { avatarUrl = scriptTag.getAttribute('data-avatar') ? new URL(scriptTag.getAttribute('data-avatar'), scriptTag.src || location.href).href : ''; } catch (e) { avatarUrl = ''; }
-    const helloText = (scriptTag.getAttribute('data-hello') || '').slice(0, 60);
+    const helloAttr = (scriptTag.getAttribute('data-hello') || '').slice(0, 60);
+    const helloText = helloAttr;
     const allowedDomain = scriptTag.getAttribute('data-domain');
     const currentDomain = window.location.hostname;
 
@@ -53,15 +54,25 @@
     // Đa ngôn ngữ cho GIAO DIỆN widget (khác với "response_language" của bot — đây chỉ là chữ
     // trên nút/placeholder, không phải nội dung AI trả lời). Mặc định vi để không đổi hành vi cũ.
     const WIDGET_I18N = {
-        vi: { subtitle: 'Hỗ trợ viên', close: 'Đóng', call: 'Gọi thoại cho hỗ trợ viên', mute: 'Tắt mic', unmute: 'Bật mic', end: 'Kết thúc', incomingTitle: 'Hỗ trợ viên', incoming: 'Đang gọi đến...', decline: 'Từ chối', accept: 'Nghe', placeholder: 'Nhập tin nhắn...', send: 'Gửi', footer: 'Được bảo vệ bởi Fluid Conversations', openChat: 'Mở chat', errConn: 'Lỗi kết nối tới AI.', errNetwork: 'Đường truyền có vấn đề. Vui lòng thử lại.' },
-        en: { subtitle: 'Support', close: 'Close', call: 'Call support', mute: 'Mute', unmute: 'Unmute', end: 'End', incomingTitle: 'Support', incoming: 'Incoming call...', decline: 'Decline', accept: 'Accept', placeholder: 'Type a message...', send: 'Send', footer: 'Protected by Fluid Conversations', openChat: 'Open chat', errConn: 'Connection error.', errNetwork: 'Connection issue. Please try again.' },
-        ja: { subtitle: 'サポート', close: '閉じる', call: 'サポートに電話', mute: 'ミュート', unmute: 'ミュート解除', end: '終了', incomingTitle: 'サポート', incoming: '着信中...', decline: '拒否', accept: '応答', placeholder: 'メッセージを入力...', send: '送信', footer: 'Fluid Conversations によって保護されています', openChat: 'チャットを開く', errConn: '接続エラーです。', errNetwork: '通信に問題があります。もう一度お試しください。' },
-        es: { subtitle: 'Soporte', close: 'Cerrar', call: 'Llamar a soporte', mute: 'Silenciar', unmute: 'Activar audio', end: 'Finalizar', incomingTitle: 'Soporte', incoming: 'Llamada entrante...', decline: 'Rechazar', accept: 'Aceptar', placeholder: 'Escribe un mensaje...', send: 'Enviar', footer: 'Protegido por Fluid Conversations', openChat: 'Abrir chat', errConn: 'Error de conexión.', errNetwork: 'Problema de conexión. Inténtalo de nuevo.' },
-        fr: { subtitle: 'Assistance', close: 'Fermer', call: "Appeler l'assistance", mute: 'Muet', unmute: 'Activer le son', end: 'Terminer', incomingTitle: 'Assistance', incoming: 'Appel entrant...', decline: 'Refuser', accept: 'Accepter', placeholder: 'Écrivez un message...', send: 'Envoyer', footer: 'Protégé par Fluid Conversations', openChat: 'Ouvrir le chat', errConn: 'Erreur de connexion.', errNetwork: 'Problème de connexion. Veuillez réessayer.' },
-        ko: { subtitle: '고객지원', close: '닫기', call: '상담원에게 전화', mute: '음소거', unmute: '음소거 해제', end: '종료', incomingTitle: '고객지원', incoming: '수신 전화 중...', decline: '거절', accept: '수락', placeholder: '메시지를 입력하세요...', send: '보내기', footer: 'Fluid Conversations 제공', openChat: '채팅 열기', errConn: '연결 오류입니다.', errNetwork: '연결에 문제가 있습니다. 다시 시도해 주세요.' },
+        vi: { helloPublic: 'Chào bạn! Cần mình tư vấn không? 👋', helloClient: 'Cần hỗ trợ gì không? 👋', subtitle: 'Hỗ trợ viên', close: 'Đóng', call: 'Gọi thoại cho hỗ trợ viên', mute: 'Tắt mic', unmute: 'Bật mic', end: 'Kết thúc', incomingTitle: 'Hỗ trợ viên', incoming: 'Đang gọi đến...', decline: 'Từ chối', accept: 'Nghe', placeholder: 'Nhập tin nhắn...', send: 'Gửi', footer: 'Được bảo vệ bởi Fluid Conversations', openChat: 'Mở chat', errConn: 'Lỗi kết nối tới AI.', errNetwork: 'Đường truyền có vấn đề. Vui lòng thử lại.' },
+        en: { helloPublic: 'Hi there! Need any help? 👋', helloClient: 'Need a hand? 👋', subtitle: 'Support', close: 'Close', call: 'Call support', mute: 'Mute', unmute: 'Unmute', end: 'End', incomingTitle: 'Support', incoming: 'Incoming call...', decline: 'Decline', accept: 'Accept', placeholder: 'Type a message...', send: 'Send', footer: 'Protected by Fluid Conversations', openChat: 'Open chat', errConn: 'Connection error.', errNetwork: 'Connection issue. Please try again.' },
+        ja: { helloPublic: 'こんにちは！ご相談はありますか？👋', helloClient: 'お困りですか？👋', subtitle: 'サポート', close: '閉じる', call: 'サポートに電話', mute: 'ミュート', unmute: 'ミュート解除', end: '終了', incomingTitle: 'サポート', incoming: '着信中...', decline: '拒否', accept: '応答', placeholder: 'メッセージを入力...', send: '送信', footer: 'Fluid Conversations によって保護されています', openChat: 'チャットを開く', errConn: '接続エラーです。', errNetwork: '通信に問題があります。もう一度お試しください。' },
+        es: { helloPublic: '¡Hola! ¿Te ayudo? 👋', helloClient: '¿Necesitas ayuda? 👋', subtitle: 'Soporte', close: 'Cerrar', call: 'Llamar a soporte', mute: 'Silenciar', unmute: 'Activar audio', end: 'Finalizar', incomingTitle: 'Soporte', incoming: 'Llamada entrante...', decline: 'Rechazar', accept: 'Aceptar', placeholder: 'Escribe un mensaje...', send: 'Enviar', footer: 'Protegido por Fluid Conversations', openChat: 'Abrir chat', errConn: 'Error de conexión.', errNetwork: 'Problema de conexión. Inténtalo de nuevo.' },
+        fr: { helloPublic: 'Bonjour ! Besoin d’aide ? 👋', helloClient: 'Besoin d’un coup de main ? 👋', subtitle: 'Assistance', close: 'Fermer', call: "Appeler l'assistance", mute: 'Muet', unmute: 'Activer le son', end: 'Terminer', incomingTitle: 'Assistance', incoming: 'Appel entrant...', decline: 'Refuser', accept: 'Accepter', placeholder: 'Écrivez un message...', send: 'Envoyer', footer: 'Protégé par Fluid Conversations', openChat: 'Ouvrir le chat', errConn: 'Erreur de connexion.', errNetwork: 'Problème de connexion. Veuillez réessayer.' },
+        ko: { helloPublic: '안녕하세요! 도와드릴까요? 👋', helloClient: '도움이 필요하세요? 👋', subtitle: '고객지원', close: '닫기', call: '상담원에게 전화', mute: '음소거', unmute: '음소거 해제', end: '종료', incomingTitle: '고객지원', incoming: '수신 전화 중...', decline: '거절', accept: '수락', placeholder: '메시지를 입력하세요...', send: '보내기', footer: 'Fluid Conversations 제공', openChat: '채팅 열기', errConn: '연결 오류입니다.', errNetwork: '연결에 문제가 있습니다. 다시 시도해 주세요.' },
     };
-    const widgetLangKey = WIDGET_I18N[scriptTag.getAttribute('data-lang')] ? scriptTag.getAttribute('data-lang') : 'vi';
-    const wt = WIDGET_I18N[widgetLangKey];
+    // data-lang="auto": theo ngôn ngữ của trang (html[lang] / localStorage 'lang') và đổi ngay khi khách đổi ngôn ngữ.
+    const langAttr = scriptTag.getAttribute('data-lang');
+    const langAuto = langAttr === 'auto';
+    function detectPageLang() {
+        let code = '';
+        try { code = (localStorage.getItem('lang') || '').slice(0, 2).toLowerCase(); } catch (e) {}
+        const htmlLang = (document.documentElement.lang || '').slice(0, 2).toLowerCase();
+        if (WIDGET_I18N[htmlLang]) return htmlLang;
+        return WIDGET_I18N[code] ? code : 'vi';
+    }
+    const widgetLangKey = langAuto ? detectPageLang() : (WIDGET_I18N[langAttr] ? langAttr : 'vi');
+    let wt = WIDGET_I18N[widgetLangKey];
 
     // 2. FONTS & CSS
     document.head.insertAdjacentHTML('beforeend', `
@@ -345,14 +356,14 @@
                     </div>
                     <div>
                         <h2>${botName}</h2>
-                        <p>${wt.subtitle}</p>
+                        <p data-wt="subtitle">${wt.subtitle}</p>
                     </div>
                 </div>
                 <div id="ai-header-actions">
-                    <button id="ai-btn-call" title="${wt.call}">
+                    <button id="ai-btn-call" title="${wt.call}" data-wt-title="call">
                         <span class="material-symbols-outlined" style="font-size:20px;">call</span>
                     </button>
-                    <button id="ai-btn-close" title="${wt.close}">
+                    <button id="ai-btn-close" title="${wt.close}" data-wt-title="close">
                         <span class="material-symbols-outlined" style="font-size:20px;">close</span>
                     </button>
                 </div>
@@ -365,20 +376,20 @@
                 </div>
                 <div id="ai-call-actions">
                     <button id="ai-call-mute" style="display:none;">${wt.mute}</button>
-                    <button id="ai-call-end">${wt.end}</button>
+                    <button id="ai-call-end" data-wt="end">${wt.end}</button>
                 </div>
             </div>
             <div id="ai-incoming-call-overlay">
                 <div class="ai-incoming-avatar">
                     <span class="material-symbols-outlined" style="font-size:36px;">support_agent</span>
                 </div>
-                <h3>${wt.incomingTitle}</h3>
-                <p>${wt.incoming}</p>
+                <h3 data-wt="incomingTitle">${wt.incomingTitle}</h3>
+                <p data-wt="incoming">${wt.incoming}</p>
                 <div id="ai-incoming-call-actions">
-                    <button id="ai-incoming-decline" title="${wt.decline}">
+                    <button id="ai-incoming-decline" title="${wt.decline}" data-wt-title="decline">
                         <span class="material-symbols-outlined" style="font-size:26px;">call_end</span>
                     </button>
-                    <button id="ai-incoming-accept" title="${wt.accept}">
+                    <button id="ai-incoming-accept" title="${wt.accept}" data-wt-title="accept">
                         <span class="material-symbols-outlined" style="font-size:26px;">call</span>
                     </button>
                 </div>
@@ -400,15 +411,15 @@
                     <button class="ai-icon-btn" tabindex="-1">
                         <span class="material-symbols-outlined" style="font-size:22px;">add_circle</span>
                     </button>
-                    <textarea id="ai-chat-input" placeholder="${wt.placeholder}" rows="1"></textarea>
-                    <button id="ai-send-btn" title="${wt.send}">
+                    <textarea id="ai-chat-input" placeholder="${wt.placeholder}" data-wt-ph="placeholder" rows="1"></textarea>
+                    <button id="ai-send-btn" title="${wt.send}" data-wt-title="send">
                         <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;font-size:20px;">send</span>
                     </button>
                 </div>
-                <div id="ai-footer-note">${wt.footer}</div>
+                <div id="ai-footer-note" data-wt="footer">${wt.footer}</div>
             </div>
         </div>
-        <button id="ai-btn-fab" title="${wt.openChat}"${avatarUrl ? ' class="ai-fab-avatar"' : ''}>
+        <button id="ai-btn-fab" title="${wt.openChat}" data-wt-title="openChat"${avatarUrl ? ' class="ai-fab-avatar"' : ''}>
             ${avatarUrl ? `<img src="${avatarUrl}" alt="${wt.openChat}" draggable="false">` : '<span class="material-symbols-outlined" style="font-size:28px;">chat</span>'}
         </button>
         ${avatarUrl && helloText ? `<div id="ai-hello"></div>` : ''}
@@ -842,7 +853,22 @@
     callEndBtn.addEventListener('click', function() { endCall(); });
 
     const helloEl = document.getElementById('ai-hello');
-    if (helloEl) { helloEl.textContent = helloText; helloEl.addEventListener('click', function() { if (!isChatOpen) toggleChat(); }); }
+    function helloFor() { return (helloAttr === 'auto' ? (botLevel === 'client' ? wt.helloClient : wt.helloPublic) : helloAttr) || helloAttr; }
+    function applyWidgetLang(key) {
+        if (!WIDGET_I18N[key] || WIDGET_I18N[key] === wt) return;
+        wt = WIDGET_I18N[key];
+        root.querySelectorAll('[data-wt]').forEach(function(el) { el.textContent = wt[el.getAttribute('data-wt')]; });
+        root.querySelectorAll('[data-wt-title]').forEach(function(el) { el.title = wt[el.getAttribute('data-wt-title')]; });
+        root.querySelectorAll('[data-wt-ph]').forEach(function(el) { el.placeholder = wt[el.getAttribute('data-wt-ph')]; });
+        var fabImg = btnFab.querySelector('img'); if (fabImg) fabImg.alt = wt.openChat;
+        if (helloEl) helloEl.textContent = helloFor();
+    }
+    if (langAuto) {
+        new MutationObserver(function() { applyWidgetLang(detectPageLang()); }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+        window.addEventListener('languagechange', function(e) { applyWidgetLang((e.detail && e.detail.lang) || detectPageLang()); });
+        window.addEventListener('storage', function(e) { if (e.key === 'lang') applyWidgetLang(detectPageLang()); });
+    }
+    if (helloEl) { helloEl.textContent = helloFor();  helloEl.addEventListener('click', function() { if (!isChatOpen) toggleChat(); }); }
 
     function toggleChat() {
         isChatOpen = !isChatOpen;
