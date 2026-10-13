@@ -6,6 +6,10 @@
     // Cấp tư vấn cho bot nền tảng (public | client) + ngữ cảnh trang; tenant thường không dùng.
     const botLevel = ['public', 'client'].includes(scriptTag.getAttribute('data-level')) ? scriptTag.getAttribute('data-level') : '';
     const pageContext = (scriptTag.getAttribute('data-context') || '').slice(0, 200);
+    // Avatar dạng ảnh (vd. nhân vật vẫy tay): thay nút tròn bằng ảnh nổi + hoạt ảnh vẫy; data-hello = câu chào nhỏ cạnh ảnh.
+    let avatarUrl = '';
+    try { avatarUrl = scriptTag.getAttribute('data-avatar') ? new URL(scriptTag.getAttribute('data-avatar'), scriptTag.src || location.href).href : ''; } catch (e) { avatarUrl = ''; }
+    const helloText = (scriptTag.getAttribute('data-hello') || '').slice(0, 60);
     const allowedDomain = scriptTag.getAttribute('data-domain');
     const currentDomain = window.location.hostname;
 
@@ -292,14 +296,40 @@
             }
             #ai-btn-fab:hover { transform: scale(1.1); }
             #ai-btn-fab.ai-hidden { transform: scale(0); opacity: 0; pointer-events: none; }
+
+            ${avatarUrl ? `
+            #ai-btn-fab.ai-fab-avatar {
+                width: 92px; height: 92px; border-radius: 0; background: transparent; box-shadow: none; padding: 0;
+                overflow: visible; filter: drop-shadow(0 8px 14px rgba(${accentRgb},0.35));
+                animation: ai-float 3.2s ease-in-out infinite;
+            }
+            #ai-btn-fab.ai-fab-avatar img { width: 100%; height: 100%; object-fit: contain; transform-origin: 78% 72%; animation: ai-wave 3.2s ease-in-out infinite; pointer-events: none; user-select: none; }
+            #ai-btn-fab.ai-fab-avatar:hover { transform: scale(1.08); }
+            @keyframes ai-float { 0%,100% { translate: 0 0; } 50% { translate: 0 -5px; } }
+            @keyframes ai-wave { 0%,55%,100% { rotate: 0deg; } 62% { rotate: 9deg; } 70% { rotate: -7deg; } 78% { rotate: 9deg; } 86% { rotate: -5deg; } 93% { rotate: 3deg; } }
+            #ai-hello {
+                position: fixed; bottom: calc(1.5rem + 78px); ${side}: 1.5rem; max-width: 220px;
+                background: #fff; color: #191c20; font: 600 13px/1.35 Inter, sans-serif; padding: 9px 13px;
+                border-radius: 14px 14px ${side === 'right' ? '4px 14px' : '14px 4px'}; box-shadow: 0 6px 24px rgba(0,0,0,0.14);
+                z-index: 999997; cursor: pointer; animation: ai-hello-in 0.4s 1.2s both;
+            }
+            #ai-hello.ai-hidden { display: none; }
+            @keyframes ai-hello-in { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+            #ai-chat-header .ai-avatar.ai-avatar-img { background: transparent; }
+            #ai-chat-header .ai-avatar.ai-avatar-img img { width: 100%; height: 100%; object-fit: contain; }
+            .ai-bot-icon.ai-bot-icon-img { background: transparent !important; overflow: visible; }
+            .ai-bot-icon.ai-bot-icon-img img { width: 100%; height: 100%; object-fit: contain; }
+            @media (prefers-reduced-motion: reduce) { #ai-btn-fab.ai-fab-avatar, #ai-btn-fab.ai-fab-avatar img { animation: none; } }
+            ` : ''}
         </style>
     `);
 
     // 3. SESSION
-    let session = localStorage.getItem('ai_session_' + tenant);
+    const sessionKey = 'ai_session_' + tenant + (botLevel ? '_' + botLevel : '');
+    let session = localStorage.getItem(sessionKey);
     if (!session) {
         session = 'sess_' + crypto.randomUUID();
-        localStorage.setItem('ai_session_' + tenant, session);
+        localStorage.setItem(sessionKey, session);
     }
 
     // 4. HTML
@@ -309,8 +339,8 @@
         <div id="ai-chat-window" class="ai-hidden">
             <div id="ai-chat-header">
                 <div class="ai-header-left">
-                    <div class="ai-avatar">
-                        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;font-size:24px;">account_circle</span>
+                    <div class="ai-avatar${avatarUrl ? ' ai-avatar-img' : ''}">
+                        ${avatarUrl ? `<img src="${avatarUrl}" alt="">` : `<span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;font-size:24px;">account_circle</span>`}
                         <span class="ai-online-dot"></span>
                     </div>
                     <div>
@@ -358,8 +388,8 @@
                 <div class="ai-timestamp"><span id="ai-timestamp-label"></span></div>
             </div>
             <div id="ai-typing">
-                <div class="ai-bot-icon">
-                    <span class="material-symbols-outlined" style="font-size:16px;">smart_toy</span>
+                <div class="ai-bot-icon${avatarUrl ? ' ai-bot-icon-img' : ''}">
+                    ${avatarUrl ? `<img src="${avatarUrl}" alt="">` : '<span class="material-symbols-outlined" style="font-size:16px;">smart_toy</span>'}
                 </div>
                 <div class="ai-dots">
                     <span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span>
@@ -378,9 +408,10 @@
                 <div id="ai-footer-note">${wt.footer}</div>
             </div>
         </div>
-        <button id="ai-btn-fab" title="${wt.openChat}">
-            <span class="material-symbols-outlined" style="font-size:28px;">chat</span>
+        <button id="ai-btn-fab" title="${wt.openChat}"${avatarUrl ? ' class="ai-fab-avatar"' : ''}>
+            ${avatarUrl ? `<img src="${avatarUrl}" alt="${wt.openChat}" draggable="false">` : '<span class="material-symbols-outlined" style="font-size:28px;">chat</span>'}
         </button>
+        ${avatarUrl && helloText ? `<div id="ai-hello"></div>` : ''}
     `;
     document.body.appendChild(root);
 
@@ -432,6 +463,8 @@
         text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" style="color:${accentColor};text-decoration:underline;">$1</a>`);
         // URL trần
         text = text.replace(/(?<![("'=])(https?:\/\/[^\s<"]+)/g, `<a href="$1" target="_blank" style="color:${accentColor};text-decoration:underline;">$1</a>`);
+        // In đậm **...**
+        text = text.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
         // Xuống dòng
         text = text.replace(/\n/g, '<br>');
         return text;
@@ -447,7 +480,7 @@
     function appendBotMessage(text) {
         const div = document.createElement('div');
         div.className = 'ai-msg-bot';
-        div.innerHTML = '<div class="ai-bot-icon"><span class="material-symbols-outlined" style="font-size:16px;">smart_toy</span></div><div class="ai-bubble">' + renderMarkdown(text) + '</div>';
+        div.innerHTML = '<div class="ai-bot-icon' + (avatarUrl ? ' ai-bot-icon-img' : '') + '">' + (avatarUrl ? '<img src="' + avatarUrl + '" alt="">' : '<span class="material-symbols-outlined" style="font-size:16px;">smart_toy</span>') + '</div><div class="ai-bubble">' + renderMarkdown(text) + '</div>';
         chatBody.appendChild(div);
     }
 
@@ -808,8 +841,12 @@
     callMuteBtn.addEventListener('click', toggleCallMute);
     callEndBtn.addEventListener('click', function() { endCall(); });
 
+    const helloEl = document.getElementById('ai-hello');
+    if (helloEl) { helloEl.textContent = helloText; helloEl.addEventListener('click', function() { if (!isChatOpen) toggleChat(); }); }
+
     function toggleChat() {
         isChatOpen = !isChatOpen;
+        if (helloEl) helloEl.classList.add('ai-hidden');
         if (isChatOpen) {
             chatWindow.classList.remove('ai-hidden');
             btnFab.classList.add('ai-hidden');

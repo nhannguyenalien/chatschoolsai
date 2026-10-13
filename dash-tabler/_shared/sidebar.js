@@ -60,13 +60,15 @@ function mountAdvisorWidget() {
   if (document.getElementById('advisor-widget-script') || document.getElementById('ai-chat-root')) return;
   const s = document.createElement('script');
   s.id = 'advisor-widget-script';
-  s.src = 'chat-widget.js?v=20261013-level';
+  s.src = 'chat-widget.js?v=20261013-v3';
   s.setAttribute('data-tenant', 'chatschoolai');
   s.setAttribute('data-botname', 'Schools AI');
   s.setAttribute('data-color', '#0050cb');
   s.setAttribute('data-position', 'right');
   s.setAttribute('data-style', 'bubble');
   s.setAttribute('data-level', 'client');
+  s.setAttribute('data-avatar', 'assets/advisor-avatar.webp');
+  s.setAttribute('data-hello', 'Cần hỗ trợ gì không? 👋');
   s.setAttribute('data-lang', typeof getLang === 'function' && ['vi', 'en', 'ja', 'es', 'fr', 'ko'].includes(getLang()) ? getLang() : 'vi');
   s.setAttribute('data-context', `workspace=${window.TENANT || ''}; page=${window.location.pathname.split('/').pop() || 'index.html'}`);
   document.body.appendChild(s);
