@@ -30,7 +30,7 @@ import { createTelegramContentPlanningWebhook } from "./adapters/telegram/conten
 import { createGoogleAnalyticsIntegration } from "./integrations/googleAnalytics.js";
 import { createFacebookInsightsIntegration } from "./integrations/facebookInsights.js";
 import { createMetaAdsIntegration } from "./integrations/metaAds.js";
-import { MCP_SERVER_TOOL_NAME, gatherMcpContext, parseMcpServer } from "./integrations/mcpClient.js";
+import { MCP_SERVER_TOOL_NAME, callMcpTool, gatherToolContext, listMcpTools, mcpToolToOpenAi, parseMcpServer } from "./integrations/mcpClient.js";
 import { createAdsRepository } from "./repositories/pocketbase/adsRepository.js";
 import { createAdsService } from "./workflows/adsService.js";
 import { handleAdsRoute } from "./api/ads.js";
@@ -1030,29 +1030,42 @@ async function loadTenantMcpServer(env, pbToken, tenant) {
 }
 __name(loadTenantMcpServer, "loadTenantMcpServer");
 
-// Tra dữ liệu thật qua MCP rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
-async function buildMcpContext(env, pbToken, tenant, session, question, reservedQuota) {
+// Tra dữ liệu thật của tenant (MCP server + các tool GET tenant tự khai báo trong agent_tools, vd WooCommerce Store API)
+// rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
+async function buildToolContext(env, pbToken, tenant, session, question, reservedQuota) {
   try {
-    const server = await loadTenantMcpServer(env, pbToken, tenant);
-    if (!server || !env.OPENAI_KEY) return "";
+    if (!env.OPENAI_KEY) return "";
+    const [server, customAll] = await Promise.all([loadTenantMcpServer(env, pbToken, tenant), loadCustomAgentTools(env, pbToken, tenant)]);
+    const getTools = customAll.filter((t) => (t.method || "GET").toUpperCase() === "GET" && isValidCustomToolName(t.name));
+    if (!server && !getTools.length) return "";
+    const mcpTools = server ? await listMcpTools(server, fetchExternalUrlSafely, `${tenant}:${server.url}`).catch((err) => { console.error(`[Chat] MCP tools/list lỗi (tenant ${tenant}):`, err.message); return []; }) : [];
+    const mcpNames = new Set(mcpTools.map((t) => t.name));
+    const extra = getTools.filter((t) => !mcpNames.has(t.name));
+    const tools = [...mcpTools.map(mcpToolToOpenAi), ...extra.map(customToolToOpenAiSchema)];
+    if (!tools.length) return "";
+
     const filter = `tenant='${escFilterValue(tenant)}' && session='${escFilterValue(session)}'`;
     const hist = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records?perPage=6&sort=-created&fields=text,is_bot&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
     const history = hist.ok ? ((await hist.json()).items || []).reverse().map((m) => ({ role: m.is_bot ? "assistant" : "user", content: String(m.text || "").slice(0, 1000) })) : [];
     const last = history[history.length - 1];
     if (!last || last.role !== "user" || last.content !== question.slice(0, 1000)) history.push({ role: "user", content: question });
     const model = env.MCP_CHAT_MODEL || env.MARKETPLACE_CHAT_MODEL || "gpt-4o-mini";
-    return await gatherMcpContext({
-      server, fetchImpl: fetchExternalUrlSafely, cacheKey: `${tenant}:${server.url}`,
+    const origins = [...new Set([server?.url, ...extra.map((t) => t.url_template)].filter(Boolean).map((u) => { try { return new URL(u.replace(/\{[^}]*\}/g, "x")).origin; } catch { return null; } }).filter(Boolean))];
+    return await gatherToolContext({
+      tools, history, imageBaseUrls: origins,
+      execute: (name, args) => mcpNames.has(name)
+        ? callMcpTool(server, fetchExternalUrlSafely, name, args)
+        : executeCustomerFacingTool(extra, name, args, 400000),
       chatFetch: createMeteredAiFetch(env, tenant, pbToken, reservedQuota),
       chatUrl: `${env.OPENAI_BASE_URL}/chat/completions`, apiKey: env.OPENAI_KEY, model,
-      extraBody: toolCallReasoning(model), history
+      extraBody: toolCallReasoning(model)
     });
   } catch (err) {
-    console.error(`[Chat] MCP tra cứu lỗi (tenant ${tenant}):`, err.message);
+    console.error(`[Chat] Tra cứu dữ liệu lỗi (tenant ${tenant}):`, err.message);
     return "";
   }
 }
-__name(buildMcpContext, "buildMcpContext");
+__name(buildToolContext, "buildToolContext");
 
 async function handleChat(request, env, cors, reservedQuota = null) {
   const userAgent = request.headers.get("user-agent") || "";
@@ -1146,7 +1159,7 @@ async function handleChat(request, env, cors, reservedQuota = null) {
     const contextBlocks = [];
     if (lesson) contextBlocks.push(formatLessonContentForBot(lesson));
     if (customerContext) contextBlocks.push(formatCustomerContextForBot(customerContext));
-    const mcpContext = await buildMcpContext(env, pbToken, tenant, session, question, reservedQuota);
+    const mcpContext = await buildToolContext(env, pbToken, tenant, session, question, reservedQuota);
     if (mcpContext) contextBlocks.push(mcpContext);
     const contextualQuestion = contextBlocks.length
       ? `${contextBlocks.join("\n\n")}\n\nCÂU HỎI HIỆN TẠI CỦA KHÁCH:\n${question}`
@@ -8975,6 +8988,8 @@ async function executeCustomAgentTool(toolDef, args, maxLen = 1000) {
   for (const [k, v] of Object.entries(args || {})) {
     url = url.split(`{${k}}`).join(encodeURIComponent(v));
   }
+  // Tham số model không truyền (vd keyword rỗng khi khách hỏi chung chung) thì để trống thay vì gửi nguyên chữ "{keyword}".
+  url = url.replace(/\{[a-zA-Z0-9_]+\}/g, "");
   let headers = { "Content-Type": "application/json" };
   if (toolDef.headers_template) {
     try { headers = { ...headers, ...JSON.parse(toolDef.headers_template) }; } catch {}
@@ -9055,7 +9070,7 @@ __name(sanitizeArgsAgainstSchema, "sanitizeArgsAgainstSchema");
 // không bao giờ đụng được update_bot_config/add_page_config... Chặn method != GET ngay ở đây
 // (không chỉ ở system prompt) để dù model có bị dụ gọi tool ghi dữ liệu, request cũng không bao
 // giờ được thực thi — v1 chỉ làm search, chưa làm đăng tin qua chat.
-async function executeCustomerFacingTool(customTools, name, args) {
+async function executeCustomerFacingTool(customTools, name, args, maxLen = 4000) {
   const tool = customTools.find((t) => t.name === name);
   if (!tool) return "Tool không xác định.";
   if ((tool.method || "GET").toUpperCase() !== "GET") {
@@ -9065,7 +9080,7 @@ async function executeCustomerFacingTool(customTools, name, args) {
   try { schema = JSON.parse(tool.parameters_schema || "{}"); } catch { schema = {}; }
   const sanitized = sanitizeArgsAgainstSchema(schema, args);
   if (sanitized.error) return sanitized.error;
-  return await executeCustomAgentTool(tool, sanitized.value, 4000);
+  return await executeCustomAgentTool(tool, sanitized.value, maxLen);
 }
 __name(executeCustomerFacingTool, "executeCustomerFacingTool");
 

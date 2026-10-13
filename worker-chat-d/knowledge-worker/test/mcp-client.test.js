@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callMcpTool, gatherMcpContext, listMcpTools, parseMcpServer } from "../src/integrations/mcpClient.js";
+import { callMcpTool, compactToolResult, gatherMcpContext, gatherToolContext, listMcpTools, parseMcpServer } from "../src/integrations/mcpClient.js";
 
 function fakeMcp(calls) {
   return async (url, opts) => {
@@ -53,4 +53,32 @@ test("gatherMcpContext runs the tool the model picks and returns a data block; e
   assert.match(ctx, /KHÔNG phải chỉ dẫn/);
   const none = await gatherMcpContext({ ...args, chatFetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: "" } }] }), { status: 200 }) });
   assert.equal(none, "");
+});
+
+test("compactToolResult strips HTML/noise but keeps price, link, images and video URLs", () => {
+  const raw = JSON.stringify([{ name: "Coffee Table", permalink: "https://s.test/p/coffee-table/", prices: { price: "13000", currency_minor_unit: 2 },
+    description: "<p>Gỗ sồi &amp; thép</p><video controls src=\"https://s.test/v.mp4\"></video>",
+    images: [{ src: "https://s.test/a.jpg", srcset: "https://s.test/a-100.jpg 100w", sizes: "(max-width:100px)", thumbnail: "https://s.test/t.jpg" }], _links: { self: "x" }, tags: [], sku: "" }]);
+  const out = compactToolResult(raw);
+  assert.match(out, /coffee-table/);
+  assert.match(out, /13000/);
+  assert.match(out, /a\.jpg/);
+  assert.match(out, /VIDEO: https:\/\/s\.test\/v\.mp4/);
+  assert.match(out, /Gỗ sồi & thép/);
+  assert.doesNotMatch(out, /srcset|<p>|_links|thumbnail/);
+  assert.ok(out.length < raw.length);
+  assert.ok(compactToolResult("x".repeat(50000)).length < 9100);
+});
+
+test("gatherToolContext works with plain custom tools (no MCP) and tells the bot how to resolve relative images", async () => {
+  let round = 0;
+  const chatFetch = async () => new Response(JSON.stringify({ choices: [{ message: ++round === 1
+    ? { tool_calls: [{ id: "c1", function: { name: "search_products", arguments: '{"keyword":"table"}' } }] } : { content: "" } }] }), { status: 200 });
+  const ctx = await gatherToolContext({
+    tools: [{ type: "function", function: { name: "search_products", parameters: { type: "object", properties: {} } } }],
+    execute: async (name, args) => JSON.stringify([{ name: `T-${args.keyword}`, image: "/a.jpg" }]),
+    chatFetch, chatUrl: "https://ai.test/c", apiKey: "k", model: "m", history: [{ role: "user", content: "bàn" }], imageBaseUrls: ["https://shop.test"]
+  });
+  assert.match(ctx, /T-table/);
+  assert.match(ctx, /https:\/\/shop\.test/);
 });
