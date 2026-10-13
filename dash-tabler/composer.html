@@ -328,6 +328,12 @@
                                                 <small class="form-hint mt-1">Chọn 1 Page để đặt giờ đăng riêng cho Page đó (chỉ áp dụng cho Social). Bài của Page có luật riêng sẽ không bị luật chung lấy mất.</small>
                                             </div>
                                             <div class="mb-3">
+                                                <label class="form-label">Múi giờ của giờ đăng</label>
+                                                <input id="sched-timezone" class="form-control" list="sched-timezone-list" placeholder="Asia/Ho_Chi_Minh" autocomplete="off">
+                                                <datalist id="sched-timezone-list"></datalist>
+                                                <small class="form-hint mt-1">Giờ đăng bên dưới được hiểu theo múi giờ này (mặc định là múi giờ trình duyệt của bạn). Page ở nước khác thì chọn múi giờ nước đó.</small>
+                                            </div>
+                                            <div class="mb-3">
                                                 <label class="form-label">Ngày áp dụng</label>
                                                 <div class="d-flex flex-wrap gap-2">
                                                     <label class="form-check form-check-inline m-0"><input class="form-check-input sched-day" type="checkbox" value="mon"><span class="form-check-label">T2</span></label>
@@ -932,11 +938,17 @@
         const contentType = document.getElementById('sched-content-type').value;
         const days = [...document.querySelectorAll('.sched-day:checked')].map(el => el.value);
         const pageId = contentType === 'social' ? document.getElementById('sched-page').value : '';
+        const timezone = document.getElementById('sched-timezone').value.trim();
+        if (timezone) {
+            try { new Intl.DateTimeFormat('en', { timeZone: timezone }); }
+            catch { showToast('Múi giờ không hợp lệ (vd Asia/Ho_Chi_Minh)', 'error'); return; }
+        }
         try {
             await TC('publish_schedules').create({
                 tenant: window.TENANT,
                 content_type: contentType,
                 page_id: pageId,
+                timezone,
                 days: JSON.stringify(days),
                 times: JSON.stringify(scheduleTimeChips),
                 is_active: true
@@ -970,6 +982,16 @@
         }
     }
 
+    (function initScheduleTimezone() {
+        const input = document.getElementById('sched-timezone');
+        const list = document.getElementById('sched-timezone-list');
+        if (!input || !list) return;
+        try {
+            input.value = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+            list.innerHTML = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []).map(z => `<option value="${z}">`).join('');
+        } catch {}
+    })();
+
     async function loadSchedules() {
         const el = document.getElementById('schedule-list');
         try {
@@ -993,7 +1015,7 @@
                     <i class="ti ${s.is_active ? 'ti-calendar-time text-success' : 'ti-calendar-off text-secondary'} fs-3 mt-1"></i>
                     <div class="flex-fill">
                         <div class="fw-medium">${CONTENT_TYPE_LABEL[s.content_type] || s.content_type} <span class="badge bg-secondary-lt ms-1">${escHtml(daysText)}</span>${pageText ? `<span class="badge bg-azure-lt ms-1">${escHtml(pageText)}</span>` : ''}</div>
-                        <div class="text-secondary fs-6">Giờ đăng: ${times.map(t => escHtml(t)).join(', ')}</div>
+                        <div class="text-secondary fs-6">Giờ đăng: ${times.map(t => escHtml(t)).join(', ')}${s.timezone ? ` (${escHtml(s.timezone)})` : ' (UTC)'}</div>
                     </div>
                     <div class="d-flex gap-1">
                         <button class="btn btn-sm btn-outline-secondary" onclick="toggleScheduleRule('${s.id}', ${s.is_active ? 'true' : 'false'})" title="${s.is_active ? 'Tắt' : 'Bật'}">

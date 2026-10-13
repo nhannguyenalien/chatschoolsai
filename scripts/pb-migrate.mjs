@@ -359,7 +359,8 @@ async function migratePublishSchedules(token) {
   const existing = await getCollectionByName(token, "publish_schedules");
   if (existing) {
     console.log("  - collection đã tồn tại, cập nhật tenant rules + field page_id (luật lịch riêng cho từng page)");
-    const schema = ensureField(existing.schema, { name: "page_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+    let schema = ensureField(existing.schema, { name: "page_id", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
+    schema = ensureField(schema, { name: "timezone", type: "text", required: false, options: { min: null, max: null, pattern: "" } });
     await patchCollection(token, existing.id, { schema, ...TENANT_RULES });
     return;
   }
@@ -374,6 +375,7 @@ async function migratePublishSchedules(token) {
       { name: "times", type: "text", required: false, options: {} },
       { name: "is_active", type: "bool", required: false, options: {} },
       { name: "page_id", type: "text", required: false, options: {} },
+      { name: "timezone", type: "text", required: false, options: {} },
     ],
     ...TENANT_RULES,
   });

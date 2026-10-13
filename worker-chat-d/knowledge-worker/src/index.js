@@ -23,6 +23,7 @@ import { createSanityHistoryAdapter } from "./adapters/sanity/history.js";
 import { createSanityBlogPublisher, isSkillgoBlogProfile } from "./adapters/sanity/blogPublisher.js";
 import { createOpenAiBlogWriter } from "./adapters/openai/blogWriter.js";
 import { createOpenAiSegmentTranslator } from "./adapters/openai/segmentTranslator.js";
+import { normalizePublishSchedule, serializePublishSchedule, zonedSlotISO, dayNameInZone, resolveRuleTimeZone } from "./domain/publishing/scheduleRules.js";
 import { shouldTranslateForPage, translatePostForPage, splitPagesByContentMode, getPageLanguage, buildScheduleCandidateFilter } from "./domain/publishing/pageContent.js";
 import { createOpenAiBlogIllustrator } from "./adapters/openai/blogIllustrator.js";
 import { createTelegramClient } from "./adapters/telegram/client.js";
@@ -4574,6 +4575,9 @@ __name(processMetaCommentEvent, "processMetaCommentEvent");
 // Chữ ký được kiểm với app_secret của các kênh có trong payload; META_APP_SECRET toàn hệ thống chỉ là fallback.
 async function metaAppSecretsForPayload(env, body, platform) {
   const secrets = [];
+  const addSecret = (page) => {
+    try { const secret = JSON.parse(page.extra_config || "{}").app_secret; if (secret && !secrets.includes(String(secret))) secrets.push(String(secret)); } catch {}
+  };
   // WhatsApp: entry.id là WABA id, còn kênh lưu Phone Number ID (metadata.phone_number_id) trong page_id.
   const ids = (platform === "whatsapp"
     ? whatsAppPhoneNumberIds(body)
@@ -4582,15 +4586,21 @@ async function metaAppSecretsForPayload(env, body, platform) {
     try {
       const pbToken = await getPbToken(env);
       const filter = `platform='${platform}' && is_active=true && (${ids.map((id) => `page_id='${escFilterValue(id)}'`).join(" || ")})`;
-      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&fields=extra_config&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
-      for (const page of (await res.json().catch(() => ({}))).items || []) {
-        try { const secret = JSON.parse(page.extra_config || "{}").app_secret; if (secret) secrets.push(String(secret)); } catch {}
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=50&fields=tenant,extra_config&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+      const matched = (await res.json().catch(() => ({}))).items || [];
+      // 1) Secret riêng của chính kênh (mỗi Page một App riêng).
+      for (const page of matched) addSecret(page);
+      // 2) Secret của các kênh khác cùng tenant: nhiều Page chung một Meta App thì chỉ cần nhập app_secret một lần.
+      const tenants = [...new Set(matched.map((page) => page.tenant).filter(Boolean))].slice(0, 10);
+      if (tenants.length) {
+        const siblingFilter = `is_active=true && (platform='facebook' || platform='instagram' || platform='whatsapp') && (${tenants.map((t) => `tenant='${escFilterValue(t)}'`).join(" || ")})`;
+        const sibRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=200&fields=extra_config&filter=${encodeURIComponent(siblingFilter)}`, { headers: { Authorization: pbToken } });
+        for (const page of (await sibRes.json().catch(() => ({}))).items || []) addSecret(page);
       }
     } catch (err) {
       console.error("[Meta Webhook] Không đọc được app_secret của kênh:", err);
     }
   }
-  if (env.META_APP_SECRET) secrets.push(env.META_APP_SECRET);
   return secrets;
 }
 __name(metaAppSecretsForPayload, "metaAppSecretsForPayload");
@@ -4602,7 +4612,7 @@ async function handleMetaWebhookEvent(request, env, ctx) {
   const secretPlatform = isWhatsAppPayload(parsed) ? "whatsapp" : parsed?.object === "instagram" ? "instagram" : "facebook";
   const secrets = await metaAppSecretsForPayload(env, parsed, secretPlatform);
   if (!secrets.length) {
-    console.error("[Meta Webhook] Không có app_secret (kênh hoặc META_APP_SECRET) để xác thực chữ ký");
+    console.error("[Meta Webhook] Không có app_secret của kênh/tenant để xác thực chữ ký");
     return new Response("Webhook not configured", { status: 503 });
   }
   let verified = false;
@@ -5156,10 +5166,9 @@ var SCHEDULE_CONTENT_TYPE_PLATFORMS = {
   social: ["facebook", "instagram", "linkedin"]
 };
 
-function scheduleDayMatches(daysConfig, date) {
+function scheduleDayMatches(daysConfig, dayName) {
   if (!Array.isArray(daysConfig) || daysConfig.length === 0 || daysConfig.includes("all")) return true;
-  const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-  return daysConfig.includes(dayNames[date.getDay()]);
+  return daysConfig.includes(dayName);
 }
 __name(scheduleDayMatches, "scheduleDayMatches");
 
@@ -5179,7 +5188,17 @@ async function assignScheduledSlots(env, tenantFilter) {
     let days = [], times = [];
     try { days = JSON.parse(rule.days || "[]"); } catch {}
     try { times = JSON.parse(rule.times || "[]"); } catch {}
-    if (!scheduleDayMatches(days, now)) continue;
+    // Giờ/thứ của luật tính theo múi giờ của luật → của page → UTC, không theo múi giờ máy chủ.
+    let rulePage = null;
+    if (rule.page_id) {
+      try {
+        const pageFilter = `tenant='${escFilterValue(rule.tenant)}' && page_id='${escFilterValue(rule.page_id)}'`;
+        const pageRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=1&fields=extra_config&filter=${encodeURIComponent(pageFilter)}`, { headers: { Authorization: pbToken } });
+        rulePage = ((await pageRes.json().catch(() => ({}))).items || [])[0] || null;
+      } catch {}
+    }
+    const timeZone = resolveRuleTimeZone(rule, rulePage);
+    if (!scheduleDayMatches(days, dayNameInZone(now, timeZone))) continue;
     const platforms = SCHEDULE_CONTENT_TYPE_PLATFORMS[rule.content_type] || [];
     if (platforms.length === 0 || times.length === 0) continue;
     const platformExpr = platforms.map((p) => `platform='${p}'`).join(" || ");
@@ -5187,9 +5206,7 @@ async function assignScheduledSlots(env, tenantFilter) {
     for (const time of times) {
       const [hh, mm] = String(time).split(":").map((n) => parseInt(n, 10));
       if (Number.isNaN(hh) || Number.isNaN(mm)) continue;
-      const slot = new Date(now);
-      slot.setHours(hh, mm, 0, 0);
-      const slotISO = slot.toISOString();
+      const slotISO = zonedSlotISO(now, timeZone, hh, mm);
 
       try {
         const existingRes = await fetchWithTimeout(
@@ -5573,7 +5590,7 @@ async function fetchMasterData(env, pbToken, slugs, range) {
     pbList(env, pbToken, "messages", `perPage=500&fields=tenant&filter=${enc(`${tf}needs_human=true && escalation_resolved=false`)}`),
     pbList(env, pbToken, "session_summaries", `perPage=200&sort=-created&fields=tenant,date,status,summary,contact_info${any ? `&filter=${enc(any)}` : ""}`),
     pbList(env, pbToken, "pages_config", `perPage=200&fields=tenant,platform,label,is_active,access_token${any ? `&filter=${enc(any)}` : ""}`),
-    pbList(env, pbToken, "publish_schedules", `perPage=200&fields=tenant,content_type,days,times,is_active${any ? `&filter=${enc(any)}` : ""}`),
+    pbList(env, pbToken, "publish_schedules", `perPage=200&fields=tenant,content_type,days,times,is_active,page_id,timezone${any ? `&filter=${enc(any)}` : ""}`),
     pbList(env, pbToken, "post_targets", `perPage=300&sort=-updated&expand=post_id&filter=${enc(`${tf}((status='published' && updated >= '${startISO}' && updated < '${endISO}') || (status='error' && updated >= '${startISO}' && updated < '${endISO}') || status='scheduled' || status='approved' || status='pending')`)}`)
     ,
     // Báo cáo Ads Agent gần nhất (36h). Collection chưa tạo thì pbList trả [] nên không ảnh hưởng tenant chưa dùng ads.
@@ -6563,7 +6580,9 @@ var CONFIG_CHAT_TOOLS = [
         properties: {
           content_type: { type: "string", enum: ["blog", "social"] },
           days: { type: "array", items: { type: "string", enum: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }, description: "Để trống/mảng rỗng = \xE1p dụng h\xE0ng ng\xE0y" },
-          times: { type: "array", items: { type: "string" }, description: "Mảng giờ dạng HH:MM, mỗi giờ = 1 b\xE0i/ng\xE0y \xE1p dụng. Vd [\"08:00\",\"12:00\",\"18:00\"] = 3 b\xE0i/ng\xE0y" }
+          times: { type: "array", items: { type: "string" }, description: "Mảng giờ dạng HH:MM, mỗi giờ = 1 b\xE0i/ng\xE0y \xE1p dụng. Vd [\"08:00\",\"12:00\",\"18:00\"] = 3 b\xE0i/ng\xE0y" },
+          page_id: { type: "string", description: "Tuỳ chọn, chỉ cho social: page_id của Facebook Page/IG để luật chỉ áp cho page đó. Bỏ trống = luật chung cho các page chưa có luật riêng." },
+          timezone: { type: "string", description: "Tuỳ chọn: múi giờ IANA của giờ đăng, vd Asia/Ho_Chi_Minh, Asia/Tokyo. Bỏ trống = múi giờ của page, hoặc UTC." }
         },
         required: ["content_type", "times"]
       }
@@ -6697,7 +6716,7 @@ async function getConfigSnapshot(env, pbToken, cfg) {
     let days = [], times = [];
     try { days = JSON.parse(s.days || "[]"); } catch {}
     try { times = JSON.parse(s.times || "[]"); } catch {}
-    return { id: s.id, content_type: s.content_type, days, times, is_active: s.is_active };
+    return { id: s.id, content_type: s.content_type, days, times, is_active: s.is_active, page_id: s.page_id || "", timezone: s.timezone || "" };
   });
   const program = (programData.items || [])[0] || null;
   out.loyalty_program = program
@@ -6827,22 +6846,19 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools 
       }
     }
     case "add_publish_schedule": {
-      if (!["blog", "social"].includes(args.content_type)) return 'content_type phải l\xE0 "blog" hoặc "social".';
-      if (!Array.isArray(args.times) || args.times.length === 0) return "Thiếu times (mảng giờ dạng HH:MM).";
+      let schedule;
+      try { schedule = normalizePublishSchedule({ content_type: args.content_type, times: args.times, days: args.days, page_id: args.page_id, timezone: args.timezone }); }
+      catch (error) { return error.message; }
+      if (schedule.page_id && !(await tenantHasSocialPage(env, pbToken, cfg.tenant, schedule.page_id))) return `Kh\xF4ng t\xECm thấy page_id ${schedule.page_id} trong c\xE1c kênh đang hoạt động của bạn.`;
       const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pbToken },
-        body: JSON.stringify({
-          tenant: cfg.tenant,
-          content_type: args.content_type,
-          days: JSON.stringify(Array.isArray(args.days) ? args.days : []),
-          times: JSON.stringify(args.times),
-          is_active: true
-        })
+        body: JSON.stringify({ tenant: cfg.tenant, ...schedule })
       });
       if (!res.ok) return "Th\xEAm luật lên lịch thất bại.";
       const daysText = Array.isArray(args.days) && args.days.length ? args.days.join(", ") : "h\xE0ng ng\xE0y";
-      return `Đ\xE3 thêm luật: ${args.content_type} — ${daysText} l\xFAc ${args.times.join(", ")} (${args.times.length} b\xE0i/ng\xE0y \xE1p dụng).`;
+      const scope = schedule.page_id ? ` (chỉ page ${schedule.page_id}${schedule.timezone ? `, múi giờ ${schedule.timezone}` : ""})` : schedule.timezone ? ` (múi giờ ${schedule.timezone})` : "";
+      return `Đ\xE3 thêm luật: ${args.content_type}${scope} — ${daysText} l\xFAc ${args.times.join(", ")} (${args.times.length} b\xE0i/ng\xE0y \xE1p dụng).`;
     }
     case "delete_publish_schedule": {
       if (!args.id) return "Thiếu id luật cần xo\xE1.";
@@ -8617,32 +8633,12 @@ async function ensureLoyaltySchema(env, pbToken) {
 __name(ensureLoyaltySchema, "ensureLoyaltySchema");
 
 // ================= [API: LỊCH ĐĂNG BÀI TỰ ĐỘNG] =================
-const PUBLISH_DAYS = new Set(["all", "mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
-function normalizePublishSchedule(body, { partial = false } = {}) {
-  const patch = {};
-  if (!partial || body.content_type !== undefined) {
-    if (!["blog", "social"].includes(body.content_type)) throw new Error('content_type phải là "blog" hoặc "social"');
-    patch.content_type = body.content_type;
-  }
-  if (!partial || body.times !== undefined) {
-    if (!Array.isArray(body.times) || !body.times.length || body.times.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time)))) {
-      throw new Error('times phải là mảng giờ hợp lệ dạng "HH:MM"');
-    }
-    patch.times = JSON.stringify([...new Set(body.times.map(String))]);
-  }
-  if (body.days !== undefined) {
-    if (!Array.isArray(body.days) || body.days.some((day) => !PUBLISH_DAYS.has(String(day).toLowerCase()))) {
-      throw new Error("days chỉ nhận all, mon, tue, wed, thu, fri, sat, sun");
-    }
-    patch.days = JSON.stringify([...new Set(body.days.map((day) => String(day).toLowerCase()))]);
-  } else if (!partial) patch.days = "[]";
-  if (body.is_active !== undefined) {
-    if (typeof body.is_active !== "boolean") throw new Error("is_active phải là boolean");
-    patch.is_active = body.is_active;
-  } else if (!partial) patch.is_active = true;
-  if (partial && !Object.keys(patch).length) throw new Error("Không có trường lịch hợp lệ để cập nhật");
-  return patch;
+async function tenantHasSocialPage(env, pbToken, tenant, pageId) {
+  const filter = `tenant='${escFilterValue(tenant)}' && page_id='${escFilterValue(pageId)}' && is_active=true`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=1&fields=id&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+  return res.ok && ((await res.json().catch(() => ({}))).items || []).length > 0;
 }
+__name(tenantHasSocialPage, "tenantHasSocialPage");
 
 async function handleApiListSchedules(env, cors, cfg) {
   const pbToken = await getPbToken(env);
@@ -8651,13 +8647,7 @@ async function handleApiListSchedules(env, cors, cfg) {
     { headers: { Authorization: pbToken } }
   );
   const data = await res.json();
-  const schedules = (data.items || []).map((s) => ({
-    id: s.id,
-    content_type: s.content_type,
-    days: (() => { try { return JSON.parse(s.days || "[]"); } catch { return []; } })(),
-    times: (() => { try { return JSON.parse(s.times || "[]"); } catch { return []; } })(),
-    is_active: !!s.is_active
-  }));
+  const schedules = (data.items || []).map(serializePublishSchedule);
   return new Response(JSON.stringify({ success: true, schedules }), { headers: cors });
 }
 __name(handleApiListSchedules, "handleApiListSchedules");
@@ -8668,6 +8658,9 @@ async function handleApiCreateSchedule(request, env, cors, cfg) {
   try { schedule = normalizePublishSchedule(body); }
   catch (error) { return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: cors }); }
   const pbToken = await getPbToken(env);
+  if (schedule.page_id && !(await tenantHasSocialPage(env, pbToken, cfg.tenant, schedule.page_id))) {
+    return new Response(JSON.stringify({ error: "page_id không thuộc kênh đang hoạt động của bạn" }), { status: 400, headers: cors });
+  }
   const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: pbToken },
@@ -8692,6 +8685,12 @@ async function handleApiUpdateSchedule(request, env, cors, cfg, id) {
   if (!checkRes.ok) return new Response(JSON.stringify({ error: "Không tìm thấy lịch" }), { status: 404, headers: cors });
   const record = await checkRes.json();
   if (record.tenant !== cfg.tenant) return new Response(JSON.stringify({ error: "Không có quyền" }), { status: 403, headers: cors });
+  if (patch.page_id && !(await tenantHasSocialPage(env, pbToken, cfg.tenant, patch.page_id))) {
+    return new Response(JSON.stringify({ error: "page_id không thuộc kênh đang hoạt động của bạn" }), { status: 400, headers: cors });
+  }
+  if (patch.page_id && (patch.content_type ?? record.content_type) === "blog") {
+    return new Response(JSON.stringify({ error: "Luật blog không gắn được với page_id" }), { status: 400, headers: cors });
+  }
   const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/publish_schedules/records/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: pbToken },
@@ -9282,6 +9281,7 @@ __name(handleAgentRun, "handleAgentRun");
 
 export {
   index_default as default,
+  assignScheduledSlots,
   workspaceTemperature,
   callInternalHandlerWithForcedTenant,
   handleApiGetConfig,
