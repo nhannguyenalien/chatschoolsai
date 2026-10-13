@@ -1,3 +1,7 @@
 # Script/CSS dung chung đổi thường xuyên: luôn hỏi lại server (ETag) thay vì cache 4 giờ.
 /_shared/*
   Cache-Control: no-cache
+/chat-widget.js
+  Cache-Control: no-cache
+/assets/*
+  Cache-Control: public, max-age=86400
