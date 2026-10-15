@@ -1,5 +1,7 @@
 // BGate credentials and catalog are server-only. Never accept prices or account IDs
 // from the browser. Whop only; BGate accepts application-defined product codes.
+import { bonusGrants, effectivePlan } from './accountQuota.js';
+
 const BASE_URL = 'https://billing.schoolsai.work';
 
 const INTERVALS = ['monthly', 'yearly'];
@@ -7,7 +9,7 @@ const INTERVALS = ['monthly', 'yearly'];
 // Whop only. Subscriptions (billing_interval) derive access from the BGate entitlement, which
 // carries the expiry. The add-on (kind: 'addon') is a one-off order credited once per order id.
 export const ADDON_MESSAGES = 1000;
-const MAX_ADDON_ORDERS = 200;
+const MAX_ADDON_ORDERS = 500;
 export function billingCatalog(env) {
   const catalog = JSON.parse(env.BGATE_CATALOG_JSON || '{}');
   return Object.entries(catalog).flatMap(([id, plan]) => {
@@ -58,21 +60,18 @@ export async function syncEntitlement(env, accountId, store, fetchImpl = fetch, 
   return { active: Boolean(expiresAt), expires_at: expiresAt ? new Date(expiresAt).toISOString() : null };
 }
 
-// Credits one paid add-on order exactly once per order id (replays and concurrent polls of the
-// same order write identical values).
-export async function grantAddon(accountId, orderId, store) {
+// Credits one paid add-on order exactly once per order id; credits expire after BONUS_TTL_MS
+// (message_bonus_granted is only an informational lifetime total).
+export async function grantAddon(accountId, orderId, store, now = Date.now()) {
   const record = await store.read(accountId);
   if (record.id !== accountId) throw new Error('Account mismatch');
   if (!('message_bonus_granted' in record) || !('bonus_orders' in record)) throw new Error('tenants add-on fields missing');
-  let orders;
-  try { orders = JSON.parse(record.bonus_orders || '[]'); } catch { throw new Error('Invalid bonus_orders'); }
-  if (!Array.isArray(orders)) throw new Error('Invalid bonus_orders');
-  if (!orders.includes(orderId)) {
-    orders = [...orders, orderId].slice(-MAX_ADDON_ORDERS);
-    // The id list is the replay guard; granted is the running total of credited orders.
-    await store.write(accountId, { bonus_orders: JSON.stringify(orders),
-      message_bonus_granted: (Number(record.message_bonus_granted) || 0) + ADDON_MESSAGES });
-  }
+  const grants = bonusGrants(record);
+  if (grants.some(grant => grant.id === orderId)) return { credited: true, messages: ADDON_MESSAGES };
+  if (grants.length >= MAX_ADDON_ORDERS) throw new Error('Too many add-on orders');
+  // Entries are never pruned: dropping an expired one would shift FIFO accounting.
+  await store.write(accountId, { bonus_orders: JSON.stringify([...grants, { id: orderId, at: now, n: ADDON_MESSAGES }]),
+    message_bonus_granted: (Number(record.message_bonus_granted) || 0) + ADDON_MESSAGES });
   return { credited: true, messages: ADDON_MESSAGES };
 }
 
@@ -114,7 +113,7 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   try { catalog = billingCatalog(env); }
   catch { return reply({ error: 'Cấu hình thanh toán chưa hợp lệ.' }, 503); }
   if (path === '/api/account/billing/plans' && request.method === 'GET') {
-    return reply({ plans: env.BGATE_API_KEY ? catalog.map(({ id, label, amount, currency }) => ({ id, label, amount, currency })) : [] });
+    return reply({ plans: env.BGATE_API_KEY ? catalog.filter(plan => plan.kind !== 'addon' || effectivePlan(account) === 'pro').map(({ id, label, amount, currency }) => ({ id, label, amount, currency })) : [] });
   }
   if (path === '/api/account/billing/status' && request.method === 'GET') {
     if (!env.BGATE_API_KEY || !store) return reply({ error: 'Thanh toán chưa được cấu hình.' }, 503);
@@ -155,6 +154,10 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   const plan = catalog.find(item => item.id === body?.plan);
   if (!plan || !/^[a-zA-Z0-9_-]{16,80}$/.test(body?.request_id || '')) {
     return reply({ error: 'Gói dịch vụ hoặc mã giao dịch không hợp lệ.' }, 400);
+  }
+  // Add-ons are for Pro accounts only (otherwise they undercut the Pro price per message).
+  if (plan.kind === 'addon' && effectivePlan(account) !== 'pro') {
+    return reply({ error: 'Gói cộng thêm 1.000 câu chỉ dành cho tài khoản Pro. Vui lòng nâng cấp Pro trước.' }, 403);
   }
   try {
     const response = await fetchImpl(`${BASE_URL}/api/v1/checkout`, {

@@ -46,10 +46,10 @@ Older missing messages cannot be reconstructed by this change.
 |---|---|
 | Chat reply (including knowledge/RAG lookup) | 1 |
 | Post text generation | 2 |
-| AI image | 8 (post + one AI image = 10) |
+| AI image (Pro only; Free posts get no AI image) | 30 (post + one AI image = 32) |
 | AI video | 0 (customer's own external API) |
 | Voice greeting | 1 |
-| Voice turn | 4 per minute, billed per 15 s, minimum 1 |
+| Voice turn | 8 per minute, billed per 15 s, minimum 1 |
 | Document embedding | `ceil(tokens / 5000)`, min 1, max 20 per document (tokens ≈ chars / 4) |
 
 Document embedding is charged once before the provider call. Re-embedding and

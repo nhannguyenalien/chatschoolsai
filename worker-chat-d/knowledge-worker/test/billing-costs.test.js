@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from '../src/domain/billing/costs.js';
 
-test('a post with one AI image costs 10 units', () => {
-  assert.equal(COST_TABLE.post_text + COST_TABLE.image, 10);
+test('a post with one AI image costs 32 units', () => {
+  assert.equal(COST_TABLE.post_text + COST_TABLE.image, 32);
 });
 
 test('document embedding scales with size, min 1 and max 20', () => {
@@ -15,12 +15,12 @@ test('document embedding scales with size, min 1 and max 20', () => {
   assert.equal(docEmbedUnits(5e7), 20);
 });
 
-test('voice costs 4 units per minute, at least 1', () => {
+test('voice costs 8 units per minute, at least 1', () => {
   assert.equal(voiceUnits(0), 1);
   assert.equal(voiceUnits(5), 1);
-  assert.equal(voiceUnits(15), 1);
-  assert.equal(voiceUnits(60), 4);
-  assert.equal(voiceUnits(120), 8);
+  assert.equal(voiceUnits(15), 2);
+  assert.equal(voiceUnits(60), 8);
+  assert.equal(voiceUnits(120), 16);
 });
 
 test('image generation path is detected, other paths keep the caller kind', () => {

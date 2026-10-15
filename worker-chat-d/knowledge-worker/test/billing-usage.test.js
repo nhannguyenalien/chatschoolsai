@@ -103,8 +103,8 @@ test('different workspaces resolve to the same owner budget', async () => {
   } finally { globalThis.fetch = original; }
 });
 
-test('add-on credits are spent only after the monthly limit, never expire, and survive restart', async () => {
-  const f = fixture({ message_limit: 2, message_bonus_granted: 3, message_bonus_used: 0 });
+test('add-on credits are spent only after the monthly limit, survive restart', async () => {
+  const f = fixture({ message_limit: 2, message_bonus_used: 0, bonus_orders: JSON.stringify([{ id: 'o1', at: Date.now(), n: 3 }]) });
   const results = await Promise.all(Array.from({ length: 10 }, async () => (await f.reserve(1)).json()));
   assert.equal(results.filter(r => r.ok).length, 5);
   assert.equal(f.record().message_used, 2);
@@ -112,13 +112,39 @@ test('add-on credits are spent only after the monthly limit, never expire, and s
   f.restart();
   assert.equal((await (await f.reserve(1)).json()).ok, false);
   // A new grant raises granted only; the used counter is untouched and spending resumes.
-  await f.backend.write('account-1', { message_bonus_granted: 4 });
+  await f.backend.write('account-1', { bonus_orders: JSON.stringify([{ id: 'o1', at: Date.now(), n: 3 }, { id: 'o2', at: Date.now(), n: 1 }]) });
   assert.equal((await (await f.reserve(1)).json()).ok, true);
   assert.equal(f.record().message_bonus_used, 4);
 });
 
 test('failed PB write for a bonus spend blocks the call', async () => {
-  const f = fixture({ message_limit: 0, message_bonus_granted: 1 });
+  const f = fixture({ message_limit: 0, bonus_orders: JSON.stringify([{ id: 'o1', at: Date.now(), n: 1 }]) });
   f.backend.write = async () => { throw new Error('pb down'); };
   assert.equal((await f.reserve(1)).status, 503);
+});
+
+test('expired add-on credits grant nothing', async () => {
+  const f = fixture({ message_limit: 0, bonus_orders: JSON.stringify([{ id: 'o1', at: Date.now() - 366 * 24 * 3600 * 1000, n: 1000 }]) });
+  assert.equal((await (await f.reserve(1)).json()).ok, false);
+});
+
+test('AI image generation is refused for free accounts before any provider call, allowed for Pro', async () => {
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  const account = plan => ({ id: 'acct', tenant: 'shop-a', plan_id: plan });
+  const run = async plan => {
+    globalThis.fetch = async url => {
+      calls.push(String(url));
+      if (String(url).includes('/api/collections/tenants/records')) return Response.json({ items: [account(plan)] });
+      return Response.json({ ok: true });
+    };
+    const env = { PB_URL: 'https://pb.test', OPENAI_BASE_URL: 'https://openai.test/v1', ACCOUNT_QUOTA: {
+      idFromName: id => id, get: () => ({ fetch: async () => Response.json({ ok: true, record: {} }) }) } };
+    return createMeteredAiFetch(env, 'shop-a', 'token')('https://openai.test/v1/images/generations', { method: 'POST' });
+  };
+  try {
+    await assert.rejects(run('free'), { code: 'PRO_REQUIRED' });
+    assert.ok(!calls.some(url => url.includes('openai.test')));
+    assert.equal((await run('pro')).status, 200);
+  } finally { globalThis.fetch = realFetch; }
 });

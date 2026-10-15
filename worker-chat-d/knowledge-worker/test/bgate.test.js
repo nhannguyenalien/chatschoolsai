@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleBGate, handleBGateWebhook, billingCatalog, syncEntitlement } from '../src/domain/billing/bgate.js';
-import { effectivePlan, messageLimit, storageLimit, STORAGE_LIMITS } from '../src/domain/billing/accountQuota.js';
+import { bonusRemaining, effectivePlan, messageLimit, storageLimit, STORAGE_LIMITS } from '../src/domain/billing/accountQuota.js';
 
 const env = { BGATE_API_KEY: 'server-secret', BGATE_CATALOG_JSON: JSON.stringify({
   monthly: { product: 'configured-product', provider: 'whop', amount: 19, currency: 'USD', billing_interval: 'monthly', label: 'Pro tháng' }
@@ -198,14 +198,14 @@ test('add-on is a one-off Whop product: no interval or renewal is sent and none 
   assert.equal(billingCatalog(addonEnv).length, 1);
   assert.equal(billingCatalog({ BGATE_CATALOG_JSON: JSON.stringify({ addon: { ...JSON.parse(addonEnv.BGATE_CATALOG_JSON).addon, billing_interval: 'monthly' } }) }).length, 0);
   let sent;
-  await handleBGate(request({ plan: 'addon' }), addonEnv, { id: 'owner' }, {}, async (url, options) => {
+  await handleBGate(request({ plan: 'addon' }), addonEnv, { id: 'owner', plan_id: 'pro' }, {}, async (url, options) => {
     sent = JSON.parse(options.body); return Response.json({ ...addonOrder, status: 'pending' });
   });
   assert.deepEqual(sent, { product: 'schoolsai-messages-1000', user_id: 'owner', provider: 'whop', amount: 7, currency: 'USD' });
 });
 
 test('paid add-on credits 1000 messages exactly once per order, however often it is checked', async () => {
-  const store = memoryStore({ id: 'owner', plan_id: 'free', message_bonus_granted: 0, message_bonus_used: 0, bonus_orders: '' });
+  const store = memoryStore({ id: 'owner', plan_id: 'pro', message_bonus_granted: 0, message_bonus_used: 0, bonus_orders: '' });
   const fetchImpl = async () => Response.json(addonOrder);
   for (let i = 0; i < 3; i++) {
     const data = await (await handleBGate(paymentRequest(), addonEnv, { id: 'owner' }, {}, fetchImpl, store)).json();
@@ -227,4 +227,28 @@ test('unpaid, wrong-price or foreign add-on orders never credit; missing schema 
   const res = await handleBGate(paymentRequest(), addonEnv, { id: 'owner' }, {}, async () => Response.json(addonOrder), bare);
   assert.equal(res.status, 502);
   assert.deepEqual(bare.writes, []);
+});
+
+test('add-on is hidden from and refused to non-Pro accounts, including expired Pro', async () => {
+  const provider = async () => { throw new Error('must not reach provider'); };
+  for (const account of [{ id: 'owner', plan_id: 'free' }, { id: 'owner', plan_id: 'pro', pro_expires_at: Date.now() - 1000 }]) {
+    const res = await handleBGate(request({ plan: 'addon' }), addonEnv, account, {}, provider);
+    assert.equal(res.status, 403);
+    const plans = await (await handleBGate(new Request('https://app.test/api/account/billing/plans'), addonEnv, account, {})).json();
+    assert.deepEqual(plans.plans, []);
+  }
+  const pro = await (await handleBGate(new Request('https://app.test/api/account/billing/plans'), addonEnv, { id: 'owner', plan_id: 'pro' }, {})).json();
+  assert.equal(pro.plans.length, 1);
+});
+
+test('add-on credits expire 12 months after purchase and are spent oldest first', () => {
+  const day = 24 * 3600 * 1000;
+  const record = (grants, used = 0) => ({ message_bonus_used: used, bonus_orders: JSON.stringify(grants) });
+  const grants = [{ id: 'a', at: NOW - 400 * day, n: 1000 }, { id: 'b', at: NOW - 10 * day, n: 1000 }];
+  assert.equal(bonusRemaining(record(grants), NOW), 1000); // the 400-day-old grant expired
+  assert.equal(bonusRemaining(record(grants, 300), NOW), 1000); // usage was absorbed by the expired grant
+  assert.equal(bonusRemaining(record(grants, 1300), NOW), 700); // spill-over eats the active grant
+  assert.equal(bonusRemaining(record([grants[1]]), NOW + 350 * day), 1000);
+  assert.equal(bonusRemaining(record([grants[1]]), NOW + 356 * day), 0);
+  assert.equal(bonusRemaining({}, NOW), 0);
 });

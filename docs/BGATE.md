@@ -33,9 +33,10 @@ Without them activation fails closed.
   `plan_id=pro` and `pro_expires_at`. Past expiry the account is treated as Free (100 chat/month,
   100 MB). Sync runs on payment check, on opening the billing page, from the webhook, and lazily
   when an expired Pro account chats (throttled 10 min).
-- **Add-on**: a `paid` matching order credits 1000 messages once per order id
-  (`bonus_orders` is the replay guard). Credits never expire and are spent after the monthly
-  limit (`message_bonus_granted` is raised by the worker, `message_bonus_used` by the quota object).
+- **Add-on**: Pro accounts only (checkout is refused and the plan hidden otherwise). A `paid`
+  matching order credits 1000 messages once per order id. Credits expire 12 months after purchase
+  and are spent after the monthly limit, oldest first. The ledger is `bonus_orders`
+  (`[{id, at, n}]`, also the replay guard); `message_bonus_used` is raised only by the quota object.
 - **Webhook**: `POST https://apic.schoolsai.work/api/billing/bgate-webhook`; HMAC-SHA256 over
   `timestamp.raw_body`, 5-minute window. The payload only triggers an entitlement re-read.
 - A browser redirect is never proof of payment.

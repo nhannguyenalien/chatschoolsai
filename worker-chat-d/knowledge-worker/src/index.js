@@ -898,10 +898,22 @@ async function recordAiUsage(env, tenant, units = 1, pbToken = null) {
   const record = await resolveAccountForTenant(env, token, tenant);
   return consumeMessageQuota(env, token, record, units);
 }
+async function requireProForImages(env, tenant, pbToken) {
+  let record = await resolveAccountForTenant(env, pbToken, tenant);
+  if (!record) throw new Error("Không tìm thấy tài khoản chịu quota");
+  record = await refreshExpiredPro(env, record);
+  if (effectivePlan(record) !== "pro") {
+    const error = new Error("Tạo ảnh bằng AI chỉ dành cho gói Pro.");
+    error.code = "PRO_REQUIRED";
+    throw error;
+  }
+}
+__name(requireProForImages, "requireProForImages");
 // kind: loại tác vụ mặc định của caller (xem COST_TABLE). Mỗi kind chỉ trừ 1 lần cho mỗi fetch được tạo;
 // lệnh vẽ ảnh luôn bị nhận diện theo path và trừ riêng theo kind "image".
 function createMeteredAiFetch(env, tenant, pbToken, reservedQuota = null, kind = "chat") {
   const reservations = new Map();
+  let imageAllowed = null;
   if (reservedQuota) reservations.set(kind, Promise.resolve(reservedQuota));
   return async (url, options) => {
     const target = new URL(String(url));
@@ -914,6 +926,11 @@ function createMeteredAiFetch(env, tenant, pbToken, reservedQuota = null, kind =
     });
     if (provider) {
       const callKind = costKindForPath(target.pathname, kind);
+      // AI image generation is a Pro feature: free accounts fall back to posts without an image.
+      if (callKind === "image") {
+        if (!imageAllowed) imageAllowed = requireProForImages(env, tenant, pbToken);
+        await imageAllowed;
+      }
       if (!reservations.has(callKind)) reservations.set(callKind, recordAiUsage(env, tenant, COST_TABLE[callKind], pbToken));
       await reservations.get(callKind);
     }

@@ -224,7 +224,15 @@
                     used = 0;
                 }
                 
-                const bonus = Math.max(0, (Number(user.message_bonus_granted) || 0) - (Number(user.message_bonus_used) || 0));
+                // Add-on: hết hạn sau 12 tháng, dùng theo thứ tự cũ trước (khớp worker).
+                let bonusActive = 0, bonusExpired = 0;
+                try {
+                    for (const g of JSON.parse(user.bonus_orders || '[]')) {
+                        const n = Number(g.n) || 0;
+                        if (g.at && g.at + 365 * 864e5 <= Date.now()) bonusExpired += n; else bonusActive += n;
+                    }
+                } catch (e) { /* ledger rỗng */ }
+                const bonus = Math.max(0, bonusActive - Math.max(0, (Number(user.message_bonus_used) || 0) - bonusExpired));
                 let remaining = limit - used;
                 if(remaining < 0) remaining = 0;
                 remaining += bonus;

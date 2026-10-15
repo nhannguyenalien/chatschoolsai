@@ -5,10 +5,10 @@
 export const COST_TABLE = Object.freeze({
   chat: 1,
   post_text: 2,
-  image: 8, // bài post + 1 ảnh AI = post_text (2) + image (8) = 10
+  image: 30, // chỉ gói Pro; bài post + 1 ảnh AI = post_text (2) + image (30) = 32
   image_describe: 1, // AI nhìn 1 ảnh để đặt nhãn (vision, ảnh độ phân giải thấp) ~ 1 lượt trả lời
   voice_greeting: 1,
-  voice_per_minute: 4
+  voice_per_minute: 8
 });
 
 const DOC_TOKENS_PER_UNIT = 5000;
@@ -22,7 +22,7 @@ export function docEmbedUnits(charCount) {
   return Math.min(DOC_MAX_UNITS, Math.max(1, Math.ceil(tokens / DOC_TOKENS_PER_UNIT)));
 }
 
-// Voice: 4 đơn vị/phút, tính theo từng 15 giây, tối thiểu 1.
+// Voice: 8 đơn vị/phút, tính theo từng 15 giây, tối thiểu 1.
 export function voiceUnits(durationSec) {
   const seconds = Number.isFinite(durationSec) && durationSec > 0 ? durationSec : 0;
   return Math.max(1, Math.ceil(seconds * COST_TABLE.voice_per_minute / 60));

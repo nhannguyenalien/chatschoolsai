@@ -24,12 +24,30 @@ export function messageLimit(record, now = Date.now()) {
   return limit;
 }
 
-// Add-on credits never expire and are spent only after the monthly limit. Two single-writer
-// counters avoid lost updates: the worker only raises granted, the quota object only raises used.
-export function bonusRemaining(record) {
-  const granted = Number(record?.message_bonus_granted) || 0;
-  const used = Number(record?.message_bonus_used) || 0;
-  return Math.max(0, granted - used);
+// Add-on credits expire 12 months after purchase and are spent only after the monthly limit,
+// oldest grant first. bonus_orders is the ledger [{ id, at, n }] (also the replay guard for an
+// order id). Two single-writer counters avoid lost updates: the worker only appends grants, the
+// quota object only raises message_bonus_used.
+export const BONUS_TTL_MS = 365 * 24 * 3600 * 1000;
+
+export function bonusGrants(record) {
+  let list;
+  try { list = JSON.parse(record?.bonus_orders || '[]'); } catch { throw new Error('Invalid bonus_orders'); }
+  if (!Array.isArray(list)) throw new Error('Invalid bonus_orders');
+  return list.map(item => typeof item === 'string' ? { id: item, at: 0, n: 1000 } : item);
+}
+
+export function bonusRemaining(record, now = Date.now(), usedOverride) {
+  const used = usedOverride ?? (Number(record?.message_bonus_used) || 0);
+  let active = 0;
+  let expired = 0;
+  for (const grant of bonusGrants(record)) {
+    const n = Number(grant.n) || 0;
+    // at === 0 marks a legacy entry without a date: never expires.
+    if (grant.at && grant.at + BONUS_TTL_MS <= now) expired += n; else active += n;
+  }
+  // Spending is FIFO, so expired grants absorb usage first.
+  return Math.max(0, active - Math.max(0, used - expired));
 }
 
 const MB = 1024 * 1024;
@@ -75,7 +93,7 @@ export class AccountQuotaStore {
     if (storedBonus && storedBonus.accountId !== accountId) throw new Error('Quota object mismatch');
     const pbBonusUsed = Number(record.message_bonus_used) || 0;
     const bonusUsed = Math.max(pbBonusUsed, storedBonus?.used || 0);
-    const bonusLeft = Math.max(0, (Number(record.message_bonus_granted) || 0) - bonusUsed);
+    const bonusLeft = bonusRemaining(record, Date.now(), bonusUsed);
     const useBonus = !withinMonthly && (units ? bonusLeft >= units : bonusLeft > 0);
     const allowed = withinMonthly || useBonus;
     const next = used + (withinMonthly ? units : 0);

@@ -59,8 +59,8 @@ test("pickWeekSlots lấy các khung giờ trong 7 ngày theo múi giờ và r�
 
 test("estimateWeeklyUnits tính theo chế độ ảnh", () => {
   assert.deepEqual(estimateWeeklyUnits(7, "none"), { write: 14, min: 14, max: 14 });
-  assert.deepEqual(estimateWeeklyUnits(7, "ai_only"), { write: 14, min: 70, max: 70 });
-  assert.deepEqual(estimateWeeklyUnits(7, "library_first"), { write: 14, min: 21, max: 77 });
+  assert.deepEqual(estimateWeeklyUnits(7, "ai_only"), { write: 14, min: 224, max: 224 });
+  assert.deepEqual(estimateWeeklyUnits(7, "library_first"), { write: 14, min: 21, max: 231 });
   assert.deepEqual(estimateWeeklyUnits(7, "library_only"), { write: 14, min: 21, max: 21 });
 });
 
