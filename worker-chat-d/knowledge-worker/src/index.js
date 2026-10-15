@@ -38,6 +38,7 @@ import { createAdsService } from "./workflows/adsService.js";
 import { handleAdsRoute } from "./api/ads.js";
 import { encryptJson as encryptAdsJson } from "./domain/ads/crypto.js";
 import { testWordPressConnection } from "./integrations/wordpress.js";
+import { signYouTubeState, verifyYouTubeState, youtubeAuthUrl, exchangeYouTubeCode, fetchYouTubeChannel, publishToYouTube, youtubePlatformPatch } from "./integrations/youtube.js";
 import { createLoyaltyApi } from "./api/loyalty.js";
 import { createLoyaltyRepository } from "./repositories/pocketbase/loyaltyRepository.js";
 import { addLinkedPhone, buildCustomerOverview, parseLinkedPhones } from "./domain/customerPortal.js";
@@ -370,6 +371,14 @@ var index_default = {
         const costly = action === "create" || action === "image" || action === "suggest-pillars";
         const limited = costly ? enforceRateLimit(request, "weekly-plan", 60, 60 * 60 * 1000) : null;
         return limited || await handleAccountWeeklyPlan(request, env2, cors, url, action);
+      }
+      if (url.pathname === "/api/account/youtube/start" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "youtube-start", 20, 60 * 60 * 1000);
+        return limited || await handleAccountYouTubeStart(request, env2, cors, url);
+      }
+      if (url.pathname === "/api/youtube/callback" && request.method === "GET") {
+        const limited = enforceRateLimit(request, "youtube-callback", 30, 60 * 60 * 1000);
+        return limited || await handleYouTubeCallback(request, env2, url);
       }
       if (url.pathname === "/api/account/meta/upgrade-token" && request.method === "POST") {
         const limited = enforceRateLimit(request, "meta-upgrade-token", 10, 60 * 60 * 1000);
@@ -3264,6 +3273,124 @@ async function handleAccountWeeklyPlan(request, env, cors, url, action) {
 }
 __name(handleAccountWeeklyPlan, "handleAccountWeeklyPlan");
 
+// ================= [KẾT NỐI YOUTUBE BẰNG ĐĂNG NHẬP GOOGLE] =================
+// start: trình duyệt (đã đăng nhập dashboard) xin URL đăng nhập Google; callback: Google gọi về, Worker đổi mã lấy
+// refresh_token và ghi vào kênh platform=youtube (page_id = channel ID). Token không bao giờ trả về trình duyệt.
+// PocketBase cần có "youtube" trong select platform của pages_config và post_targets. Worker có quyền superuser nên
+// tự bổ sung ở lần kết nối YouTube đầu tiên (idempotent, chỉ sửa danh sách giá trị).
+var _youtubeSchemaReady = false;
+async function ensureYouTubePlatform(env) {
+  if (_youtubeSchemaReady) return;
+  const token = await getPbToken(env);
+  const headers = { Authorization: token, "Content-Type": "application/json" };
+  for (const name of ["pages_config", "post_targets"]) {
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/${name}`, { headers });
+    if (!res.ok) throw new Error(`Không đọc được collection ${name} (HTTP ${res.status})`);
+    const collection = await res.json();
+    const patch = youtubePlatformPatch(collection);
+    if (!patch) continue;
+    const out = await fetchWithTimeout(`${env.PB_URL}/api/collections/${collection.id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
+    if (!out.ok) throw new Error(`Không thêm được platform youtube vào ${name} (HTTP ${out.status})`);
+  }
+  _youtubeSchemaReady = true;
+}
+__name(ensureYouTubePlatform, "ensureYouTubePlatform");
+
+function youtubeRedirectUri(env, url) {
+  return env.YOUTUBE_REDIRECT_URI || `${url.origin}/api/youtube/callback`;
+}
+// Mỗi tenant tự tạo Google OAuth client của họ. start nhận client_id/client_secret (hoặc record_id của kênh đã có để dùng lại),
+// lưu vào extra_config của một kênh YouTube "chờ kết nối" (is_active=false) rồi trả URL đăng nhập Google. state chỉ mang
+// tenant + id kênh (đã ký) — client_secret không bao giờ đi trong URL.
+async function handleAccountYouTubeStart(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  if (!env.GOOGLE_OAUTH_STATE_SECRET) return json({ error: "Hệ thống chưa cấu hình khoá ký đăng nhập Google (GOOGLE_OAUTH_STATE_SECRET)." }, 503);
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const headers = { Authorization: access.token, "Content-Type": "application/json" };
+  const pb = (path, init = {}) => fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records${path}`, { headers, ...init });
+  try { await ensureYouTubePlatform(env); } catch (error) { console.error("[YouTube] Không cập nhật được schema PocketBase:", error); }
+  const clientId = String(body.client_id || "").trim();
+  const clientSecret = String(body.client_secret || "").trim();
+  if (clientId && !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) return json({ error: "Client ID không hợp lệ (phải kết thúc bằng .apps.googleusercontent.com)." }, 400);
+
+  let record = null;
+  if (body.record_id) {
+    const res = await pb(`/${encodeURIComponent(String(body.record_id))}`);
+    record = res.ok ? await res.json() : null;
+    if (!record || record.tenant !== tenant || record.platform !== "youtube") return json({ error: "Không tìm thấy kênh YouTube này" }, 404);
+  }
+  const extra = parseMessageClientMeta(record?.extra_config);
+  if (clientId) extra.client_id = clientId;
+  if (clientSecret) extra.client_secret = clientSecret;
+  const uploaderUrl = String(body.uploader_url || "").trim();
+  if (uploaderUrl) {
+    if (!/^https:\/\/[^\s/]+/.test(uploaderUrl)) return json({ error: "Địa chỉ service upload phải bắt đầu bằng https://" }, 400);
+    extra.uploader_url = uploaderUrl;
+  }
+  if (String(body.uploader_secret || "").trim()) extra.uploader_secret = String(body.uploader_secret).trim();
+  if (!extra.client_id || !extra.client_secret) return json({ error: "Cần nhập cả Client ID và Client Secret của Google OAuth." }, 400);
+
+  const saved = record
+    ? await pb(`/${record.id}`, { method: "PATCH", body: JSON.stringify({ extra_config: JSON.stringify(extra) }) })
+    : await pb("", { method: "POST", body: JSON.stringify({ tenant, platform: "youtube", label: "YouTube (chờ kết nối)", page_id: `pending-${crypto.randomUUID().slice(0, 8)}`, access_token: "pending", is_active: false, extra_config: JSON.stringify(extra) }) });
+  const savedRecord = saved.ok ? await saved.json() : null;
+  if (!savedRecord?.id) return json({ error: "Không lưu được cấu hình YouTube (kiểm tra PocketBase đã cho phép platform youtube chưa)." }, 502);
+  // Quay lại đúng trang dashboard người dùng đang dùng (Origin phải nằm trong ALLOWED_ORIGINS), không dùng DASHBOARD_URL (trang landing).
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigins = String(env.ALLOWED_ORIGINS || "").split(",").map((v) => v.trim()).filter(Boolean);
+  const returnTo = allowedOrigins.includes(origin) ? origin : "";
+  const state = await signYouTubeState(env.GOOGLE_OAUTH_STATE_SECRET, { tenant, record: savedRecord.id, return: returnTo });
+  return json({ url: youtubeAuthUrl({ clientId: extra.client_id, redirectUri: youtubeRedirectUri(env, url), state }), redirect_uri: youtubeRedirectUri(env, url) });
+}
+__name(handleAccountYouTubeStart, "handleAccountYouTubeStart");
+
+async function handleYouTubeCallback(request, env, url) {
+  let returnTo = "";
+  const back = (params) => {
+    const base = (returnTo || env.YOUTUBE_RETURN_URL || "https://chat.schoolsai.work").replace(/\/+$/, "");
+    return Response.redirect(`${base}/sm-config.html?${new URLSearchParams(params)}`, 302);
+  };
+  try {
+    // state đã ký -> biết dashboard nào để quay về, kể cả khi người dùng từ chối quyền.
+    let payload = null;
+    try { payload = await verifyYouTubeState(env.GOOGLE_OAUTH_STATE_SECRET, url.searchParams.get("state")); returnTo = payload.return || ""; } catch (error) { if (!url.searchParams.get("error")) throw error; }
+    if (url.searchParams.get("error")) return back({ youtube: "error", msg: url.searchParams.get("error") === "access_denied" ? "Bạn đã từ chối cấp quyền cho YouTube." : url.searchParams.get("error") });
+    const code = url.searchParams.get("code");
+    if (!code) throw new Error("Google không trả mã đăng nhập.");
+    const token = await getPbToken(env);
+    const headers = { Authorization: token, "Content-Type": "application/json" };
+    const pb = (path, init = {}) => fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records${path}`, { headers, ...init });
+    const pendingRes = await pb(`/${encodeURIComponent(payload.record)}`);
+    const pending = pendingRes.ok ? await pendingRes.json() : null;
+    if (!pending || pending.tenant !== payload.tenant || pending.platform !== "youtube") throw new Error("Không tìm thấy cấu hình YouTube đang kết nối, hãy thử lại.");
+    const extra = parseMessageClientMeta(pending.extra_config);
+    if (!extra.client_id || !extra.client_secret) throw new Error("Kênh chưa có Client ID/Client Secret.");
+
+    const tokens = await exchangeYouTubeCode({ clientId: extra.client_id, clientSecret: extra.client_secret, redirectUri: youtubeRedirectUri(env, url), code, fetchImpl: fetchWithTimeout });
+    const channel = await fetchYouTubeChannel(tokens.access_token, fetchWithTimeout);
+
+    // Kênh này đã được kết nối trước đó (bản ghi khác)? Cập nhật bản đó, bỏ bản "chờ kết nối" để không trùng.
+    const filter = `tenant='${escFilterValue(payload.tenant)}' && platform='youtube' && page_id='${escFilterValue(channel.id)}'`;
+    const found = await pb(`?perPage=1&filter=${encodeURIComponent(filter)}`);
+    const sibling = found.ok ? (await found.json()).items?.[0] : null;
+    const target = sibling && sibling.id !== pending.id ? sibling : pending;
+    const refreshToken = tokens.refresh_token || (target !== pending || pending.access_token !== "pending" ? target.access_token : "");
+    if (!refreshToken || refreshToken === "pending") throw new Error("Google không cấp refresh token. Hãy vào myaccount.google.com/permissions gỡ quyền của app rồi kết nối lại.");
+    const merged = { ...parseMessageClientMeta(target.extra_config), ...extra };
+    const saved = await pb(`/${target.id}`, { method: "PATCH", body: JSON.stringify({ label: `YouTube ${channel.title}`, page_id: channel.id, access_token: refreshToken, is_active: true, extra_config: JSON.stringify(merged) }) });
+    if (!saved.ok) throw new Error("Không lưu được kênh YouTube.");
+    if (target !== pending) await pb(`/${pending.id}`, { method: "DELETE" });
+    return back({ youtube: "connected", channel: channel.title });
+  } catch (err) {
+    console.error("[YouTube] Callback lỗi:", err);
+    return back({ youtube: "error", msg: String(err.message || "Lỗi kết nối YouTube").slice(0, 200) });
+  }
+}
+__name(handleYouTubeCallback, "handleYouTubeCallback");
+
 // Đổi "user token" ngắn hạn (lấy từ Graph API Explorer, đã cấp đủ quyền) thành token Page KHÔNG hết hạn:
 // user token -> long-lived user token (cần app_secret của kênh) -> /me/accounts lấy Page token của đúng fanpage.
 // Ghi token Page vào kênh Facebook và kênh Instagram của fanpage đó. Token không bao giờ được trả về trình duyệt.
@@ -5049,6 +5176,8 @@ async function publishOneTarget(env, pbToken, target) {
       publishedId = await publishToFacebook(page, post, media, mediaItems);
     } else if (target.platform === "instagram") {
       publishedId = await publishToInstagram(page, post, media);
+    } else if (target.platform === "youtube") {
+      publishedId = await publishToYouTube({ page, post, mediaItems, env, fetchImpl: fetchWithTimeout });
     } else if (target.platform === "wordpress") {
       publishedId = await publishToWordPress(page, post, media);
     } else if (target.platform === "sanity") {
@@ -5180,7 +5309,7 @@ __name(recoverStalePublishing, "recoverStalePublishing");
 // (FIFO) của đúng loại nội dung (blog=wordpress/sanity, social=facebook/instagram/linkedin).
 var SCHEDULE_CONTENT_TYPE_PLATFORMS = {
   blog: ["wordpress", "sanity"],
-  social: ["facebook", "instagram", "linkedin"]
+  social: ["facebook", "instagram", "linkedin", "youtube"]
 };
 
 function scheduleDayMatches(daysConfig, dayName) {
@@ -6535,7 +6664,7 @@ var CONFIG_CHAT_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          platform: { type: "string", enum: ["facebook", "instagram", "whatsapp", "zalo", "wordpress", "sanity", "other"] },
+          platform: { type: "string", enum: ["facebook", "instagram", "whatsapp", "zalo", "youtube", "wordpress", "sanity", "other"] },
           label: { type: "string", description: "T\xEAn gợi nhớ cho trang n\xE0y" },
           page_id: { type: "string" },
           access_token: { type: "string" }

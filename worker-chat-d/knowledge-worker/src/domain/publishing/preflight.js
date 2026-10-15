@@ -42,6 +42,11 @@ export async function checkTargetPreflight({ target, page, post, media, graphVer
     if (!media?.url) problems.push('Instagram bắt buộc có ảnh/video nhưng bài chưa có media.');
     if ((post?.content || '').length > IG_CAPTION_LIMIT) problems.push(`Caption dài ${post.content.length} ký tự, vượt giới hạn ${IG_CAPTION_LIMIT} của Instagram.`);
   }
+  if (platform === 'youtube') {
+    if (media?.type !== 'video') problems.push('YouTube bắt buộc có video nhưng bài chưa có video.');
+    if (!String(post?.title || '').trim()) problems.push('Video YouTube cần có tiêu đề.');
+    else if (String(post.title).length > 100) problems.push(`Tiêu đề dài ${post.title.length} ký tự, YouTube chỉ cho tối đa 100 (sẽ bị cắt).`);
+  }
   if (media?.url && !(await mediaReachable(media.url, fetchImpl))) {
     problems.push('Không truy cập được URL ảnh/video của bài (có thể đã bị xoá hoặc chặn).');
   }

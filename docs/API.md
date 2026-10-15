@@ -36,6 +36,42 @@ Yêu cầu Bearer API key hiện tại. Request gồm `tenant` và `bot_name`. A
 
 ---
 
+## Đăng video lên YouTube
+
+**Kết nối kênh (mỗi tenant tự làm, không dùng khoá chung):**
+
+1. Trên Google Cloud: tạo project, bật **YouTube Data API v3**, cấu hình màn hình đồng ý OAuth (External, thêm email vào *Test users* khi app còn ở chế độ Testing), tạo **OAuth client ID** loại *Web application* với *Authorized redirect URI* = `https://apic.schoolsai.work/api/youtube/callback`.
+2. Vào `sm-config.html` → **Kết nối YouTube** → dán Client ID + Client Secret → **Tiếp tục với Google** → đăng nhập và cấp quyền.
+3. Hệ thống tạo kênh `platform=youtube` (`page_id` = channel ID, `access_token` = refresh token). Client ID/Secret của tenant nằm trong `extra_config` của kênh; token và secret không bao giờ đi trong URL hay trả về trình duyệt ngoài danh sách kênh của chính tenant. Kết nối lại cùng kênh thì cập nhật, không tạo trùng. Sau khi xong, người dùng được đưa về đúng dashboard họ bấm nút (`Origin` phải nằm trong `ALLOWED_ORIGINS`).
+
+**Đăng video:** dùng `POST /api/v1/posts` như các nền tảng khác, thêm `"youtube"` vào `platforms` và truyền `video_url` (https công khai, có `Content-Length`):
+
+```json
+{ "title": "Tiêu đề video (tối đa 100 ký tự)", "content": "Mô tả video (tối đa 5000 ký tự)", "video_url": "https://cdn.example.com/video.mp4", "platforms": ["youtube"], "auto_approve": true }
+```
+
+- `title` → tiêu đề, `content` → mô tả. Ký tự `<` `>` bị loại (YouTube cấm). Emoji dùng bình thường.
+- Mặc định video ở chế độ **private**. Đổi bằng "Cấu hình thêm" của kênh: `{"privacy":"public|unlisted|private","tags":["a","b"],"category_id":"22","made_for_kids":false}`. Muốn đăng `public` ổn định thì app Google OAuth phải qua kiểm duyệt của Google; app còn ở chế độ Testing thì refresh token hết hạn sau 7 ngày (cần kết nối lại).
+- Bài không có video sẽ báo lỗi trước giờ đăng (cảnh báo preflight).
+- Hạn mức YouTube Data API: mỗi video tốn ~1.600 đơn vị trên 10.000 đơn vị/ngày của Google project (~6 video/ngày, tính theo project của từng tenant). Hết hạn mức → hệ thống tự thử lại theo lịch retry.
+- Lịch đăng tự động (`publish_schedules`, `content_type: "social"`) cũng áp dụng cho YouTube.
+- Hiện **chưa** có tự động trả lời bình luận YouTube (Facebook/Instagram thì có).
+
+**Kiến trúc:** Worker lo OAuth, làm mới token và gọi uploader; việc tải video + upload resumable chạy ở service `services/youtube-uploader` trên VPS (Worker không đủ RAM/thời gian cho video lớn). Uploader chạy job nền (`POST /upload` → `job_id`, Worker hỏi `GET /jobs/:id`) vì Cloudflare cắt request im lặng quá ~100s, và có khoá chống đăng trùng khi retry. Triển khai tham khảo: Coolify, app Dockerfile, domain `http://yt-uploader.schoolsai.work` qua Cloudflare Tunnel (tunnel phải trỏ vào đúng máy chạy Coolify đó).
+
+Cấu hình Worker:
+
+| Biến | Ý nghĩa |
+|---|---|
+| `GOOGLE_OAUTH_STATE_SECRET` (secret) | Khoá ký `state` đăng nhập Google (dùng chung với GA/Search Console) |
+| `YT_UPLOADER_URL`, `YT_UPLOADER_SECRET` (secret) | Uploader mặc định của hệ thống; tenant có thể tự khai `uploader_url` + `uploader_secret` trong ô "Nâng cao" của form kết nối |
+| `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` (tuỳ chọn) | Chỉ làm giá trị dự phòng cho kênh không tự khai OAuth client |
+| `YOUTUBE_REDIRECT_URI`, `YOUTUBE_RETURN_URL` (tuỳ chọn) | Mặc định `<origin Worker>/api/youtube/callback` và `https://chat.schoolsai.work` |
+
+PocketBase: Worker tự thêm giá trị `youtube` vào select `platform` của `pages_config` và `post_targets` ở lần kết nối đầu tiên; cũng có thể chạy tay `node scripts/pb-youtube-schema.mjs --apply`.
+
+---
+
 ## `POST /api/v1/posts` — Tạo bài viết mới
 
 Tạo bài + tự tạo `post_targets` cho các platform chỉ định (dùng page/token đã cấu hình sẵn ở `sm-config.html`). Đây là cách để hệ thống ngoài "bơm" nội dung vào thẳng, bỏ qua bước RSS/AI viết bài nếu không cần.

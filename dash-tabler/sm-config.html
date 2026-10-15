@@ -99,6 +99,7 @@
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="instagram" onclick="switchPlatformTab('instagram', this)"><i class="ti ti-brand-instagram me-1"></i>Instagram</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="whatsapp" onclick="switchPlatformTab('whatsapp', this)"><i class="ti ti-brand-whatsapp me-1"></i>WhatsApp</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="zalo" onclick="switchPlatformTab('zalo', this)"><i class="ti ti-message-circle me-1"></i>Zalo</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" data-platform="youtube" onclick="switchPlatformTab('youtube', this)"><i class="ti ti-brand-youtube me-1"></i>YouTube</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="wordpress" onclick="switchPlatformTab('wordpress', this)"><i class="ti ti-brand-wordpress me-1"></i>WordPress</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="sanity" onclick="switchPlatformTab('sanity', this)"><i class="ti ti-hexagon me-1"></i>Sanity</a></li>
                         <li class="nav-item"><a href="#" class="nav-link" data-platform="other" onclick="switchPlatformTab('other', this)"><i class="ti ti-api me-1"></i>Khác</a></li>
@@ -109,9 +110,11 @@
                             <h3 class="card-title d-flex align-items-center gap-2 mb-0">
                                 <i class="ti ti-plug-connected text-primary fs-2"></i> Page / Account / Kênh chat
                             </h3>
-                            <button id="new-page-btn" class="btn btn-primary ms-auto"><i class="ti ti-plus me-1"></i> Thêm kênh</button>
+                            <button id="connect-youtube-btn" class="btn btn-outline-danger ms-auto"><i class="ti ti-brand-youtube me-1"></i> Kết nối YouTube</button>
+                            <button id="new-page-btn" class="btn btn-primary ms-2"><i class="ti ti-plus me-1"></i> Thêm kênh</button>
                         </div>
                         <div class="table-responsive mt-2">
+                            <div id="youtube-result" class="d-none"></div>
                             <div id="perm-result" class="d-none"></div>
             <table class="table card-table table-vcenter">
                                 <thead><tr>
@@ -125,6 +128,53 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- ===================== MODAL: KẾT NỐI YOUTUBE ===================== -->
+    <div class="modal" id="youtube-modal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="ti ti-brand-youtube text-danger me-1"></i> Kết nối YouTube</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">
+              <div class="fw-bold mb-1">Chuẩn bị một lần trên Google Cloud (console.cloud.google.com)</div>
+              <ol class="mb-0 ps-3">
+                <li>Tạo project → bật <b>YouTube Data API v3</b>.</li>
+                <li>Màn hình đồng ý OAuth: loại <b>External</b>, thêm email của bạn vào <b>Test users</b> (nếu app còn ở chế độ Testing).</li>
+                <li>Credentials → tạo <b>OAuth client ID</b> loại <b>Web application</b>, thêm <b>Authorized redirect URI</b>: <code id="yt-redirect-uri"></code></li>
+                <li>Dán <b>Client ID</b> và <b>Client Secret</b> vào ô bên dưới rồi bấm tiếp tục để đăng nhập Google.</li>
+              </ol>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Kênh</label>
+              <select id="yt-channel" class="form-select"></select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Client ID</label>
+              <input type="text" id="yt-client-id" class="form-control" autocomplete="off">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Client Secret</label>
+              <input type="password" id="yt-client-secret" class="form-control" autocomplete="new-password">
+            </div>
+            <details class="mb-2">
+              <summary class="text-secondary">Nâng cao: dùng service upload riêng (bỏ trống = dùng service của hệ thống)</summary>
+              <div class="row g-2 mt-1">
+                <div class="col-md-7"><input type="text" id="yt-uploader-url" class="form-control" placeholder="https://uploader.cua-ban.com"></div>
+                <div class="col-md-5"><input type="password" id="yt-uploader-secret" class="form-control" placeholder="Uploader secret" autocomplete="new-password"></div>
+              </div>
+            </details>
+            <div id="yt-error" class="alert alert-danger d-none mb-0"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Hủy</button>
+            <button type="button" id="yt-start-btn" class="btn btn-danger"><i class="ti ti-brand-google me-1"></i> Tiếp tục với Google</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ===================== MODAL: PAGE CONFIG ===================== -->
@@ -144,6 +194,7 @@
                 <option value="instagram">Instagram</option>
                 <option value="whatsapp">WhatsApp</option>
                 <option value="zalo">Zalo</option>
+                <option value="youtube">YouTube</option>
                 <option value="wordpress">WordPress</option>
                 <option value="sanity">Sanity</option>
                 <option value="other">Khác (API chat ngoài)</option>
@@ -251,15 +302,18 @@
         instagram: 'Instagram Business Account ID',
         whatsapp: 'Phone Number ID',
         zalo: 'Official Account (OA) ID',
+        youtube: 'Channel ID (tự điền khi bấm "Kết nối YouTube")',
         wordpress: 'Site URL (vd: https://example.com)',
         sanity: 'projectId:dataset (vd: abc123:production)',
         other: 'ID kênh / Account ID',
     };
     const TOKEN_HINTS = {
+        youtube: 'Refresh token — tự lưu khi bấm "Kết nối YouTube", không cần nhập tay',
         wordpress: 'username:application_password (tạo ở WP Admin → Users → Profile → Application Passwords)',
         sanity: 'API token (tạo ở sanity.io/manage → project → API → Tokens, quyền Editor trở lên)',
     };
     const EXTRA_HINTS = {
+        youtube: 'Tuỳ chọn: {"privacy":"private|unlisted|public","tags":["a","b"],"category_id":"22","made_for_kids":false}. Mặc định privacy = private.',
         whatsapp: 'Điền {"app_secret":"...","verify_token":"..."} — app_secret lấy ở Meta App Dashboard → App settings → Basic (dùng để xác thực tin Meta gửi tới); bấm "Tạo Verify Token ngẫu nhiên" để sinh verify_token.',
         sanity: 'Tuỳ chọn — chỉnh tên document type/field cho khớp schema riêng của bạn: {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}. Bỏ trống = dùng mặc định trên.',
         facebook: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
@@ -268,7 +322,7 @@
     const META_WEBHOOK_PLATFORMS = ['facebook', 'instagram', 'whatsapp'];
     const PLATFORM_ICON = {
         facebook: 'ti-brand-facebook', instagram: 'ti-brand-instagram',
-        whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle',
+        whatsapp: 'ti-brand-whatsapp', zalo: 'ti-message-circle', youtube: 'ti-brand-youtube',
         wordpress: 'ti-brand-wordpress', sanity: 'ti-hexagon', other: 'ti-api',
     };
 
@@ -292,6 +346,66 @@
         renderSidebar(window.AUTH_USER);
         loadStorageUsage();
         await loadPages();
+    })();
+
+
+    // ═══════════════════════════════════════
+    // KẾT NỐI YOUTUBE (đăng nhập Google)
+    // ═══════════════════════════════════════
+    function showYouTubeResult(kind, text) {
+        const box = document.getElementById('youtube-result');
+        box.className = `alert alert-${kind} mx-3 mb-2`;
+        box.textContent = text;
+    }
+    function openYouTubeModal() {
+        const channels = pagesConfigCache.filter(pc => pc.platform === 'youtube');
+        const select = document.getElementById('yt-channel');
+        select.innerHTML = '<option value="">Kênh YouTube mới</option>' + channels.map(pc => `<option value="${escHtml(pc.id)}">Kết nối lại: ${escHtml(pc.label || pc.page_id)}</option>`).join('');
+        select.closest('.mb-3').classList.toggle('d-none', channels.length === 0);
+        document.getElementById('yt-redirect-uri').textContent = `${WORKER_URL}/api/youtube/callback`;
+        ['yt-client-id', 'yt-client-secret', 'yt-uploader-url', 'yt-uploader-secret'].forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('yt-error').classList.add('d-none');
+        onYouTubeChannelChange();
+        new bootstrap.Modal(document.getElementById('youtube-modal')).show();
+    }
+    function onYouTubeChannelChange() {
+        const reuse = !!document.getElementById('yt-channel').value;
+        document.getElementById('yt-client-id').placeholder = reuse ? 'Bỏ trống để dùng lại Client ID đã lưu' : 'xxxx.apps.googleusercontent.com';
+        document.getElementById('yt-client-secret').placeholder = reuse ? 'Bỏ trống để dùng lại Client Secret đã lưu' : 'GOCSPX-...';
+    }
+    document.getElementById('connect-youtube-btn').addEventListener('click', openYouTubeModal);
+    document.getElementById('yt-channel').addEventListener('change', onYouTubeChannelChange);
+    document.getElementById('yt-start-btn').addEventListener('click', async (event) => {
+        const btn = event.currentTarget;
+        const err = document.getElementById('yt-error');
+        err.classList.add('d-none');
+        btn.disabled = true;
+        try {
+            const body = { tenant: window.TENANT, record_id: document.getElementById('yt-channel').value || undefined };
+            for (const [key, id] of [['client_id', 'yt-client-id'], ['client_secret', 'yt-client-secret'], ['uploader_url', 'yt-uploader-url'], ['uploader_secret', 'yt-uploader-secret']]) {
+                const value = document.getElementById(id).value.trim();
+                if (value) body[key] = value;
+            }
+            const res = await fetch(`${WORKER_URL}/api/account/youtube/start`, {
+                method: 'POST', headers: { Authorization: PB.authStore.token, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.url) throw new Error(data.error || `HTTP ${res.status}`);
+            window.location.href = data.url;
+        } catch (e) {
+            err.textContent = e.message;
+            err.classList.remove('d-none');
+            btn.disabled = false;
+        }
+    });
+    // Google đưa người dùng quay lại trang này kèm ?youtube=connected|error
+    (() => {
+        const params = new URLSearchParams(location.search);
+        const status = params.get('youtube');
+        if (!status) return;
+        if (status === 'connected') showYouTubeResult('success', `Đã kết nối kênh YouTube "${params.get('channel') || ''}". Video đăng lên mặc định ở chế độ riêng tư (private) — đổi ở "Cấu hình thêm" của kênh.`);
+        else showYouTubeResult('danger', 'Kết nối YouTube thất bại: ' + (params.get('msg') || 'lỗi không xác định'));
+        history.replaceState(null, '', location.pathname);
     })();
 
     // ═══════════════════════════════════════
