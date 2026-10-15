@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { signYouTubeState, verifyYouTubeState, youtubeAuthUrl, buildYouTubeMetadata, publishToYouTube, googleApiError, youtubeSettings } from "../src/integrations/youtube.js";
+import { privacyNote, signYouTubeState, verifyYouTubeState, youtubeAuthUrl, buildYouTubeMetadata, publishToYouTube, googleApiError, youtubeSettings } from "../src/integrations/youtube.js";
 import { classifyPublishError } from "../src/domain/publishing/retryPolicy.js";
 import { checkTargetPreflight } from "../src/domain/publishing/preflight.js";
 
@@ -30,14 +30,15 @@ test("authorization URL asks for offline upload access", () => {
   assert.equal(url.searchParams.get("state"), "st");
 });
 
-test("metadata defaults to private, strips angle brackets and clamps title", () => {
+test("metadata defaults to public (customer can choose private), strips angle brackets and clamps title", () => {
   const m = buildYouTubeMetadata({ extra_config: "" }, { title: "x".repeat(150), content: "a<b>c" });
   assert.equal(m.snippet.title.length, 100);
   assert.equal(m.snippet.description, "abc");
-  assert.equal(m.status.privacyStatus, "private");
-  assert.equal(buildYouTubeMetadata({ extra_config: '{"privacy":"public","tags":["a","b"]}' }, post).status.privacyStatus, "public");
+  assert.equal(m.status.privacyStatus, "public", "mặc định công khai");
+  assert.equal(buildYouTubeMetadata({ extra_config: '{"privacy":"private","tags":["a","b"]}' }, post).status.privacyStatus, "private", "khách chọn private");
+  assert.equal(buildYouTubeMetadata({ extra_config: '{"privacy":"unlisted"}' }, post).status.privacyStatus, "unlisted");
   assert.deepEqual(buildYouTubeMetadata({ extra_config: '{"tags":["a","b"]}' }, post).snippet.tags, ["a", "b"]);
-  assert.equal(buildYouTubeMetadata({ extra_config: '{"privacy":"weird"}' }, post).status.privacyStatus, "private");
+  assert.equal(buildYouTubeMetadata({ extra_config: '{"privacy":"weird"}' }, post).status.privacyStatus, "public");
   assert.throws(() => buildYouTubeMetadata({ extra_config: "" }, { title: "  ", content: "x" }), /tiêu đề/);
 });
 
@@ -53,8 +54,8 @@ const jobsFetch = (states, calls = []) => async (url, init) => {
 test("publishes by refreshing the token, queuing a VPS upload job and polling it to completion", async () => {
   const calls = [];
   const id = await publishToYouTube({ page, post: { ...post, id: "p7" }, mediaItems: [{ type: "image", url: "https://x/i.png" }, { type: "video", url: "https://cdn/v.mp4" }], env, ...fast,
-    fetchImpl: jobsFetch([{ body: { status: "running" } }, { body: { status: "done", video_id: "vid42" } }], calls) });
-  assert.equal(id, "vid42");
+    fetchImpl: jobsFetch([{ body: { status: "running" } }, { body: { status: "done", video_id: "vid42", privacy: "public" } }], calls) });
+  assert.deepEqual(id, { id: "vid42", note: "" });
   assert.match(String(calls[0].init.body), /grant_type=refresh_token/);
   assert.match(String(calls[0].init.body), /refresh_token=refresh-tok/);
   assert.equal(calls[1].url, "https://up.example.com/upload");
@@ -126,4 +127,14 @@ test("preflight requires a video and a title for YouTube", async () => {
   assert.deepEqual(await checkTargetPreflight({ target: { platform: "youtube" }, page, post: { title: "hi" }, media: { url: "https://v", type: "video" }, fetchImpl: ok }), []);
   const bad = await checkTargetPreflight({ target: { platform: "youtube" }, page, post: { title: "" }, media: { url: "https://i", type: "image" }, fetchImpl: ok });
   assert.equal(bad.length, 2);
+});
+
+test("warns when YouTube locks the video to a different privacy than requested (unaudited Google project)", async () => {
+  assert.equal(privacyNote("public", "public"), "");
+  assert.equal(privacyNote("public", ""), "", "uploader cũ không báo privacy -> không cảnh báo");
+  assert.match(privacyNote("public", "private"), /private.*public.*audit/s);
+  const result = await publishToYouTube({ page, post, mediaItems: [{ type: "video", url: "https://v" }], env, ...fast,
+    fetchImpl: jobsFetch([{ body: { status: "done", video_id: "v9", privacy: "private" } }]) });
+  assert.equal(result.id, "v9");
+  assert.match(result.note, /audit/);
 });

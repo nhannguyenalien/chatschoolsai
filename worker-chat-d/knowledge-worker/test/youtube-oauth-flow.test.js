@@ -217,3 +217,31 @@ test("an Origin outside ALLOWED_ORIGINS cannot choose the redirect target", asyn
     assert.equal(new URL(done.headers.get("location")).origin, "https://chat.schoolsai.work");
   } finally { net.restore(); }
 });
+
+test("the customer can choose the video privacy and switch comment auto-reply off when connecting", async () => {
+  const net = installFetch();
+  try {
+    assert.equal((await start({ ...CLIENT, privacy: "private", auto_reply: false })).status, 200);
+    const extra = JSON.parse([...net.db.values()].at(-1).extra_config);
+    assert.deepEqual([extra.privacy, extra.auto_reply], ["private", false]);
+    // giá trị lạ bị bỏ qua (mặc định công khai nằm ở lúc đăng, không ghi vào kênh)
+    net.db.clear();
+    await start({ ...CLIENT, privacy: "everyone" });
+    assert.equal("privacy" in JSON.parse([...net.db.values()].at(-1).extra_config), false);
+  } finally { net.restore(); }
+});
+
+test("connecting a channel stamps when comment auto-reply started so old comments are never answered", async () => {
+  const net = installFetch();
+  try {
+    const state = await stateOf(await start(CLIENT));
+    await callback(state);
+    const rec = [...net.db.values()][0];
+    const since = JSON.parse(rec.extra_config).auto_reply_since;
+    assert.ok(Date.parse(since) > Date.now() - 10_000 && Date.parse(since) <= Date.now());
+    // kết nối lại không làm mốc lùi về sau
+    const again = await stateOf(await start({ record_id: rec.id }));
+    await callback(again);
+    assert.equal(JSON.parse(net.db.get(rec.id).extra_config).auto_reply_since, since);
+  } finally { net.restore(); }
+});

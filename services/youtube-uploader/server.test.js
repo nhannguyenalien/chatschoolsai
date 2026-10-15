@@ -15,7 +15,8 @@ async function serve(handler) {
 }
 
 // fetch giả: CDN chứa video và YouTube (init + PUT) — ghi lại để kiểm tra.
-function fakeWorld({ cdn = {}, youtube = {} } = {}) {
+function fakeWorld({ cdn = {}, youtube = {}, privacy = "public" } = {}) {
+  const world = { privacy };
   const seen = { init: null, put: null, putBytes: 0 };
   const fetchImpl = async (input, init = {}) => {
     const url = String(input);
@@ -34,7 +35,7 @@ function fakeWorld({ cdn = {}, youtube = {} } = {}) {
     assert.equal(url, "https://upload.youtube.test/session/1");
     seen.put = { headers };
     for await (const chunk of body) seen.putBytes += chunk.length;
-    return { ok: true, status: 200, data: { id: "vid_999" } };
+    return { ok: true, status: 200, data: { id: "vid_999", status: { privacyStatus: world.privacy || "public" } } };
   };
   return { fetchImpl, putImpl, seen };
 }
@@ -192,7 +193,7 @@ test("jobs run in the background and the same key never uploads twice", async ()
     release();
     let job;
     for (let i = 0; i < 200 && job?.status !== "done"; i++) { await new Promise((r) => setTimeout(r, 10)); job = await (await fetch(`${srv.url}/jobs/${first.body.job_id}`, { headers })).json(); }
-    assert.deepEqual(job, { job_id: first.body.job_id, status: "done", video_id: "vid_999" });
+    assert.deepEqual(job, { job_id: first.body.job_id, status: "done", video_id: "vid_999", privacy: "public" });
     const after = await post(payload); // đã đăng xong: trả kết quả cũ, không đăng trùng
     assert.equal(after.body.video_id, "vid_999");
     assert.equal(inits, 1, "YouTube must be called exactly once");
@@ -220,5 +221,17 @@ test("job endpoint needs the secret and unknown jobs are reported as lost", asyn
     const lost = await fetch(`${srv.url}/jobs/${id}`, { headers: { Authorization: `Bearer ${SECRET}` } });
     assert.equal(lost.status, 404);
     assert.equal((await lost.json()).reason, "job_lost");
+  } finally { await srv.close(); }
+});
+
+test("reports the privacy YouTube actually applied (an unaudited project gets locked to private)", async () => {
+  const world = fakeWorld({ privacy: "private" });
+  const srv = await serve(createUploader({ secret: SECRET, fetchImpl: world.fetchImpl, putImpl: world.putImpl, lookup: publicLookup }));
+  const headers = { Authorization: `Bearer ${SECRET}`, "content-type": "application/json" };
+  try {
+    const started = await (await fetch(`${srv.url}/upload`, { method: "POST", headers, body: JSON.stringify({ video_url: "https://cdn.example.com/a.mp4", access_token: "at", metadata: { ...metadata, status: { privacyStatus: "public" } } }) })).json();
+    let job;
+    for (let i = 0; i < 200 && job?.status !== "done"; i++) { await new Promise((r) => setTimeout(r, 10)); job = await (await fetch(`${srv.url}/jobs/${started.job_id}`, { headers })).json(); }
+    assert.equal(job.privacy, "private");
   } finally { await srv.close(); }
 });

@@ -160,6 +160,22 @@
               <label class="form-label">Client Secret</label>
               <input type="password" id="yt-client-secret" class="form-control" autocomplete="new-password">
             </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Chế độ video khi đăng</label>
+                <select id="yt-privacy" class="form-select">
+                  <option value="public" selected>Công khai (public)</option>
+                  <option value="unlisted">Không công khai (chỉ ai có link)</option>
+                  <option value="private">Riêng tư (private)</option>
+                </select>
+                <div class="form-hint">Dự án Google chưa qua kiểm tra API thì YouTube tự khoá video ở riêng tư — xem hướng dẫn xác minh.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Bình luận</label>
+                <label class="form-check mt-1"><input type="checkbox" id="yt-auto-reply" class="form-check-input" checked><span class="form-check-label">Bot tự trả lời bình luận (không cần duyệt)</span></label>
+                <div class="form-hint">Chỉ trả lời bình luận mới từ lúc kết nối, tối đa vài câu mỗi 15 phút.</div>
+              </div>
+            </div>
             <details class="mb-2">
               <summary class="text-secondary">Nâng cao: dùng service upload riêng (bỏ trống = dùng service của hệ thống)</summary>
               <div class="row g-2 mt-1">
@@ -313,7 +329,7 @@
         sanity: 'API token (tạo ở sanity.io/manage → project → API → Tokens, quyền Editor trở lên)',
     };
     const EXTRA_HINTS = {
-        youtube: 'Tuỳ chọn: {"privacy":"private|unlisted|public","tags":["a","b"],"category_id":"22","made_for_kids":false}. Mặc định privacy = private.',
+        youtube: 'Cài đặt kênh (nên đổi bằng nút "Kết nối YouTube"): {"privacy":"public|unlisted|private","auto_reply":true,"tags":["a"],"category_id":"22","made_for_kids":false}. Mặc định privacy = public; Client ID/Secret của Google cũng nằm trong ô này.',
         whatsapp: 'Điền {"app_secret":"...","verify_token":"..."} — app_secret lấy ở Meta App Dashboard → App settings → Basic (dùng để xác thực tin Meta gửi tới); bấm "Tạo Verify Token ngẫu nhiên" để sinh verify_token.',
         sanity: 'Tuỳ chọn — chỉnh tên document type/field cho khớp schema riêng của bạn: {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}. Bỏ trống = dùng mặc định trên.',
         facebook: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
@@ -370,6 +386,12 @@
     }
     function onYouTubeChannelChange() {
         const reuse = !!document.getElementById('yt-channel').value;
+        // Kết nối lại kênh có sẵn: hiển thị đúng cài đặt hiện tại của kênh đó.
+        const current = pagesConfigCache.find(pc => pc.id === document.getElementById('yt-channel').value);
+        let extra = {};
+        try { extra = JSON.parse(current?.extra_config || '{}') || {}; } catch {}
+        document.getElementById('yt-privacy').value = ['public', 'unlisted', 'private'].includes(extra.privacy) ? extra.privacy : 'public';
+        document.getElementById('yt-auto-reply').checked = extra.auto_reply !== false;
         document.getElementById('yt-client-id').placeholder = reuse ? 'Bỏ trống để dùng lại Client ID đã lưu' : 'xxxx.apps.googleusercontent.com';
         document.getElementById('yt-client-secret').placeholder = reuse ? 'Bỏ trống để dùng lại Client Secret đã lưu' : 'GOCSPX-...';
     }
@@ -381,7 +403,7 @@
         err.classList.add('d-none');
         btn.disabled = true;
         try {
-            const body = { tenant: window.TENANT, record_id: document.getElementById('yt-channel').value || undefined };
+            const body = { tenant: window.TENANT, record_id: document.getElementById('yt-channel').value || undefined, privacy: document.getElementById('yt-privacy').value, auto_reply: document.getElementById('yt-auto-reply').checked };
             for (const [key, id] of [['client_id', 'yt-client-id'], ['client_secret', 'yt-client-secret'], ['uploader_url', 'yt-uploader-url'], ['uploader_secret', 'yt-uploader-secret']]) {
                 const value = document.getElementById(id).value.trim();
                 if (value) body[key] = value;
@@ -403,7 +425,7 @@
         const params = new URLSearchParams(location.search);
         const status = params.get('youtube');
         if (!status) return;
-        if (status === 'connected') showYouTubeResult('success', `Đã kết nối kênh YouTube "${params.get('channel') || ''}". Video đăng lên mặc định ở chế độ riêng tư (private) — đổi ở "Cấu hình thêm" của kênh.`);
+        if (status === 'connected') showYouTubeResult('success', `Đã kết nối kênh YouTube "${params.get('channel') || ''}". Chế độ video và bot trả lời bình luận chỉnh ở nút "Kết nối YouTube" → chọn kênh → Tiếp tục.`);
         else showYouTubeResult('danger', 'Kết nối YouTube thất bại: ' + (params.get('msg') || 'lỗi không xác định'));
         history.replaceState(null, '', location.pathname);
     })();

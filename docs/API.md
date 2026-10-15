@@ -51,11 +51,13 @@ Yêu cầu Bearer API key hiện tại. Request gồm `tenant` và `bot_name`. A
 ```
 
 - `title` → tiêu đề, `content` → mô tả. Ký tự `<` `>` bị loại (YouTube cấm). Emoji dùng bình thường.
-- Mặc định video ở chế độ **private**. Đổi bằng "Cấu hình thêm" của kênh: `{"privacy":"public|unlisted|private","tags":["a","b"],"category_id":"22","made_for_kids":false}`. Muốn đăng `public` ổn định thì app Google OAuth phải qua kiểm duyệt của Google; app còn ở chế độ Testing thì refresh token hết hạn sau 7 ngày (cần kết nối lại).
+- Mặc định video ở chế độ **public**. Khách chọn `private`/`unlisted` ngay trong form **Kết nối YouTube** (ô "Chế độ video khi đăng"), hoặc sửa "Cấu hình thêm" của kênh: `{"privacy":"public|unlisted|private","tags":["a","b"],"category_id":"22","made_for_kids":false}`.
+- **Quan trọng:** dự án Google chưa qua *YouTube API Services audit* bị YouTube tự khoá video ở `private` dù yêu cầu `public`. Khi đó bài vẫn `published` nhưng ô `error_log` ghi cảnh báo "đang ở chế độ private thay vì public". Xem `docs/YOUTUBE_GOOGLE_VERIFICATION.md` để xin xác minh app và audit. App còn ở chế độ Testing thì refresh token hết hạn sau 7 ngày (cần kết nối lại).
 - Bài không có video sẽ báo lỗi trước giờ đăng (cảnh báo preflight).
 - Hạn mức YouTube Data API: mỗi video tốn ~1.600 đơn vị trên 10.000 đơn vị/ngày của Google project (~6 video/ngày, tính theo project của từng tenant). Hết hạn mức → hệ thống tự thử lại theo lịch retry.
 - Lịch đăng tự động (`publish_schedules`, `content_type: "social"`) cũng áp dụng cho YouTube.
-- Hiện **chưa** có tự động trả lời bình luận YouTube (Facebook/Instagram thì có).
+- **Bot tự trả lời bình luận YouTube, không cần duyệt** (bật mặc định, tắt bằng ô "Bot tự trả lời bình luận" khi kết nối hoặc `extra_config.auto_reply=false`). Cron 15 phút lấy bình luận mới của cả kênh (`commentThreads.list`), bỏ qua: bình luận của chính kênh, luồng kênh đã trả lời, bình luận có link, bình luận cũ hơn 24 giờ hoặc cũ hơn mốc `auto_reply_since` (thời điểm kết nối — không bao giờ trả lời ngược), rồi trả lời bằng cùng AI Agent (RAG) như Messenger/bình luận Facebook (session `youtube:comment:<channelId của người bình luận>`, xem trong Nhật ký chat). Tối đa 3 câu/kênh và 8 câu/lần quét; hết hạn mức ngày thì tự dừng và thử lại. Mỗi câu trả lời tốn 50 đơn vị hạn mức.
+- Cần quyền `youtube.force-ssl`: kênh kết nối trước khi có tính năng này phải bấm **Kết nối YouTube** lại một lần (hệ thống nhắn chủ qua Telegram một lần nếu thiếu quyền).
 
 **Kiến trúc:** Worker lo OAuth, làm mới token và gọi uploader; việc tải video + upload resumable chạy ở service `services/youtube-uploader` trên VPS (Worker không đủ RAM/thời gian cho video lớn). Uploader chạy job nền (`POST /upload` → `job_id`, Worker hỏi `GET /jobs/:id`) vì Cloudflare cắt request im lặng quá ~100s, và có khoá chống đăng trùng khi retry. Triển khai tham khảo: Coolify, app Dockerfile, domain `http://yt-uploader.schoolsai.work` qua Cloudflare Tunnel (tunnel phải trỏ vào đúng máy chạy Coolify đó).
 
@@ -66,7 +68,7 @@ Cấu hình Worker:
 | `GOOGLE_OAUTH_STATE_SECRET` (secret) | Khoá ký `state` đăng nhập Google (dùng chung với GA/Search Console) |
 | `YT_UPLOADER_URL`, `YT_UPLOADER_SECRET` (secret) | Uploader mặc định của hệ thống; tenant có thể tự khai `uploader_url` + `uploader_secret` trong ô "Nâng cao" của form kết nối |
 | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` (tuỳ chọn) | Chỉ làm giá trị dự phòng cho kênh không tự khai OAuth client |
-| `YOUTUBE_REDIRECT_URI`, `YOUTUBE_RETURN_URL` (tuỳ chọn) | Mặc định `<origin Worker>/api/youtube/callback` và `https://chat.schoolsai.work` |
+| `YOUTUBE_REDIRECT_URI`, `YOUTUBE_RETURN_URL` (tuỳ chọn) | Mặc định `<origin Worker>/api/youtube/callback` và `https://chat.schoolsai.work`. Chạy thủ công quét bình luận: `POST /run-youtube-comments` (header `X-Admin-Secret`) |
 
 PocketBase: Worker tự thêm giá trị `youtube` vào select `platform` của `pages_config` và `post_targets` ở lần kết nối đầu tiên; cũng có thể chạy tay `node scripts/pb-youtube-schema.mjs --apply`.
 

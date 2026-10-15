@@ -125,7 +125,7 @@ export function createUploader({ secret, fetchImpl = fetch, putImpl = streamPut,
     if (!put.ok) throw httpError(put.status, put.data?.error?.message || `YouTube HTTP ${put.status}`, { reason: put.data?.error?.errors?.[0]?.reason || put.data?.error?.status || "", source: "google" });
     const data = put.data || {};
     if (!data.id) throw httpError(502, "YouTube không trả videoId");
-    return { video_id: data.id };
+    return { video_id: data.id, privacy: data.status?.privacyStatus || "" };
   }
 
   async function googleFailure(res) {
@@ -164,7 +164,7 @@ export function createUploader({ secret, fetchImpl = fetch, putImpl = streamPut,
     return job;
   }
 
-  const publicJob = (job) => job.status === "done" ? { job_id: job.id, status: "done", video_id: job.video_id }
+  const publicJob = (job) => job.status === "done" ? { job_id: job.id, status: "done", video_id: job.video_id, privacy: job.privacy || "" }
     : job.status === "error" ? { job_id: job.id, status: "error", http_status: job.http_status, error: job.error, reason: job.reason, source: job.source }
     : { job_id: job.id, status: "running" };
 

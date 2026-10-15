@@ -3,7 +3,8 @@
 // giao cho uploader (services/youtube-uploader) — uploader chỉ nhận access_token, không bao giờ thấy client_secret.
 export const YOUTUBE_SCOPES = [
   "https://www.googleapis.com/auth/youtube.upload",
-  "https://www.googleapis.com/auth/youtube.readonly"
+  "https://www.googleapis.com/auth/youtube.readonly",
+  "https://www.googleapis.com/auth/youtube.force-ssl" // đọc + trả lời bình luận
 ];
 export const YOUTUBE_TITLE_LIMIT = 100;
 export const YOUTUBE_DESCRIPTION_LIMIT = 5000;
@@ -101,7 +102,9 @@ function cleanText(value, limit) {
   return String(value || "").replace(/[<>]/g, "").trim().slice(0, limit);
 }
 
-// Siêu dữ liệu video gửi cho YouTube. Mặc định "private" để không lỡ đăng công khai khi app Google chưa được kiểm duyệt.
+// Siêu dữ liệu video gửi cho YouTube. Mặc định "public"; khách chọn private/unlisted bằng extra_config.privacy.
+// Lưu ý: dự án Google chưa qua kiểm tra API (audit) bị YouTube tự khoá video ở private — xem `privacyNote`.
+export const DEFAULT_PRIVACY = "public";
 export function buildYouTubeMetadata(page, post) {
   const extra = parseExtra(page);
   const title = cleanText(post?.title, YOUTUBE_TITLE_LIMIT);
@@ -115,7 +118,7 @@ export function buildYouTubeMetadata(page, post) {
       categoryId: String(extra.category_id || "22")
     },
     status: {
-      privacyStatus: PRIVACY.has(extra.privacy) ? extra.privacy : "private",
+      privacyStatus: PRIVACY.has(extra.privacy) ? extra.privacy : DEFAULT_PRIVACY,
       selfDeclaredMadeForKids: extra.made_for_kids === true
     }
   };
@@ -142,7 +145,13 @@ function uploaderError(status, data, fallback) {
   return error;
 }
 
-// Đăng video: giao cho uploader trên VPS (chạy nền) rồi hỏi tiến độ tới khi xong, trả về videoId.
+// YouTube tự khoá video về private khi dự án Google chưa qua kiểm tra API (audit) — báo rõ cho chủ thay vì để họ tưởng đã công khai.
+export function privacyNote(requested, actual) {
+  if (!actual || actual === requested) return "";
+  return `Video đã lên YouTube nhưng đang ở chế độ "${actual}" thay vì "${requested}". Thường do dự án Google chưa qua kiểm tra API YouTube (API audit) nên YouTube tự khoá video ở chế độ riêng tư; đổi thủ công trong YouTube Studio hoặc hoàn tất bước audit.`;
+}
+
+// Đăng video: giao cho uploader trên VPS (chạy nền) rồi hỏi tiến độ tới khi xong, trả về { id, note }.
 // Gửi kèm `key` = bài + kênh để uploader không up trùng khi Worker retry.
 export async function publishToYouTube({ page, post, mediaItems, env, fetchImpl, sleep = defaultSleep, pollMs = 5000, maxWaitMs = 13 * 60 * 1000 }) {
   const video = (mediaItems || []).find((item) => item?.url && item.type === "video");
@@ -168,7 +177,7 @@ export async function publishToYouTube({ page, post, mediaItems, env, fetchImpl,
     const state = await res.json().catch(() => ({}));
     if (res.status === 404 && state.reason === "job_lost") throw uploaderError(503, state, "Uploader mất job (có thể vừa khởi động lại)");
     if (!res.ok) throw uploaderError(res.status, state, `Uploader YouTube lỗi ${res.status}`);
-    if (state.status === "done" && state.video_id) return state.video_id;
+    if (state.status === "done" && state.video_id) return { id: state.video_id, note: privacyNote(metadata.status.privacyStatus, state.privacy) };
     if (state.status === "error") throw uploaderError(state.http_status || 502, state, "Upload YouTube thất bại");
   }
   // Chưa biết video đã lên chưa -> lỗi "không rõ" để KHÔNG tự thử lại (tránh đăng trùng), báo chủ kiểm tra.

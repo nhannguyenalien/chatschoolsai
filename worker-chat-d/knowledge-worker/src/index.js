@@ -37,8 +37,9 @@ import { createAdsRepository } from "./repositories/pocketbase/adsRepository.js"
 import { createAdsService } from "./workflows/adsService.js";
 import { handleAdsRoute } from "./api/ads.js";
 import { encryptJson as encryptAdsJson } from "./domain/ads/crypto.js";
+import { listCommentThreads, pickCommentsToReply, postCommentReply } from "./integrations/youtubeComments.js";
 import { testWordPressConnection } from "./integrations/wordpress.js";
-import { signYouTubeState, verifyYouTubeState, youtubeAuthUrl, exchangeYouTubeCode, fetchYouTubeChannel, publishToYouTube, youtubePlatformPatch } from "./integrations/youtube.js";
+import { signYouTubeState, verifyYouTubeState, youtubeAuthUrl, exchangeYouTubeCode, fetchYouTubeChannel, publishToYouTube, youtubePlatformPatch, youtubeSettings, refreshYouTubeAccessToken } from "./integrations/youtube.js";
 import { createLoyaltyApi } from "./api/loyalty.js";
 import { createLoyaltyRepository } from "./repositories/pocketbase/loyaltyRepository.js";
 import { addLinkedPhone, buildCustomerOverview, parseLinkedPhones } from "./domain/customerPortal.js";
@@ -270,6 +271,7 @@ var index_default = {
         else if (url.pathname === "/run-rss-crawl") await handleRssCrawlAndGenerate(env2);
         else if (url.pathname === "/run-publish-dispatch") await handlePublishDispatch(env2);
         else if (url.pathname === "/run-agent") await handleAgentRun(env2);
+        else if (url.pathname === "/run-youtube-comments") await handleYouTubeCommentReplies(env2);
         else await pingAnythingLLM(env2);
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       }
@@ -435,6 +437,7 @@ var index_default = {
       }
       ctx.waitUntil(handlePublishDispatch(env2).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
       ctx.waitUntil(handleStaffTimeoutSweep(env2).catch((err) => console.error("[Staff Timeout] Lỗi tổng:", err)));
+      ctx.waitUntil(handleYouTubeCommentReplies(env2).catch((err) => console.error("[YouTube Comment] Lỗi tổng:", err)));
       // Free plan chỉ cho 5 cron/tài khoản nên không tạo cron riêng cho ping — lồng vào đây,
       // tự lọc còn mỗi 30 phút (phút :00 và :30) để không ping quá thường xuyên.
       if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 0) {
@@ -3331,6 +3334,8 @@ async function handleAccountYouTubeStart(request, env, cors, url) {
     extra.uploader_url = uploaderUrl;
   }
   if (String(body.uploader_secret || "").trim()) extra.uploader_secret = String(body.uploader_secret).trim();
+  if (["public", "unlisted", "private"].includes(body.privacy)) extra.privacy = body.privacy;
+  if (typeof body.auto_reply === "boolean") extra.auto_reply = body.auto_reply;
   if (!extra.client_id || !extra.client_secret) return json({ error: "Cần nhập cả Client ID và Client Secret của Google OAuth." }, 400);
 
   const saved = record
@@ -3380,6 +3385,7 @@ async function handleYouTubeCallback(request, env, url) {
     const refreshToken = tokens.refresh_token || (target !== pending || pending.access_token !== "pending" ? target.access_token : "");
     if (!refreshToken || refreshToken === "pending") throw new Error("Google không cấp refresh token. Hãy vào myaccount.google.com/permissions gỡ quyền của app rồi kết nối lại.");
     const merged = { ...parseMessageClientMeta(target.extra_config), ...extra };
+    if (!merged.auto_reply_since) merged.auto_reply_since = new Date().toISOString(); // chỉ trả lời bình luận từ lúc kết nối trở đi
     const saved = await pb(`/${target.id}`, { method: "PATCH", body: JSON.stringify({ label: `YouTube ${channel.title}`, page_id: channel.id, access_token: refreshToken, is_active: true, extra_config: JSON.stringify(merged) }) });
     if (!saved.ok) throw new Error("Không lưu được kênh YouTube.");
     if (target !== pending) await pb(`/${pending.id}`, { method: "DELETE" });
@@ -3390,6 +3396,79 @@ async function handleYouTubeCallback(request, env, url) {
   }
 }
 __name(handleYouTubeCallback, "handleYouTubeCallback");
+
+// ================= [TỰ ĐỘNG TRẢ LỜI BÌNH LUẬN YOUTUBE] =================
+// Cron 15 phút: với mỗi kênh YouTube đang bật, lấy bình luận mới chưa được kênh trả lời và trả lời bằng cùng AI Agent (RAG)
+// như Messenger/bình luận Facebook, KHÔNG cần duyệt. Tắt bằng extra_config.auto_reply=false.
+async function replyToYouTubeComments(env, pbToken, page, limit, deps = {}) {
+  const extra = parseMessageClientMeta(page.extra_config);
+  if (extra.auto_reply === false || !page.page_id || !page.access_token || page.access_token === "pending") return 0;
+  const cfg = youtubeSettings(page, env);
+  if (!cfg.clientId || !cfg.clientSecret) return 0;
+  const patchExtra = (changes) => fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records/${page.id}`, {
+    method: "PATCH", headers: { Authorization: pbToken, "Content-Type": "application/json" }, body: JSON.stringify({ extra_config: JSON.stringify({ ...extra, ...changes }) })
+  });
+  if (!extra.auto_reply_since) { // kênh kết nối trước khi có tính năng: bắt đầu tính từ bây giờ, không trả lời ngược bình luận cũ
+    await patchExtra({ auto_reply_since: new Date().toISOString() });
+    return 0;
+  }
+  const accessToken = await refreshYouTubeAccessToken({ clientId: cfg.clientId, clientSecret: cfg.clientSecret, refreshToken: page.access_token, fetchImpl: fetchWithTimeout });
+  let threads;
+  try {
+    threads = await listCommentThreads({ accessToken, channelId: page.page_id, fetchImpl: fetchWithTimeout });
+  } catch (error) {
+    if (error.needsReconnect) { // token cũ chưa có quyền bình luận: báo chủ 1 lần
+      if (extra.comment_reply_status !== "needs_reconnect") {
+        await patchExtra({ comment_reply_status: "needs_reconnect" });
+        await notifyOwnerPublishFailure(env, pbToken, { tenant: page.tenant, id: page.id }, `⚠️ YouTube (${page.label || page.page_id}): chưa tự trả lời bình luận được vì kênh thiếu quyền mới. Vào sm-config.html bấm "Kết nối YouTube" để kết nối lại một lần.`);
+      }
+      return 0;
+    }
+    throw error;
+  }
+  if (extra.comment_reply_status) await patchExtra({ comment_reply_status: "" });
+  const picks = pickCommentsToReply(threads, { channelId: page.page_id, since: extra.auto_reply_since, limit });
+  let replied = 0;
+  for (const pick of picks) {
+    const session = `youtube:comment:${pick.authorId}`;
+    const clientMeta = { platform: "youtube", page_id: page.page_id, page_label: page.label || page.page_id, customer_id: pick.authorId, conversation_type: "comment", comment_id: pick.commentId, post_id: pick.videoId };
+    const chatRequest = new Request("https://internal/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant: page.tenant, session, username: pick.authorName || "Khách YouTube", question: pick.text, client_meta: clientMeta })
+    });
+    let reply = "";
+    try {
+      const chatRes = deps.askAgent ? await deps.askAgent(chatRequest) : await handleChat(chatRequest, env, { "Content-Type": "application/json" });
+      reply = markdownToChannelText(String((await chatRes.json().catch(() => ({}))).reply || ""), { platform: "youtube" });
+    } catch (error) {
+      console.error("[YouTube Comment] AI không khả dụng, bỏ qua lượt này:", error);
+    }
+    if (!reply) continue; // không đăng câu trả lời rỗng; lần quét sau thử lại
+    try {
+      await postCommentReply({ accessToken, parentId: pick.threadId, text: reply, fetchImpl: fetchWithTimeout });
+      replied++;
+    } catch (error) {
+      console.error(`[YouTube Comment] Không đăng được trả lời cho ${pick.commentId}:`, error.message);
+      if (error.status === 429 || /quota/i.test(error.googleReason || "")) break; // hết hạn mức ngày: dừng, lần sau thử lại
+    }
+  }
+  return replied;
+}
+__name(replyToYouTubeComments, "replyToYouTubeComments");
+
+async function handleYouTubeCommentReplies(env, { perChannel = 3, total = 8 } = {}) {
+  const pbToken = await getPbToken(env);
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/pages_config/records?perPage=100&filter=${encodeURIComponent("platform='youtube' && is_active=true")}`, { headers: { Authorization: pbToken } });
+  if (!res.ok) return 0;
+  let done = 0;
+  for (const page of (await res.json()).items || []) {
+    if (done >= total) break;
+    try { done += await replyToYouTubeComments(env, pbToken, page, Math.min(perChannel, total - done)); }
+    catch (error) { console.error(`[YouTube Comment] Lỗi kênh ${page.id}:`, error.message); }
+  }
+  return done;
+}
+__name(handleYouTubeCommentReplies, "handleYouTubeCommentReplies");
 
 // Đổi "user token" ngắn hạn (lấy từ Graph API Explorer, đã cấp đủ quyền) thành token Page KHÔNG hết hạn:
 // user token -> long-lived user token (cần app_secret của kênh) -> /me/accounts lấy Page token của đúng fanpage.
@@ -5172,12 +5251,15 @@ async function publishOneTarget(env, pbToken, target) {
     }
 
     let publishedId;
+    let publishNote = "";
     if (target.platform === "facebook") {
       publishedId = await publishToFacebook(page, post, media, mediaItems);
     } else if (target.platform === "instagram") {
       publishedId = await publishToInstagram(page, post, media);
     } else if (target.platform === "youtube") {
-      publishedId = await publishToYouTube({ page, post, mediaItems, env, fetchImpl: fetchWithTimeout });
+      const published = await publishToYouTube({ page, post, mediaItems, env, fetchImpl: fetchWithTimeout });
+      publishedId = published.id;
+      publishNote = published.note;
     } else if (target.platform === "wordpress") {
       publishedId = await publishToWordPress(page, post, media);
     } else if (target.platform === "sanity") {
@@ -5195,7 +5277,7 @@ async function publishOneTarget(env, pbToken, target) {
     await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records/${target.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: pbToken },
-      body: JSON.stringify({ status: "published", published_post_id: String(publishedId), error_log: "" })
+      body: JSON.stringify({ status: "published", published_post_id: String(publishedId), error_log: publishNote })
     });
   } catch (err) {
     await handlePublishFailure(env, pbToken, target, err);
@@ -9428,6 +9510,8 @@ __name(handleAgentRun, "handleAgentRun");
 export {
   index_default as default,
   assignScheduledSlots,
+  replyToYouTubeComments,
+  handleYouTubeCommentReplies,
   workspaceTemperature,
   callInternalHandlerWithForcedTenant,
   handleApiGetConfig,
