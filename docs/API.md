@@ -38,7 +38,7 @@ Yêu cầu Bearer API key hiện tại. Request gồm `tenant` và `bot_name`. A
 
 ## Đăng video lên YouTube
 
-**Kết nối kênh (mỗi tenant tự làm, không dùng khoá chung):**
+**Kết nối kênh (mỗi tenant tự làm, không dùng khoá chung; hướng dẫn chi tiết cho khách: `docs/YOUTUBE_CUSTOMER_SETUP.md`):**
 
 1. Trên Google Cloud: tạo project, bật **YouTube Data API v3**, cấu hình màn hình đồng ý OAuth (External, thêm email vào *Test users* khi app còn ở chế độ Testing), tạo **OAuth client ID** loại *Web application* với *Authorized redirect URI* = `https://apic.schoolsai.work/api/youtube/callback`.
 2. Vào `sm-config.html` → **Kết nối YouTube** → dán Client ID + Client Secret → **Tiếp tục với Google** → đăng nhập và cấp quyền.

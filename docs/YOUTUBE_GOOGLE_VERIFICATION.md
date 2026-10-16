@@ -51,5 +51,9 @@ Quay 1 video (3–5 phút, đăng YouTube chế độ *Unlisted*, giọng nói h
 - Sau khi OAuth được duyệt, nộp form YouTube API audit: nêu dự án, link video demo, mô tả luồng, xác nhận tuân thủ YouTube API Services Terms. Trong lúc chờ, video vẫn đăng được nhưng sẽ bị khoá private (hệ thống ghi chú vào `error_log` của bài).
 
 ## 5. Lưu ý khi chờ
-- App ở chế độ **Testing**: chỉ *Test users* đăng nhập được, refresh token hết hạn sau 7 ngày → kênh phải kết nối lại hằng tuần.
-- Đổi sang **In production** (nút *Publish app* ở trang Audience) chỉ bỏ hạn 7 ngày khi app đã được xác minh; chưa xác minh thì người dùng thấy cảnh báo "Google hasn't verified this app".
+- Có hai trạng thái app trong Google Auth Platform → Audience:
+  - **Testing**: chỉ *Test users* đăng nhập được, refresh token hết hạn sau **7 ngày** → kênh phải kết nối lại hằng tuần.
+  - **In production** (nút *Publish app* → Confirm): **không cần duyệt để chuyển**. Token cấp mới không còn hết hạn sau 7 ngày, không cần Test users. Đổi lại người dùng thấy màn hình "Google hasn't verified this app" (bấm *Advanced* → *Go to … (unsafe)*) và giới hạn 100 người dùng cho tới khi app được xác minh. Project `dashpoc-youtube` đã chuyển sang trạng thái này ngày 16/10/2026.
+- Token cấp **trước khi** Publish vẫn theo luật 7 ngày → kết nối lại một lần để lấy token mới.
+- Verification Center chỉ cho nộp xác minh khi app đã In production.
+- Hướng dẫn từng bước cho khách tự làm (cách mỗi khách một project): xem `docs/YOUTUBE_CUSTOMER_SETUP.md`.
