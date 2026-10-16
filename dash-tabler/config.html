@@ -243,7 +243,7 @@
                                             <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()"><i class="ti ti-copy"></i></button>
                                             <button class="btn btn-outline-primary" type="button" onclick="generateApiKey()">Tạo / Đổi mới</button>
                                         </div>
-                                        <small class="form-hint">Gửi kèm header <code>Authorization: Bearer &lt;API key&gt;</code> khi gọi <code>{{WORKER_URL}}/api/v1/...</code>. Đổi mới key sẽ khiến hệ thống ngoài đang dùng key cũ ngừng gọi được — chỉ đổi khi nghi lộ key.</small>
+                                        <small class="form-hint">Gửi kèm header <code>Authorization: Bearer &lt;API key&gt;</code> khi gọi <code><span id="apiBaseUrl">https://apic.schoolsai.work</span>/api/v1/...</code>. Đổi mới key sẽ khiến hệ thống ngoài đang dùng key cũ ngừng gọi được — chỉ đổi khi nghi lộ key.</small>
                                     </div>
                                 </div>
 
@@ -612,6 +612,7 @@
             document.getElementById("pixverseApiKey").value = r.pixverse_api_key || "";
             previewBrandLogo();
             document.getElementById("apiKeyDisplay").value = r.api_key || "";
+            if (typeof WORKER_URL !== "undefined") document.getElementById("apiBaseUrl").textContent = WORKER_URL.replace(/\/+$/, "");
             document.getElementById("systemPrompt").value = r.system_prompt || "";
             document.getElementById("responseLanguage").value = r.response_language || "auto";
             document.getElementById("tempSlider").value  = r.temperature  || 0.3;
