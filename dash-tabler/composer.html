@@ -615,6 +615,18 @@
         setTimeout(() => toast.classList.remove("show"), 3000);
     }
 
+    // Link bài đã đăng: ưu tiên published_url do worker lưu; bài cũ chưa có thì suy ra từ id (Facebook/YouTube/WordPress).
+    function publishedLink(t) {
+        if (t.status !== 'published') return '';
+        const ok = (u) => { try { const x = new URL(u); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; } };
+        if (t.published_url) return ok(t.published_url);
+        const id = String(t.published_post_id || '').trim();
+        if (!id) return '';
+        if (/^https?:\/\//i.test(id)) return ok(id);
+        if (t.platform === 'facebook' && /^[\w-]+$/.test(id)) return 'https://www.facebook.com/' + id;
+        if (t.platform === 'youtube' && /^[\w-]{6,20}$/.test(id)) return 'https://www.youtube.com/watch?v=' + id;
+        return '';
+    }
     const STATUS_LABEL = {
         pending:'Chờ duyệt', approved:'Đã duyệt', scheduled:'Đã lên lịch',
         publishing:'Đang đăng...', published:'Đã đăng', error:'Lỗi'
@@ -1085,9 +1097,10 @@
         filtered.forEach(p => {
             const targets = p.expand?.post_targets_via_post_id || [];
             const publishable = targets.filter(t => ['pending', 'approved', 'scheduled', 'error'].includes(t.status));
-            const pills = targets.map(t =>
-                `<span class="target-pill status-${t.status} me-1">${t.platform}: ${STATUS_LABEL[t.status]||t.status}</span>`
-            ).join('');
+            const pills = targets.map(t => {
+                const link = publishedLink(t);
+                return `<span class="target-pill status-${t.status} me-1">${t.platform}: ${STATUS_LABEL[t.status]||t.status}${link ? ` <a href="${escHtml(link)}" target="_blank" rel="noopener noreferrer" class="ms-1" title="Mở bài trên ${escHtml(t.platform)}"><i class="ti ti-external-link"></i> Xem bài</a>` : ''}</span>`;
+            }).join('');
             const col = document.createElement('div');
             col.className = 'col-md-6';
             col.innerHTML = `

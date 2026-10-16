@@ -11,6 +11,7 @@ import {
   normalizeImagePolicy, parsePickedItem, selectLibraryCandidates, usesLibrary
 } from "./domain/media/postImagePolicy.js";
 import { checkTargetPreflight, PREFLIGHT_MARKER, PREFLIGHT_WINDOW_MINUTES, preflightNotice } from "./domain/publishing/preflight.js";
+import { fallbackPublishedUrl, resolvePublishedUrl } from "./domain/publishing/publishedUrl.js";
 import { classifyPublishError, failureNotice, metaApiError, nextRetryAt } from "./domain/publishing/retryPolicy.js";
 import { MEDIA_INSTRUCTION, detectMediaRequest, extractMediaFromSources } from "./domain/chat/productMedia.js";
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain/billing/costs.js";
@@ -5274,10 +5275,14 @@ async function publishOneTarget(env, pbToken, target) {
     } else {
       throw new Error(`Chưa hỗ trợ đăng tự động cho platform "${target.platform}"`);
     }
+    const publishedUrl = await resolvePublishedUrl({
+      platform: target.platform, publishedId, page, post, fetchImpl: fetchWithTimeout,
+      graphBase: `https://graph.facebook.com/${FB_GRAPH_VERSION}`
+    });
     await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records/${target.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: pbToken },
-      body: JSON.stringify({ status: "published", published_post_id: String(publishedId), error_log: publishNote })
+      body: JSON.stringify({ status: "published", published_post_id: String(publishedId), published_url: publishedUrl, error_log: publishNote })
     });
   } catch (err) {
     await handlePublishFailure(env, pbToken, target, err);
@@ -6331,7 +6336,8 @@ async function handleApiListPosts(request, env, cors, cfg) {
     focus_keyword: p.focus_keyword || "",
     targets: (p.expand?.post_targets_via_post_id || []).map((t) => ({
       id: t.id, platform: t.platform, status: t.status, scheduled_at: t.scheduled_at,
-      error_log: t.error_log, published_post_id: t.published_post_id
+      error_log: t.error_log, published_post_id: t.published_post_id,
+      published_url: t.published_url || fallbackPublishedUrl(t.platform, t.published_post_id)
     })),
     media: (p.expand?.media_via_post_id || []).map((m) => ({ url: m.url, type: m.type }))
   }));
@@ -6907,7 +6913,7 @@ function publishingQueries(listUrl, get, t) {
   const now = new Date();
   const week = new Date(now.getTime() + 7 * 864e5);
   const ago = new Date(now.getTime() - 7 * 864e5);
-  const base = "expand=post_id&fields=platform,status,scheduled_at,updated,error_log,expand.post_id.title";
+  const base = "expand=post_id&fields=platform,status,scheduled_at,updated,error_log,published_post_id,published_url,expand.post_id.title";
   return [
     get(listUrl("post_targets", `tenant='${t}' && status='scheduled' && scheduled_at != '' && scheduled_at >= '${pbDate(now)}'`, `perPage=40&sort=scheduled_at&${base}`)),
     get(listUrl("post_targets", `tenant='${t}' && status='scheduled' && scheduled_at != '' && scheduled_at >= '${pbDate(now)}' && scheduled_at <= '${pbDate(week)}'`, "perPage=1&fields=id")),
@@ -6922,7 +6928,8 @@ __name(publishingQueries, "publishingQueries");
 function summarizePublishing([upcoming, next7, queued, published, errors, pending]) {
   const row = (target) => ({
     platform: target.platform, scheduled_at: target.scheduled_at || undefined, updated: target.updated,
-    title: String(target.expand?.post_id?.title || "").slice(0, 60), error: target.error_log ? String(target.error_log).slice(0, 120) : undefined
+    title: String(target.expand?.post_id?.title || "").slice(0, 60), error: target.error_log ? String(target.error_log).slice(0, 120) : undefined,
+    url: target.status === "published" ? (target.published_url || fallbackPublishedUrl(target.platform, target.published_post_id) || undefined) : undefined
   });
   return {
     note: "Bài đăng thật (post_targets). publish_schedules ở trên chỉ là quy tắc tự lên lịch lặp lại, KHÔNG phải số bài đã hẹn giờ.",

@@ -16,7 +16,7 @@ test('config snapshot exposes real scheduled, published and failed posts, not on
     if (url.includes("status='scheduled' && scheduled_at = ''")) return reply({ items: [{}], totalItems: 2 });
     if (url.includes("status='scheduled'") && url.includes('<=')) return reply({ items: [{}], totalItems: 12 });
     if (url.includes("status='scheduled'")) return reply({ items: [target({ scheduled_at: '2026-10-21 21:00:00.000Z' })], totalItems: 30 });
-    if (url.includes("status='published'")) return reply({ items: [target({})], totalItems: 16 });
+    if (url.includes("status='published'")) return reply({ items: [target({ status: 'published', platform: 'youtube', published_post_id: 'dQw4w9WgXcQ' })], totalItems: 16 });
     if (url.includes("status='error'")) return reply({ items: [target({ error_log: 'token het han' })], totalItems: 1 });
     return reply({ items: [], totalItems: 4 });
   };
@@ -30,8 +30,9 @@ test('config snapshot exposes real scheduled, published and failed posts, not on
     assert.equal(publishing.pending_approval, 4);
     assert.equal(publishing.published_last_7_days, 16);
     assert.equal(publishing.errors_total, 1);
-    assert.deepEqual(publishing.upcoming[0], { platform: 'facebook', scheduled_at: '2026-10-21 21:00:00.000Z', updated: '2026-10-15 01:00:00.000Z', title: 'Bai thu nhat', error: undefined });
+    assert.deepEqual(publishing.upcoming[0], { platform: 'facebook', scheduled_at: '2026-10-21 21:00:00.000Z', updated: '2026-10-15 01:00:00.000Z', title: 'Bai thu nhat', error: undefined, url: undefined });
     assert.equal(publishing.recent_errors[0].error, 'token het han');
+    assert.equal(publishing.recently_published[0].url, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
     // Every post_targets query is scoped to the tenant and uses PocketBase's date format (space, not T).
     const queries = urls.filter((url) => url.includes('/post_targets/'));
     assert.equal(queries.length, 6);
