@@ -6900,6 +6900,46 @@ var CONFIG_CHAT_TOOLS = [
   }
 ];
 
+// Bài đăng thật nằm ở post_targets (status scheduled/published/error/pending); publish_schedules chỉ là
+// quy tắc tự lên lịch lặp lại. Thiếu phần này agent từng trả lời "0 bài tuần này" dù có hàng chục bài hẹn giờ.
+const pbDate = (date) => date.toISOString().replace("T", " ");
+function publishingQueries(listUrl, get, t) {
+  const now = new Date();
+  const week = new Date(now.getTime() + 7 * 864e5);
+  const ago = new Date(now.getTime() - 7 * 864e5);
+  const base = "expand=post_id&fields=platform,status,scheduled_at,updated,error_log,expand.post_id.title";
+  return [
+    get(listUrl("post_targets", `tenant='${t}' && status='scheduled' && scheduled_at != '' && scheduled_at >= '${pbDate(now)}'`, `perPage=40&sort=scheduled_at&${base}`)),
+    get(listUrl("post_targets", `tenant='${t}' && status='scheduled' && scheduled_at != '' && scheduled_at >= '${pbDate(now)}' && scheduled_at <= '${pbDate(week)}'`, "perPage=1&fields=id")),
+    get(listUrl("post_targets", `tenant='${t}' && status='scheduled' && scheduled_at = ''`, "perPage=1&fields=id")),
+    get(listUrl("post_targets", `tenant='${t}' && status='published' && updated >= '${pbDate(ago)}'`, `perPage=10&sort=-updated&${base}`)),
+    get(listUrl("post_targets", `tenant='${t}' && status='error'`, `perPage=5&sort=-updated&${base}`)),
+    get(listUrl("post_targets", `tenant='${t}' && status='pending'`, "perPage=1&fields=id"))
+  ];
+}
+__name(publishingQueries, "publishingQueries");
+
+function summarizePublishing([upcoming, next7, queued, published, errors, pending]) {
+  const row = (target) => ({
+    platform: target.platform, scheduled_at: target.scheduled_at || undefined, updated: target.updated,
+    title: String(target.expand?.post_id?.title || "").slice(0, 60), error: target.error_log ? String(target.error_log).slice(0, 120) : undefined
+  });
+  return {
+    note: "Bài đăng thật (post_targets). publish_schedules ở trên chỉ là quy tắc tự lên lịch lặp lại, KHÔNG phải số bài đã hẹn giờ.",
+    now: new Date().toISOString(),
+    scheduled_upcoming_total: Number(upcoming.totalItems) || 0,
+    scheduled_next_7_days: Number(next7.totalItems) || 0,
+    queued_waiting_for_auto_slot: Number(queued.totalItems) || 0,
+    pending_approval: Number(pending.totalItems) || 0,
+    upcoming: (upcoming.items || []).map(row),
+    published_last_7_days: Number(published.totalItems) || 0,
+    recently_published: (published.items || []).map(row),
+    errors_total: Number(errors.totalItems) || 0,
+    recent_errors: (errors.items || []).map(row)
+  };
+}
+__name(summarizePublishing, "summarizePublishing");
+
 // Dùng chung cho tool get_current_config VÀ để nhét thẳng vào system prompt mỗi lần chat —
 // model nhỏ (gpt-4o-mini) không phải lúc nào cũng chủ động gọi tool để đọc dữ liệu trước khi trả lời,
 // nên đưa sẵn dữ liệu thật vào context để loại bỏ khả năng model tự đoán/bịa ra giá trị.
@@ -6908,18 +6948,19 @@ async function getConfigSnapshot(env, pbToken, cfg) {
   const listUrl = (coll, filter, extra = "") =>
     `${env.PB_URL}/api/collections/${coll}/records?${extra ? extra + "&" : ""}filter=${encodeURIComponent(filter)}`;
   const get = (u) => fetchWithTimeout(u, { headers: { Authorization: pbToken } }).catch(() => null);
-  const [pagesRes, toolsRes, schedulesRes, programRes, custCountRes, docCountRes, needHumanRes] = await Promise.all([
+  const [pagesRes, toolsRes, schedulesRes, programRes, custCountRes, docCountRes, needHumanRes, ...publishingRes] = await Promise.all([
     get(listUrl("pages_config", `tenant='${t}'`, "perPage=50")),
     get(listUrl("agent_tools", `tenant='${t}'`, "perPage=50")),
     get(listUrl("publish_schedules", `tenant='${t}'`, "perPage=50")),
     get(listUrl("loyalty_programs", `tenant='${t}'`, "perPage=1&sort=-version")),
     get(listUrl("loyalty_customers", `tenant='${t}'`, "perPage=1")),
     get(listUrl("documents", `tenant='${t}'`, "perPage=1")),
-    get(listUrl("messages", `tenant='${t}' && needs_human=true`, "perPage=1"))
+    get(listUrl("messages", `tenant='${t}' && needs_human=true`, "perPage=1")),
+    ...publishingQueries(listUrl, get, t)
   ]);
   const jsonOf = async (res) => (res && res.ok ? await res.json().catch(() => ({})) : {});
-  const [pagesData, toolsData, schedulesData, programData, custCount, docCount, needHuman] = await Promise.all(
-    [pagesRes, toolsRes, schedulesRes, programRes, custCountRes, docCountRes, needHumanRes].map(jsonOf)
+  const [pagesData, toolsData, schedulesData, programData, custCount, docCount, needHuman, ...publishingData] = await Promise.all(
+    [pagesRes, toolsRes, schedulesRes, programRes, custCountRes, docCountRes, needHumanRes, ...publishingRes].map(jsonOf)
   );
   const out = {};
   // Toàn bộ bot_configs (trừ field bí mật + field nội bộ) — model thấy hết cấu hình thật.
@@ -6947,6 +6988,7 @@ async function getConfigSnapshot(env, pbToken, cfg) {
     return { id: s.id, content_type: s.content_type, days, times, is_active: s.is_active, page_id: s.page_id || "", timezone: s.timezone || "" };
   });
   const program = (programData.items || [])[0] || null;
+  out.publishing = summarizePublishing(publishingData);
   out.loyalty_program = program
     ? {
         version: program.version, status: program.status, currency: program.currency,
@@ -7221,7 +7263,7 @@ async function handleApiAgentChat(request, env, cors, cfg, ctx) {
   const systemPrompt = `Bạn l\xE0 trợ l\xFD cấu h\xECnh hệ thống cho tenant "${cfg.tenant}". Dựa v\xE0o những g\xEC khách n\xF3i, gọi đ\xFAng tool để lưu cấu h\xECnh (system prompt, t\xEAn bot, avatar, lời ch\xE0o, Telegram chat id, Cloudinary, kết nối trang Facebook/Instagram/WhatsApp/Zalo/WordPress/Sanity), th\xEAm tool API ngo\xE0i mới cho Agent (add_agent_tool), gọi thẳng 1 tool ngo\xE0i m\xE0 khách đ\xE3 khai b\xE1o trước đ\xF3 nếu khách y\xEAu cầu h\xE0nh động khớp với m\xF4 tả của tool đ\xF3, l\xEAn kế hoạch cụm b\xE0i blog d\xE0i chuẩn SEO (plan_content_cluster), th\xEAm/xo\xE1 luật lên lịch đăng b\xE0i tự động theo ng\xE0y/giờ (add_publish_schedule/delete_publish_schedule), hoặc tra cứu / tạo / sửa hồ sơ khách h\xE0ng điểm thưởng v\xE0 cộng-trừ điểm (find_customers/get_customer/upsert_customer/adjust_loyalty_points) — kh\xF4ng bắt khách tự v\xE0o form nhập từng \xF4.
 Cấu h\xECnh HIỆN TẠI của tenant n\xE0y (dữ liệu thật lấy từ DB, KH\xD4NG được đo\xE1n kh\xE1c đi khi trả lời khách):
 ${JSON.stringify(snapshot)}
-Khi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\xE3 kết nối trang n\xE0o...), dựa v\xE0o dữ liệu tr\xEAn để trả lời — vẫn c\xF3 thể gọi lại get_current_config nếu cần dữ liệu mới nhất sau khi vừa ghi thay đổi. Với trang: has_access_token=false nghĩa l\xE0 c\xF3 khai b\xE1o nhưng THIẾU token n\xEAn chưa d\xF9ng được; is_active=false l\xE0 đang tạm tắt. Dữ liệu khách h\xE0ng (số dư điểm, lịch sử, hồ sơ) KH\xD4NG c\xF3 sẵn ở tr\xEAn — phải gọi tool find_customers/get_customer để lấy số thật, tuyệt đối kh\xF4ng tự bịa số điểm. Khi vừa cộng/trừ điểm hoặc sửa hồ sơ khách, n\xF3i r\xF5 thay đổi vừa thực hiện v\xE0 số dư mới. Nếu thiếu th\xF4ng tin bắt buộc khi ghi (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. Trả lời ngắn gọn, tiếng Việt.`;
+Về BÀI ĐĂNG (bao nhiêu bài đã hẹn giờ, đã đăng, bị lỗi): dùng mục "publishing" ở trên (dữ liệu thật từ post_targets, giờ ISO là UTC). Mục publish_schedules chỉ là quy tắc tự lên lịch lặp lại — KHÔNG được kết luận "0 bài" chỉ vì publish_schedules rỗng.\nKhi khách hỏi về gi\xE1 trị hiện tại (t\xEAn bot, lời ch\xE0o, đ\xE3 kết nối trang n\xE0o...), dựa v\xE0o dữ liệu tr\xEAn để trả lời — vẫn c\xF3 thể gọi lại get_current_config nếu cần dữ liệu mới nhất sau khi vừa ghi thay đổi. Với trang: has_access_token=false nghĩa l\xE0 c\xF3 khai b\xE1o nhưng THIẾU token n\xEAn chưa d\xF9ng được; is_active=false l\xE0 đang tạm tắt. Dữ liệu khách h\xE0ng (số dư điểm, lịch sử, hồ sơ) KH\xD4NG c\xF3 sẵn ở tr\xEAn — phải gọi tool find_customers/get_customer để lấy số thật, tuyệt đối kh\xF4ng tự bịa số điểm. Khi vừa cộng/trừ điểm hoặc sửa hồ sơ khách, n\xF3i r\xF5 thay đổi vừa thực hiện v\xE0 số dư mới. Nếu thiếu th\xF4ng tin bắt buộc khi ghi (vd thiếu access_token khi kết nối trang) th\xEC hỏi lại, đừng tự bịa. Trả lời ngắn gọn, tiếng Việt.`;
   const messages = [{ role: "system", content: systemPrompt }, ...history];
   const builtinToolNames = new Set(CONFIG_CHAT_TOOLS.map((t) => t.function?.name));
   const tools = [...CONFIG_CHAT_TOOLS, ...customTools.filter((t) => isValidCustomToolName(t.name) && !builtinToolNames.has(t.name)).map(customToolToOpenAiSchema)];
@@ -9509,6 +9551,7 @@ __name(handleAgentRun, "handleAgentRun");
 
 export {
   index_default as default,
+  getConfigSnapshot,
   assignScheduledSlots,
   replyToYouTubeComments,
   handleYouTubeCommentReplies,
