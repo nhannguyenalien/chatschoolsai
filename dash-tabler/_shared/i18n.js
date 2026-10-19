@@ -78,8 +78,8 @@ const I18N_DICT = {
     bill_subtitle: "Quản lý gói dịch vụ, hạn mức và lịch sử giao dịch của bạn.",
 
     // post.html
-    post_title: "Bài Đăng BDS",
-    post_subtitle: "Quản lý, duyệt và theo dõi bài đăng tự động lên mạng xã hội",
+    post_title: "Bài đăng mạng xã hội",
+    post_subtitle: "Theo dõi, duyệt và quản lý bài đăng trên mọi nền tảng (Facebook, Instagram, LinkedIn, YouTube, WordPress...)",
     post_btn_refresh: "Làm mới",
 
     // composer.html
@@ -190,8 +190,8 @@ const I18N_DICT = {
     bill_title: "Billing & Usage",
     bill_subtitle: "Manage your plan, limits, and transaction history.",
 
-    post_title: "Real Estate Posts",
-    post_subtitle: "Manage, approve, and track posts published automatically to social media",
+    post_title: "Social Posts",
+    post_subtitle: "Track, approve and manage posts across every platform (Facebook, Instagram, LinkedIn, YouTube, WordPress...)",
     post_btn_refresh: "Refresh",
 
     comp_title: "Composer",
@@ -244,7 +244,7 @@ const I18N_DICT = {
     kb_title_top: "ナレッジベース", kb_title: "ナレッジベース", kb_subtitle: "ボットが学習するコンテンツを追加・管理します。テキストを貼り付けると自動で分割・埋め込みされます。", kb_search_placeholder: "ドキュメントを検索...",
     msg_title_top: "チャット履歴", msg_recent_sessions: "最近のセッション", msg_filter_all: "すべて", msg_filter_needs_human: "対応が必要", msg_select_session: "チャットセッションを選択", msg_select_session_hint: "左側の顧客をクリックするとメッセージが表示されます",
     bill_title_top: "ダッシュボード", bill_title: "請求と利用状況", bill_subtitle: "プラン、上限、取引履歴を管理します。",
-    post_title: "不動産投稿", post_subtitle: "SNSへ自動公開する投稿を管理、承認、追跡します", post_btn_refresh: "更新",
+    post_title: "ソーシャル投稿", post_subtitle: "すべてのプラットフォーム(Facebook、Instagram、LinkedIn、YouTube、WordPress など)の投稿を追跡、承認、管理します", post_btn_refresh: "更新",
     comp_title: "投稿作成", comp_subtitle: "投稿の下書き、RSSからのAIリライト、各プラットフォームへの手動公開を行います。", comp_manage_channels: "公開チャンネルを管理",
     an_title: "分析", an_subtitle: "すべてのプラットフォームの投稿状況を追跡します。", sm_title: "チャンネル設定", sm_subtitle: "Facebook、Instagram、WhatsApp、Zalo、その他のチャットAPIのページ／アカウントとトークンを管理します。",
     nav_widget: "ウィジェット埋め込み", btn_copy: "コピー", wg_title: "チャットボットをウェブサイトに埋め込む", wg_templates_title: "テンプレート", wg_customize_title: "カスタム設定", wg_color: "アクセントカラー", wg_position: "チャットバブルの位置", wg_position_right: "右下", wg_position_left: "左下", wg_display_style: "表示スタイル", wg_style_bubble: "フローティングバブル", wg_style_sidebar: "サイドバー固定", wg_widget_lang: "ウィジェットの言語", wg_snippet_title: "埋め込みコード", wg_preview_title: "ライブプレビュー"
@@ -258,7 +258,7 @@ const I18N_DICT = {
     kb_title_top: "Base de conocimiento", kb_title: "Base de conocimiento", kb_subtitle: "Añade y gestiona el contenido que aprende tu bot. Pega texto y se dividirá y vectorizará automáticamente.", kb_search_placeholder: "Buscar documentos...",
     msg_title_top: "Historial de chats", msg_recent_sessions: "Sesiones recientes", msg_filter_all: "Todas", msg_filter_needs_human: "Requiere atención", msg_select_session: "Selecciona una sesión", msg_select_session_hint: "Haz clic en un cliente de la izquierda para ver los mensajes",
     bill_title_top: "Panel", bill_title: "Facturación y uso", bill_subtitle: "Gestiona tu plan, límites e historial de transacciones.",
-    post_title: "Publicaciones inmobiliarias", post_subtitle: "Gestiona, aprueba y controla publicaciones automáticas en redes sociales", post_btn_refresh: "Actualizar",
+    post_title: "Publicaciones sociales", post_subtitle: "Controla, aprueba y gestiona las publicaciones en todas las plataformas (Facebook, Instagram, LinkedIn, YouTube, WordPress...)", post_btn_refresh: "Actualizar",
     comp_title: "Redactor", comp_subtitle: "Redacta publicaciones, usa IA para reescribir desde RSS y publica manualmente en tus plataformas.", comp_manage_channels: "Gestionar canales de publicación",
     an_title: "Analítica", an_subtitle: "Controla el estado de las publicaciones en todas las plataformas.", sm_title: "Configuración de canales", sm_subtitle: "Gestiona páginas, cuentas y tokens de Facebook, Instagram, WhatsApp, Zalo y otras API de chat.",
     nav_widget: "Widget incrustado", btn_copy: "Copiar", wg_title: "Incrusta el chatbot en tu sitio web", wg_templates_title: "Plantillas", wg_customize_title: "Opciones personalizadas", wg_color: "Color de acento", wg_position: "Posición de la burbuja", wg_position_right: "Abajo a la derecha", wg_position_left: "Abajo a la izquierda", wg_display_style: "Estilo de visualización", wg_style_bubble: "Burbuja flotante", wg_style_sidebar: "Barra lateral fija", wg_widget_lang: "Idioma del widget", wg_snippet_title: "Código para incrustar", wg_preview_title: "Vista previa en vivo"
@@ -272,7 +272,7 @@ const I18N_DICT = {
     kb_title_top: "Base de connaissances", kb_title: "Base de connaissances", kb_subtitle: "Ajoutez et gérez le contenu appris par votre bot. Collez du texte : il sera automatiquement segmenté et vectorisé.", kb_search_placeholder: "Rechercher des documents...",
     msg_title_top: "Historique des chats", msg_recent_sessions: "Sessions récentes", msg_filter_all: "Toutes", msg_filter_needs_human: "Attention requise", msg_select_session: "Sélectionnez une session", msg_select_session_hint: "Cliquez sur un client à gauche pour afficher les messages",
     bill_title_top: "Tableau de bord", bill_title: "Facturation et utilisation", bill_subtitle: "Gérez votre forfait, vos limites et l’historique des transactions.",
-    post_title: "Publications immobilières", post_subtitle: "Gérez, approuvez et suivez les publications automatiques sur les réseaux sociaux", post_btn_refresh: "Actualiser",
+    post_title: "Publications sociales", post_subtitle: "Suivez, approuvez et gérez les publications sur toutes les plateformes (Facebook, Instagram, LinkedIn, YouTube, WordPress...)", post_btn_refresh: "Actualiser",
     comp_title: "Rédacteur", comp_subtitle: "Rédigez des publications, utilisez l’IA pour réécrire depuis RSS et publiez manuellement sur vos plateformes.", comp_manage_channels: "Gérer les canaux de publication",
     an_title: "Analytique", an_subtitle: "Suivez l’état des publications sur toutes les plateformes.", sm_title: "Paramètres des canaux", sm_subtitle: "Gérez les pages, comptes et jetons Facebook, Instagram, WhatsApp, Zalo et autres API de chat.",
     nav_widget: "Widget à intégrer", btn_copy: "Copier", wg_title: "Intégrer le chatbot sur votre site", wg_templates_title: "Modèles", wg_customize_title: "Options personnalisées", wg_color: "Couleur d’accent", wg_position: "Position de la bulle", wg_position_right: "En bas à droite", wg_position_left: "En bas à gauche", wg_display_style: "Style d’affichage", wg_style_bubble: "Bulle flottante", wg_style_sidebar: "Barre latérale fixe", wg_widget_lang: "Langue du widget", wg_snippet_title: "Code à intégrer", wg_preview_title: "Aperçu en direct"
@@ -286,7 +286,7 @@ const I18N_DICT = {
     kb_title_top: "지식 베이스", kb_title: "지식 베이스", kb_subtitle: "봇이 학습할 콘텐츠를 추가하고 관리합니다. 텍스트를 붙여 넣으면 자동으로 분할하고 임베딩합니다.", kb_search_placeholder: "문서 검색...",
     msg_title_top: "채팅 기록", msg_recent_sessions: "최근 세션", msg_filter_all: "전체", msg_filter_needs_human: "확인 필요", msg_select_session: "채팅 세션 선택", msg_select_session_hint: "왼쪽의 고객을 클릭하여 메시지를 확인하세요",
     bill_title_top: "대시보드", bill_title: "결제 및 사용량", bill_subtitle: "요금제, 한도 및 거래 내역을 관리합니다.",
-    post_title: "부동산 게시물", post_subtitle: "소셜 미디어에 자동 게시되는 글을 관리, 승인 및 추적합니다", post_btn_refresh: "새로고침",
+    post_title: "소셜 게시물", post_subtitle: "모든 플랫폼(Facebook, Instagram, LinkedIn, YouTube, WordPress 등)의 게시물을 추적, 승인, 관리합니다", post_btn_refresh: "새로고침",
     comp_title: "게시물 작성", comp_subtitle: "게시물을 작성하고 AI로 RSS 콘텐츠를 다시 쓰며 플랫폼에 직접 게시합니다.", comp_manage_channels: "게시 채널 관리",
     an_title: "분석", an_subtitle: "모든 플랫폼의 게시 상태를 추적합니다.", sm_title: "채널 설정", sm_subtitle: "Facebook, Instagram, WhatsApp, Zalo 및 기타 채팅 API의 페이지/계정과 토큰을 관리합니다.",
     nav_widget: "위젯 임베드", btn_copy: "복사", wg_title: "웹사이트에 챗봇 임베드하기", wg_templates_title: "템플릿", wg_customize_title: "맞춤 설정", wg_color: "강조 색상", wg_position: "채팅 버블 위치", wg_position_right: "오른쪽 하단", wg_position_left: "왼쪽 하단", wg_display_style: "표시 스타일", wg_style_bubble: "플로팅 버블", wg_style_sidebar: "고정 사이드바", wg_widget_lang: "위젯 언어", wg_snippet_title: "임베드 코드", wg_preview_title: "실시간 미리보기"
@@ -373,12 +373,12 @@ const I18N_BASE = document.currentScript && document.currentScript.src
   : "_shared/";
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
-  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261007-3`;
+  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261019-2`;
   contentScript.onload = () => {
     applyI18n();
     // Bản dịch bổ sung cho các chuỗi động/trang mới, gộp vào cùng bảng I18N_CONTENT.
     const extraScript = document.createElement("script");
-    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261007-3`;
+    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261019-2`;
     extraScript.onload = () => {
       Object.keys(window.I18N_EXTRA || {}).forEach((lang) => {
         window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);
