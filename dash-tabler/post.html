@@ -12,7 +12,7 @@
   <script src="_shared/config.js"></script>
   <script src="_shared/auth.js"></script>
   <script src="_shared/ui.js"></script>
-  <script src="_shared/i18n.js?v=20261019-2"></script>
+  <script src="_shared/i18n.js?v=20261019-3"></script>
   <script src="_shared/sidebar.js?v=20261013-v5"></script>
 
   <style>
@@ -231,6 +231,56 @@
   </div>
 </div>
 
+<!-- EDIT MODAL -->
+<div class="modal modal-blur fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-edit text-primary me-2"></i>Chỉnh sửa bài đăng</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-key"/>
+        <div class="mb-3">
+          <label class="form-label">Tiêu đề</label>
+          <input type="text" id="edit-title" class="form-control"/>
+        </div>
+        <div class="mb-3">
+          <label class="form-label d-flex justify-content-between">
+            <span>Nội dung đăng</span>
+            <span class="text-secondary fs-5" id="char-count">0 ký tự</span>
+          </label>
+          <textarea id="edit-content" class="form-control" rows="7" oninput="updateCharCount(this)"></textarea>
+          <div class="form-hint" id="edit-shared-hint"></div>
+        </div>
+        <div class="row g-3" id="edit-target-box">
+          <div class="col-md-6">
+            <label class="form-label">Trạng thái</label>
+            <select id="edit-status" class="form-select">
+              <option value="pending">Chờ duyệt</option>
+              <option value="approved">Đã duyệt</option>
+              <option value="scheduled">Đã lên lịch</option>
+              <option value="published" disabled>Đã đăng</option>
+              <option value="publishing" disabled>Đang đăng...</option>
+              <option value="error" disabled>Lỗi</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Giờ đăng</label>
+            <input type="datetime-local" id="edit-time" class="form-control"/>
+            <div class="form-hint">Để trống + trạng thái "Đã lên lịch" = tự động xếp vào khung giờ gần nhất theo luật ở tab "Lịch đăng bài".</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a id="edit-advanced-link" href="composer.html" class="btn btn-link me-auto"><i class="ti ti-external-link me-1"></i>Sửa ảnh, video và kênh đăng</a>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+        <button onclick="saveEdit()" id="save-btn" class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- DETAIL MODAL -->
 <div class="modal modal-blur fade" id="detailModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered" style="max-width:520px">
@@ -277,7 +327,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <a id="detail-edit-link" href="composer.html" class="btn btn-secondary me-auto"><i class="ti ti-edit me-1"></i>Chỉnh sửa</a>
+        <button onclick="_detailModal.hide();openEdit(window._detailRow.key)" class="btn btn-secondary me-auto"><i class="ti ti-edit me-1"></i>Chỉnh sửa</button>
         <button onclick="approveRow(window._detailRow.key).then(()=>_detailModal.hide())" id="approve-quick-btn" class="btn btn-success"><i class="ti ti-check me-1"></i>Duyệt đăng</button>
       </div>
     </div>
@@ -292,7 +342,7 @@ const STATUS_LABEL = { pending:'Chờ duyệt', approved:'Đã duyệt', schedul
 
 // Mỗi dòng = 1 kênh đăng (post_targets) của 1 bài (posts) — cùng nguồn dữ liệu với composer.html.
 let allPosts=[], filteredPosts=[], currentPage=1, currentTab='all', searchQuery='', selectedIds=new Set();
-let _detailModal;
+let _detailModal, _editModal;
 
 // ── BOOT ──
 (async () => {
@@ -303,6 +353,7 @@ let _detailModal;
   renderSidebar(user);
   applyUserUI(user);
   _detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+  _editModal   = new bootstrap.Modal(document.getElementById('editModal'));
   await loadPosts();
 })();
 
@@ -486,7 +537,7 @@ function renderTable() {
       <td class="row-actions">
         <div class="d-flex gap-1 justify-content-end">
           <button class="btn btn-icon btn-ghost-secondary btn-sm" title="Xem" onclick="openDetail('${k}')"><i class="ti ti-eye"></i></button>
-          <a class="btn btn-icon btn-ghost-secondary btn-sm" title="Sửa" href="composer.html?post=${encodeURIComponent(r.post.id)}"><i class="ti ti-edit"></i></a>
+          <button class="btn btn-icon btn-ghost-secondary btn-sm" title="Sửa" onclick="openEdit('${k}')"><i class="ti ti-edit"></i></button>
           ${canApprove?`<button class="btn btn-icon btn-ghost-success btn-sm" title="Duyệt" onclick="approveRow('${k}')"><i class="ti ti-check"></i></button>`:''}
           <div class="dropdown">
             <button class="btn btn-icon btn-ghost-secondary btn-sm" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical"></i></button>
@@ -518,6 +569,58 @@ function goToPage(p){const t=Math.ceil(filteredPosts.length/PAGE_SIZE)||1;if(p<1
 
 const rowByKey = (key) => allPosts.find(r => r.key === key);
 
+// ── EDIT ──
+function toLocalInput(iso){
+  const d=new Date(iso); if(!iso||isNaN(d)) return '';
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function updateCharCount(el){
+  const n=(el.value||'').length,cc=document.getElementById('char-count');if(!cc)return;
+  cc.textContent=`${n} ký tự`;
+  cc.className=n>2200?'text-danger fs-5':n>1800?'text-warning fs-5':'text-secondary fs-5';
+}
+function openEdit(key){
+  const r=rowByKey(key); if(!r) return;
+  document.getElementById('edit-key').value=key;
+  document.getElementById('edit-title').value=r.title;
+  document.getElementById('edit-content').value=r.content;
+  updateCharCount(document.getElementById('edit-content'));
+  const siblings=allPosts.filter(x=>x.post.id===r.post.id&&x.target).length;
+  document.getElementById('edit-shared-hint').textContent=siblings>1?`Tiêu đề và nội dung dùng chung cho cả ${siblings} kênh của bài này.`:'';
+  const box=document.getElementById('edit-target-box');
+  box.classList.toggle('d-none',!r.target);
+  if(r.target){
+    const st=document.getElementById('edit-status');
+    st.value=r.status; st.disabled=(r.status==='published'||r.status==='publishing');
+    const tm=document.getElementById('edit-time');
+    tm.value=toLocalInput(r.time); tm.disabled=(r.status==='published'||r.status==='publishing');
+  }
+  document.getElementById('edit-advanced-link').href='composer.html?post='+encodeURIComponent(r.post.id);
+  _editModal.show();
+}
+async function saveEdit(){
+  const key=document.getElementById('edit-key').value, r=rowByKey(key); if(!r) return;
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true;
+  const title=document.getElementById('edit-title').value, content=document.getElementById('edit-content').value;
+  try{
+    await TC('posts').update(r.post.id,{title,content});
+    if(r.target && !document.getElementById('edit-status').disabled){
+      const tm=document.getElementById('edit-time').value;
+      const u=await TC('post_targets').update(r.target.id,{
+        status:document.getElementById('edit-status').value,
+        scheduled_at: tm?new Date(tm).toISOString():''
+      });
+      r.target={...r.target,...u};
+      r.status=r.target.status||r.status; r.time=r.target.scheduled_at||'';
+    }
+    allPosts.forEach(x=>{ if(x.post.id===r.post.id){ x.title=title; x.content=content; x.post={...x.post,title,content}; } });
+    updateStats();applyFilters();showToast('Đã lưu thay đổi ✓','success');_editModal.hide();
+  }catch(e){showToast('Lỗi lưu: '+e.message,'error');}
+  btn.disabled=false;
+}
+
 // ── DETAIL ──
 window._detailRow=null;
 function openDetail(key){
@@ -533,7 +636,6 @@ function openDetail(key){
   if(r.error){setEl('detail-error',r.error);eb.classList.remove('d-none');}else eb.classList.add('d-none');
   const fb=document.getElementById('detail-fb-box'),fl=document.getElementById('detail-fb-link');
   if(r.link){fl.textContent=r.link;fl.href=r.link;fb.classList.remove('d-none');}else fb.classList.add('d-none');
-  document.getElementById('detail-edit-link').href='composer.html?post='+encodeURIComponent(r.post.id);
   document.getElementById('approve-quick-btn').classList.toggle('d-none',r.status!=='pending');
   _detailModal.show();
 }

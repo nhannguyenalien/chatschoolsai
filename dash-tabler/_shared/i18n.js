@@ -373,12 +373,12 @@ const I18N_BASE = document.currentScript && document.currentScript.src
   : "_shared/";
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
-  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261019-2`;
+  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261019-3`;
   contentScript.onload = () => {
     applyI18n();
     // Bản dịch bổ sung cho các chuỗi động/trang mới, gộp vào cùng bảng I18N_CONTENT.
     const extraScript = document.createElement("script");
-    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261019-2`;
+    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261019-3`;
     extraScript.onload = () => {
       Object.keys(window.I18N_EXTRA || {}).forEach((lang) => {
         window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);

@@ -694,7 +694,9 @@ window.I18N_EXTRA = {
     "{}: Lỗi": "{}: error",
     "VD: Xưng \"mình\", thân thiện; không dùng emoji; không nhắc giá cụ thể": "E.g. Address the reader as \"mình\", friendly; no emoji; do not mention specific prices",
     "Bài viết": "Posts",
-    "Bài viết mới": "New post"
+    "Bài viết mới": "New post",
+    "Sửa ảnh, video và kênh đăng": "Edit images, videos and channels",
+    "Tiêu đề và nội dung dùng chung cho cả {} kênh của bài này.": "The title and content are shared across all {} channels of this post."
   },
   "ja": {
     "\"Tạo Verify Token ngẫu nhiên\"": "「ランダムな Verify Token を生成」",
@@ -1389,7 +1391,9 @@ window.I18N_EXTRA = {
     "{}: Lỗi": "{}: エラー",
     "VD: Xưng \"mình\", thân thiện; không dùng emoji; không nhắc giá cụ thể": "例:「mình」で呼びかける、親しみやすく、絵文字は使わない、具体的な価格には触れない",
     "Bài viết": "投稿",
-    "Bài viết mới": "新しい投稿"
+    "Bài viết mới": "新しい投稿",
+    "Sửa ảnh, video và kênh đăng": "画像、動画、チャンネルを編集",
+    "Tiêu đề và nội dung dùng chung cho cả {} kênh của bài này.": "タイトルと内容は、この投稿の {} チャンネルすべてで共通です。"
   },
   "es": {
     "\"Tạo Verify Token ngẫu nhiên\"": "\"Generar Verify Token aleatorio\"",
@@ -2084,7 +2088,9 @@ window.I18N_EXTRA = {
     "{}: Lỗi": "{}: error",
     "VD: Xưng \"mình\", thân thiện; không dùng emoji; không nhắc giá cụ thể": "P. ej.: Tutea al lector con «mình», tono cercano; sin emojis; no menciones precios concretos",
     "Bài viết": "Publicaciones",
-    "Bài viết mới": "Nueva publicación"
+    "Bài viết mới": "Nueva publicación",
+    "Sửa ảnh, video và kênh đăng": "Editar imágenes, vídeos y canales",
+    "Tiêu đề và nội dung dùng chung cho cả {} kênh của bài này.": "El título y el contenido son comunes a los {} canales de esta publicación."
   },
   "fr": {
     "\"Tạo Verify Token ngẫu nhiên\"": "« Générer un Verify Token aléatoire »",
@@ -2780,7 +2786,9 @@ window.I18N_EXTRA = {
     "{}: Lỗi": "{}: erreur",
     "VD: Xưng \"mình\", thân thiện; không dùng emoji; không nhắc giá cụ thể": "Ex. : tutoyer avec « mình », ton amical ; pas d’émojis ; ne pas mentionner de prix précis",
     "Bài viết": "Publications",
-    "Bài viết mới": "Nouvelle publication"
+    "Bài viết mới": "Nouvelle publication",
+    "Sửa ảnh, video và kênh đăng": "Modifier images, vidéos et canaux",
+    "Tiêu đề và nội dung dùng chung cho cả {} kênh của bài này.": "Le titre et le contenu sont communs aux {} canaux de cette publication."
   },
   "ko": {
     "\"Tạo Verify Token ngẫu nhiên\"": "\"무작위 Verify Token 생성\"",
@@ -3475,6 +3483,8 @@ window.I18N_EXTRA = {
     "{}: Lỗi": "{}: 오류",
     "VD: Xưng \"mình\", thân thiện; không dùng emoji; không nhắc giá cụ thể": "예: \"mình\"으로 호칭, 친근하게; 이모지 사용 안 함; 구체적인 가격은 언급하지 않기",
     "Bài viết": "게시물",
-    "Bài viết mới": "새 게시물"
+    "Bài viết mới": "새 게시물",
+    "Sửa ảnh, video và kênh đăng": "이미지, 동영상, 채널 수정",
+    "Tiêu đề và nội dung dùng chung cho cả {} kênh của bài này.": "제목과 내용은 이 게시물의 {}개 채널 모두에 공통으로 적용됩니다."
   }
 };
