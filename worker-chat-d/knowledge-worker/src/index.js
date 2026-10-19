@@ -10,6 +10,7 @@ import {
   IMAGE_MODES, allowsAi, buildImagePrompt, buildPickMessages, heuristicPick,
   normalizeImagePolicy, parsePickedItem, selectLibraryCandidates, usesLibrary
 } from "./domain/media/postImagePolicy.js";
+import { dueTargetsFilter, stalePublishingFilter, upcomingTargetsFilter } from "./domain/publishing/pbDate.js";
 import { checkTargetPreflight, PREFLIGHT_MARKER, PREFLIGHT_WINDOW_MINUTES, preflightNotice } from "./domain/publishing/preflight.js";
 import { fallbackPublishedUrl, resolvePublishedUrl } from "./domain/publishing/publishedUrl.js";
 import { classifyPublishError, failureNotice, metaApiError, nextRetryAt } from "./domain/publishing/retryPolicy.js";
@@ -5374,9 +5375,7 @@ __name(handlePublishFailure, "handlePublishFailure");
 // vĩnh viễn ở status="publishing". Quá 30 phút vẫn còn "publishing" -> coi như treo, đưa về "error"
 // để không bị bỏ quên (owner sẽ thấy trong "Lỗi" và có thể duyệt lại).
 async function recoverStalePublishing(env, pbToken, tenantFilter) {
-  const staleBefore = new Date(Date.now() - 30 * 60 * 1e3).toISOString();
-  let filter = `status='publishing' && updated <= '${staleBefore}'`;
-  if (tenantFilter) filter += ` && tenant='${escFilterValue(tenantFilter)}'`;
+  const filter = stalePublishingFilter(Date.now(), 30 * 60 * 1e3, tenantFilter ? `tenant='${escFilterValue(tenantFilter)}'` : "");
   const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(filter)}`, {
     headers: { Authorization: pbToken }
   });
@@ -5478,12 +5477,10 @@ async function handlePublishDispatch(env, tenantFilter) {
   await recoverStalePublishing(env, pbToken, tenantFilter);
   await assignScheduledSlots(env, tenantFilter);
 
-  const nowISO = (/* @__PURE__ */ new Date()).toISOString();
-  // scheduled_at != '' LÀ BẮT BUỘC: target đang "xếp hàng chờ lên lịch tự động" (status=scheduled,
-  // scheduled_at để trống) không được coi là "đã tới giờ" — chuỗi rỗng so sánh "<=" với ngày thật
-  // có thể trả về true (so sánh chuỗi), làm đăng sớm ngoài ý muốn trước khi assignScheduledSlots kịp gán giờ.
-  let filter = `(status='approved' || (status='scheduled' && scheduled_at != '' && scheduled_at <= '${nowISO}'))`;
-  if (tenantFilter) filter = `tenant='${escFilterValue(tenantFilter)}' && ${filter}`;
+  // Bộ lọc dựng ở domain/publishing/pbDate.js: giờ phải ở dạng PocketBase ("YYYY-MM-DD HH:mm:ss", có dấu cách) vì PB so sánh
+  // chuỗi — dùng dạng ISO có chữ "T" làm mọi bài hẹn trong cùng ngày UTC bị coi là "đã tới giờ" từ 00:00 UTC.
+  // scheduled_at != '' LÀ BẮT BUỘC: target đang chờ tự xếp lịch (scheduled_at trống) không được coi là đến hạn.
+  const filter = dueTargetsFilter(Date.now(), tenantFilter ? `tenant='${escFilterValue(tenantFilter)}'` : "");
   const res = await fetchWithTimeout(
     `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(filter)}&expand=post_id`,
     { headers: { Authorization: pbToken } }
@@ -5508,10 +5505,7 @@ __name(handlePublishDispatch, "handlePublishDispatch");
 // đúng giờ nếu chủ sửa kịp. Khi hết vấn đề thì tự xoá cảnh báo.
 async function runPublishPreflight(env, pbToken, tenantFilter) {
   const now = Date.now();
-  const nowISO = new Date(now).toISOString();
-  const untilISO = new Date(now + PREFLIGHT_WINDOW_MINUTES * 60 * 1e3).toISOString();
-  let filter = `status='scheduled' && scheduled_at != '' && scheduled_at > '${nowISO}' && scheduled_at <= '${untilISO}'`;
-  if (tenantFilter) filter = `tenant='${escFilterValue(tenantFilter)}' && ${filter}`;
+  const filter = upcomingTargetsFilter(now, PREFLIGHT_WINDOW_MINUTES, tenantFilter ? `tenant='${escFilterValue(tenantFilter)}'` : "");
   const res = await fetchWithTimeout(
     `${env.PB_URL}/api/collections/post_targets/records?perPage=50&filter=${encodeURIComponent(filter)}&expand=post_id`,
     { headers: { Authorization: pbToken } }
