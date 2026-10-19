@@ -373,12 +373,12 @@ const I18N_BASE = document.currentScript && document.currentScript.src
   : "_shared/";
 if (!window.I18N_CONTENT) {
   const contentScript = document.createElement("script");
-  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261019-3`;
+  contentScript.src = `${I18N_BASE}i18n-content.js?v=20261019-7`;
   contentScript.onload = () => {
     applyI18n();
     // Bản dịch bổ sung cho các chuỗi động/trang mới, gộp vào cùng bảng I18N_CONTENT.
     const extraScript = document.createElement("script");
-    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261019-3`;
+    extraScript.src = `${I18N_BASE}i18n-extra.js?v=20261019-7`;
     extraScript.onload = () => {
       Object.keys(window.I18N_EXTRA || {}).forEach((lang) => {
         window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);
@@ -452,9 +452,11 @@ function translateDynamicText(source, translations) {
     return `${translations[prefix]} ${collapsed.slice(prefix.length + 1)}`;
   }
 
-  for (const { regex, value } of patterns.exact) {
+  for (const { regex, value, weight } of patterns.exact) {
     const match = collapsed.match(regex);
-    if (match) {
+    // Khoá ngắn kiểu "Thêm {}" chỉ dành cho giá trị ngắn, tránh nuốt cả câu dài bắt đầu bằng cùng chữ.
+    const maxValue = weight <= 12 ? 40 : 300;
+    if (match && match.slice(1).every((part) => part.length <= maxValue)) {
       let index = 1;
       return value.replace(/\{\}/g, () => match[index++] ?? "");
     }
@@ -495,7 +497,11 @@ function translateLegacyContent(root = document) {
     LAST_TRANSLATED_TEXT.set(node, rendered);
   });
 
-  const elements = root.querySelectorAll ? root.querySelectorAll("[placeholder], [title], [aria-label]") : [];
+  const attrSelector = "[placeholder], [title], [aria-label]";
+  // Phần tử vừa được thêm vào DOM cũng có thể tự mang thuộc tính cần dịch (không chỉ các phần tử con).
+  const elements = root.querySelectorAll
+    ? [...(root.matches && root.matches(attrSelector) ? [root] : []), ...root.querySelectorAll(attrSelector)]
+    : [];
   elements.forEach((el) => {
     let originals = ORIGINAL_ATTRS.get(el);
     if (!originals) {
