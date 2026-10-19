@@ -13,13 +13,14 @@ main{max-width:760px;margin:0 auto;padding:32px 16px 64px}
 h1{font-size:1.9rem;margin:.2em 0}h2{font-size:1.2rem;margin:2em 0 .4em;border-top:1px solid var(--line);padding-top:1.2em}
 a{color:var(--accent)}p,li{color:var(--fg)}.muted{color:var(--muted)}
 .lang{display:flex;gap:12px;font-size:.95rem;margin-bottom:8px}.box{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:16px 0}
+.ls[hidden]{display:none}.lang a.on{font-weight:700;text-decoration:none}
 </style>
 </head>
 <body>
 <main>
-<p class="lang"><a href="#en">English</a> · <a href="#vi">Tiếng Việt</a> · <a href="landing">← Home</a></p>
+<p class="lang" style="flex-wrap:wrap"><a href="#en" data-l="en">English</a> · <a href="#vi" data-l="vi">Tiếng Việt</a> · <a href="#ja" data-l="ja">日本語</a> · <a href="#es" data-l="es">Español</a> · <a href="#fr" data-l="fr">Français</a> · <a href="#ko" data-l="ko">한국어</a> · <a href="landing">← Home</a></p>
 
-<section id="en">
+<section id="en" class="ls" lang="en">
 <h1>Privacy Policy</h1>
 <p class="muted">Schools AI ("we", "us") · Last updated: 16 October 2026 · Contact: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
 <p>Schools AI (<a href="https://chat.schoolsai.work/landing">chat.schoolsai.work</a>) is an AI customer-care and content workspace. Businesses connect their own channels (for example Facebook, Instagram, WordPress and YouTube) so that an AI agent can answer customers and publish content on their behalf. This policy explains what we collect and how we use it.</p>
@@ -69,7 +70,7 @@ a{color:var(--accent)}p,li{color:var(--fg)}.muted{color:var(--muted)}
 <p>We may update this policy and will change the date above. Questions or requests: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>. See also our <a href="terms">Terms of Service</a>.</p>
 </section>
 
-<section id="vi">
+<section id="vi" class="ls" lang="vi">
 <h1>Chính sách quyền riêng tư</h1>
 <p class="muted">Schools AI · Cập nhật: 16/10/2026 · Liên hệ: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
 <p>Schools AI là không gian AI chăm sóc khách hàng và làm nội dung. Doanh nghiệp tự kết nối các kênh của mình (Facebook, Instagram, WordPress, YouTube…) để AI trả lời khách và đăng nội dung thay họ.</p>
@@ -80,6 +81,214 @@ a{color:var(--accent)}p,li{color:var(--fg)}.muted{color:var(--muted)}
 <h2>Quyền của bạn</h2>
 <p>Thu hồi quyền truy cập Google bất cứ lúc nào tại <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>; ngắt kết nối kênh hoặc tắt trả lời bình luận trong "Cấu hình kênh" trên dashboard; yêu cầu xóa dữ liệu (kể cả token đã lưu) qua email, chúng tôi xóa trong vòng 30 ngày. Chúng tôi không bán dữ liệu cá nhân. Xem thêm <a href="terms">Điều khoản sử dụng</a>.</p>
 </section>
+<section id="ja" class="ls" lang="ja">
+<h1>プライバシーポリシー</h1>
+<p class="muted">Schools AI(以下「当社」)· 最終更新:2026 年 10 月 16 日 · お問い合わせ:<a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
+<p>Schools AI(<a href="https://chat.schoolsai.work/landing">chat.schoolsai.work</a>)は、AI によるカスタマーケアとコンテンツ作成のワークスペースです。事業者は自社のチャンネル(Facebook、Instagram、WordPress、YouTube など)を接続し、AI エージェントが顧客への返信やコンテンツの公開を代行できるようにします。本ポリシーでは、当社が収集する情報とその利用方法を説明します。</p>
+
+<h2>1. 収集する情報</h2>
+<ul>
+<li><b>アカウントデータ</b>: 登録時にお客様が入力するメールアドレスとワークスペースの設定。</li>
+<li><b>チャンネル接続情報</b>: 接続したチャンネルの識別子とアクセストークン(例:YouTube のチャンネル ID、チャンネル名、OAuth リフレッシュトークン)、およびお客様ご自身の Google Cloud プロジェクトに対して入力する OAuth クライアント認証情報。</li>
+<li><b>コンテンツ</b>: 投稿、公開をご依頼いただく動画、アップロードしたナレッジベースの文書、お客様のチャンネルに寄せられるメッセージやコメントと、生成された返信。</li>
+<li><b>技術データ</b>: セキュリティと不正利用防止のために使用する基本的なログ(IP アドレス、ブラウザーの種類)。</li>
+</ul>
+
+<h2>2. Google および YouTube API サービス</h2>
+<div class="box">
+<p><b>Schools AI が Google API から受け取った情報を他のアプリに利用・移転する場合は、限定的使用(Limited Use)の要件を含め、<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API サービスのユーザーデータに関するポリシー</a>に準拠します。</b></p>
+</div>
+<p>「YouTube を接続」をクリックして Google でログインすると、次の権限を付与することになります。これらの権限はお客様ご自身のチャンネルに対してのみ要求します。</p>
+<ul>
+<li><code>youtube.upload</code> — お客様が公開を依頼した動画を、お客様が選んだタイトル、説明、公開設定でアップロードするため。</li>
+<li><code>youtube.readonly</code> — チャンネルの基本情報(ID と名前)を読み取り、どのチャンネルが接続されているかを表示するため。</li>
+<li><code>youtube.force-ssl</code> — 「ボットがコメントに自動返信」オプションをオンにしている場合に、チャンネルの動画に付いたコメントを読み取り、お客様のチャンネルから返信を投稿するため。</li>
+</ul>
+<p><b>YouTube データの利用について。</b> これらの権限を通じて取得したデータは、上記の機能(動画の公開、およびチャンネルへのコメントの読み取りと返信)をお客様に提供する目的のみに使用します。広告には使用せず、販売せず、ユーザープロファイルの作成や信用度の判断にも使用しません。このデータへの人によるアクセスは、セキュリティ、お客様がご依頼されたサポート、または法令遵守に必要な範囲に限られます。</p>
+<p><b>AI による処理。</b> 返信を作成するため、チャンネルに付いたコメントのテキスト(およびお客様自身のナレッジベースの内容)が、ワークスペースを動かす AI モデルの提供事業者に送信されます。これはその返信の生成のみに使用されます。Google ユーザーデータを、汎用的な人工知能または機械学習モデルの開発、改善、学習に使用することは認めていません。</p>
+<p><b>YouTube 利用規約。</b> YouTube 機能を利用することで、<a href="https://www.youtube.com/t/terms">YouTube 利用規約</a>に拘束されることにも同意したものとみなされます。Google によるデータの取り扱いは、<a href="https://policies.google.com/privacy">Google プライバシーポリシー</a>に記載されています。</p>
+
+<h2>3. 情報の利用方法</h2>
+<p>サービスの運営(顧客への返信、コンテンツの公開、スケジュール設定)、セキュリティの確保、サポートの提供、法的義務の履行のために利用します。個人情報を販売することはありません。</p>
+
+<h2>4. 共有</h2>
+<p>データを共有するのは、製品の運営に必要なサービス提供事業者(ホスティングとデータベース、AI モデルの提供事業者、お客様が接続するメッセージングプラットフォーム)に対し、各社の規約に基づいて行う場合、または法令で求められる場合に限ります。Google API のデータを広告目的で共有することはありません。</p>
+
+<h2>5. 保存、セキュリティ、保持</h2>
+<p>データは当社のデータベースとファイルストレージに保存され、アクセスはお客様のワークスペースとサービスを運営するシステムに限定されます。当社サービスへの接続には HTTPS を使用します。チャンネルトークンは、お客様がチャンネルの接続を解除するかワークスペースを削除するまで保持します。顧客との会話は、お客様が確認できるよう、お客様または当社が削除するまで保持します。</p>
+
+<h2>6. お客様の選択:アクセスの取り消しとデータの削除</h2>
+<ul>
+<li><b>Google のアクセスはいつでも取り消せます</b>:<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>(アップロードとコメント返信も停止します)。</li>
+<li>ダッシュボードの<i>チャンネル設定</i>でチャンネルを<b>接続解除</b>するか、同じ画面でコメント返信をオフにします。</li>
+<li><b>データの削除</b>:メールでご連絡いただければ、保存済みトークンを含むワークスペースのデータを 30 日以内に削除します。</li>
+</ul>
+
+<h2>7. 子ども</h2>
+<p>本サービスは 13 歳未満のお子様を対象としておらず、13 歳未満の個人情報を意図的に収集することはありません。</p>
+
+<h2>8. 変更とお問い合わせ</h2>
+<p>本ポリシーを更新することがあり、その場合は上記の日付を変更します。ご質問やご要望:<a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>。<a href="terms">利用規約</a>もご覧ください。</p>
+</section>
+
+<section id="es" class="ls" lang="es">
+<h1>Política de privacidad</h1>
+<p class="muted">Schools AI («nosotros») · Última actualización: 16 de octubre de 2026 · Contacto: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
+<p>Schools AI (<a href="https://chat.schoolsai.work/landing">chat.schoolsai.work</a>) es un espacio de trabajo de atención al cliente y contenidos con IA. Las empresas conectan sus propios canales (por ejemplo Facebook, Instagram, WordPress y YouTube) para que un agente de IA pueda responder a los clientes y publicar contenido en su nombre. Esta política explica qué datos recopilamos y cómo los usamos.</p>
+
+<h2>1. Información que recopilamos</h2>
+<ul>
+<li><b>Datos de la cuenta</b>: dirección de correo electrónico y ajustes del espacio de trabajo que proporcionas al registrarte.</li>
+<li><b>Conexiones de canales</b>: identificadores y tokens de acceso de los canales que conectas (por ejemplo, ID del canal de YouTube, nombre del canal y un refresh token de OAuth) y las credenciales de cliente OAuth que introduces para tu propio proyecto de Google Cloud.</li>
+<li><b>Contenido</b>: publicaciones, vídeos que nos pides publicar, documentos de la base de conocimiento que subes, y los mensajes y comentarios que tus clientes envían a tus canales junto con las respuestas generadas.</li>
+<li><b>Datos técnicos</b>: registros básicos (dirección IP, tipo de navegador) usados para seguridad y prevención de abusos.</li>
+</ul>
+
+<h2>2. Servicios de las API de Google y YouTube</h2>
+<div class="box">
+<p><b>El uso y la transferencia a cualquier otra app, por parte de Schools AI, de la información recibida de las API de Google se ajustarán a la <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de datos de usuario de los servicios de API de Google</a>, incluidos los requisitos de Uso limitado (Limited Use).</b></p>
+</div>
+<p>Al hacer clic en <i>Conectar YouTube</i> inicias sesión con Google y concedes los permisos siguientes, que solicitamos únicamente para tu propio canal:</p>
+<ul>
+<li><code>youtube.upload</code> — para subir los vídeos que <i>tú</i> nos envías para publicar, con el título, la descripción y la visibilidad que <i>tú</i> elijas.</li>
+<li><code>youtube.readonly</code> — para leer los datos básicos de tu canal (ID y nombre) y poder mostrar qué canal está conectado.</li>
+<li><code>youtube.force-ssl</code> — para leer los comentarios de los vídeos de tu canal y publicar respuestas desde tu canal, cuando mantienes activada la opción «el bot responde a los comentarios».</li>
+</ul>
+<p><b>Cómo usamos los datos de YouTube.</b> Los datos obtenidos mediante estos permisos se usan únicamente para ofrecerte las funciones anteriores: publicar tus vídeos y leer y responder a los comentarios de tu canal. No los usamos para publicidad, no los vendemos y no los usamos para crear perfiles de usuario ni para determinar la solvencia. El acceso humano a estos datos se limita a lo necesario para la seguridad, el soporte que solicites o el cumplimiento legal.</p>
+<p><b>Procesamiento con IA.</b> Para redactar una respuesta, el texto de un comentario de tu canal (y el contenido de tu propia base de conocimiento) se envía al proveedor del modelo de IA que impulsa tu espacio de trabajo. Se usa únicamente para generar esa respuesta. No permitimos que los datos de usuario de Google se usen para desarrollar, mejorar o entrenar modelos generalizados de inteligencia artificial o aprendizaje automático.</p>
+<p><b>Términos de YouTube.</b> Al usar las funciones de YouTube también aceptas quedar vinculado por las <a href="https://www.youtube.com/t/terms">Condiciones del Servicio de YouTube</a>. El tratamiento que hace Google de tus datos se describe en la <a href="https://policies.google.com/privacy">Política de Privacidad de Google</a>.</p>
+
+<h2>3. Cómo usamos la información</h2>
+<p>Para operar el servicio (responder a clientes, publicar contenido, programar), para protegerlo, para prestar soporte y para cumplir obligaciones legales. No vendemos información personal.</p>
+
+<h2>4. Compartición</h2>
+<p>Solo compartimos datos con los proveedores de servicios necesarios para operar el producto (alojamiento y base de datos, proveedor del modelo de IA, plataformas de mensajería que conectes) bajo sus propios términos, o cuando lo exija la ley. No compartimos datos de las API de Google con fines publicitarios.</p>
+
+<h2>5. Almacenamiento, seguridad y conservación</h2>
+<p>Los datos se almacenan en nuestra base de datos y almacenamiento de archivos, con acceso limitado a tu espacio de trabajo y a los sistemas que operan el servicio. La conexión con nuestros servicios usa HTTPS. Conservamos los tokens de los canales hasta que desconectes el canal o elimines tu espacio de trabajo. Las conversaciones con clientes se conservan para que puedas revisarlas, hasta que tú o nosotros las eliminemos.</p>
+
+<h2>6. Tus opciones: revocar el acceso y eliminar datos</h2>
+<ul>
+<li><b>Revoca el acceso de Google en cualquier momento</b> en <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> (esto también detiene las subidas y las respuestas a comentarios).</li>
+<li><b>Desconecta</b> el canal en <i>Configuración de canales</i> del panel, o desactiva las respuestas a comentarios en la misma pantalla.</li>
+<li><b>Elimina tus datos</b>: escríbenos por correo y eliminaremos los datos de tu espacio de trabajo, incluidos los tokens almacenados, en un plazo de 30 días.</li>
+</ul>
+
+<h2>7. Menores</h2>
+<p>El servicio no está dirigido a menores de 13 años y no recopilamos a sabiendas su información personal.</p>
+
+<h2>8. Cambios y contacto</h2>
+<p>Podemos actualizar esta política y cambiaremos la fecha indicada arriba. Preguntas o solicitudes: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>. Consulta también nuestras <a href="terms">Condiciones del servicio</a>.</p>
+</section>
+
+<section id="fr" class="ls" lang="fr">
+<h1>Politique de confidentialité</h1>
+<p class="muted">Schools AI (« nous ») · Dernière mise à jour : 16 octobre 2026 · Contact : <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
+<p>Schools AI (<a href="https://chat.schoolsai.work/landing">chat.schoolsai.work</a>) est un espace de travail IA pour le service client et la création de contenu. Les entreprises connectent leurs propres canaux (par exemple Facebook, Instagram, WordPress et YouTube) afin qu’un agent IA puisse répondre aux clients et publier du contenu en leur nom. Cette politique explique ce que nous collectons et comment nous l’utilisons.</p>
+
+<h2>1. Informations que nous collectons</h2>
+<ul>
+<li><b>Données du compte</b>: adresse e-mail et paramètres de l’espace de travail que vous fournissez à l’inscription.</li>
+<li><b>Connexions de canaux</b>: identifiants et jetons d’accès des canaux que vous connectez (par exemple l’ID d’une chaîne YouTube, son nom et un refresh token OAuth), ainsi que les identifiants client OAuth que vous saisissez pour votre propre projet Google Cloud.</li>
+<li><b>Contenu</b>: publications, vidéos que vous nous demandez de publier, documents de base de connaissances que vous téléversez, ainsi que les messages et commentaires que vos clients envoient à vos canaux avec les réponses générées.</li>
+<li><b>Données techniques</b>: journaux de base (adresse IP, type de navigateur) utilisés pour la sécurité et la prévention des abus.</li>
+</ul>
+
+<h2>2. Services d’API de Google et de YouTube</h2>
+<div class="box">
+<p><b>L’utilisation et le transfert à toute autre application, par Schools AI, des informations reçues des API Google respecteront la <a href="https://developers.google.com/terms/api-services-user-data-policy">Politique relative aux données utilisateur des services d’API de Google</a>, y compris les exigences d’utilisation limitée (Limited Use).</b></p>
+</div>
+<p>Lorsque vous cliquez sur <i>Connecter YouTube</i>, vous vous connectez avec Google et accordez les autorisations suivantes, que nous ne demandons que pour votre propre chaîne :</p>
+<ul>
+<li><code>youtube.upload</code> — pour téléverser les vidéos que <i>vous</i> soumettez à la publication, avec le titre, la description et la visibilité que <i>vous</i> choisissez.</li>
+<li><code>youtube.readonly</code> — pour lire les informations de base de votre chaîne (ID et nom) afin d’afficher quelle chaîne est connectée.</li>
+<li><code>youtube.force-ssl</code> — pour lire les commentaires sous les vidéos de votre chaîne et publier des réponses depuis votre chaîne, lorsque l’option « le bot répond aux commentaires » est activée.</li>
+</ul>
+<p><b>Comment nous utilisons les données YouTube.</b> Les données obtenues grâce à ces autorisations servent uniquement à vous fournir les fonctionnalités ci-dessus : publier vos vidéos, lire et répondre aux commentaires de votre chaîne. Nous ne les utilisons pas à des fins publicitaires, nous ne les vendons pas et nous ne les utilisons pas pour établir des profils d’utilisateurs ni pour évaluer la solvabilité. L’accès humain à ces données est limité à ce qui est nécessaire pour la sécurité, l’assistance que vous demandez ou le respect de la loi.</p>
+<p><b>Traitement par IA.</b> Pour rédiger une réponse, le texte d’un commentaire de votre chaîne (et le contenu de votre propre base de connaissances) est envoyé au fournisseur du modèle d’IA qui alimente votre espace de travail. Il n’est utilisé que pour générer cette réponse. Nous n’autorisons pas l’utilisation des données utilisateur Google pour développer, améliorer ou entraîner des modèles d’intelligence artificielle ou d’apprentissage automatique généralistes.</p>
+<p><b>Conditions de YouTube.</b> En utilisant les fonctionnalités YouTube, vous acceptez également d’être lié par les <a href="https://www.youtube.com/t/terms">Conditions d’utilisation de YouTube</a>. Le traitement de vos données par Google est décrit dans la <a href="https://policies.google.com/privacy">Politique de confidentialité de Google</a>.</p>
+
+<h2>3. Comment nous utilisons les informations</h2>
+<p>Pour faire fonctionner le service (répondre aux clients, publier du contenu, planifier), le sécuriser, fournir une assistance et respecter nos obligations légales. Nous ne vendons pas d’informations personnelles.</p>
+
+<h2>4. Partage</h2>
+<p>Nous ne partageons des données qu’avec les prestataires nécessaires au fonctionnement du produit (hébergement et base de données, fournisseur du modèle d’IA, plateformes de messagerie que vous connectez), selon leurs propres conditions, ou lorsque la loi l’exige. Nous ne partageons pas les données des API Google à des fins publicitaires.</p>
+
+<h2>5. Stockage, sécurité et conservation</h2>
+<p>Les données sont stockées dans notre base de données et notre espace de stockage de fichiers, avec un accès limité à votre espace de travail et aux systèmes qui exploitent le service. La connexion à nos services utilise HTTPS. Nous conservons les jetons de canal jusqu’à ce que vous déconnectiez le canal ou supprimiez votre espace de travail. Les conversations avec les clients sont conservées pour que vous puissiez les consulter, jusqu’à leur suppression par vous ou par nous.</p>
+
+<h2>6. Vos choix : révoquer l’accès et supprimer les données</h2>
+<ul>
+<li><b>Révoquez l’accès Google à tout moment</b> sur <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> (cela arrête aussi les téléversements et les réponses aux commentaires).</li>
+<li><b>Déconnectez</b> le canal dans <i>Paramètres des canaux</i> du tableau de bord, ou désactivez les réponses aux commentaires dans le même écran.</li>
+<li><b>Supprimez vos données</b> : écrivez-nous et nous supprimerons les données de votre espace de travail, y compris les jetons stockés, sous 30 jours.</li>
+</ul>
+
+<h2>7. Enfants</h2>
+<p>Le service ne s’adresse pas aux enfants de moins de 13 ans et nous ne collectons pas sciemment leurs informations personnelles.</p>
+
+<h2>8. Modifications et contact</h2>
+<p>Nous pouvons mettre à jour cette politique et modifierons alors la date ci-dessus. Questions ou demandes : <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>. Consultez aussi nos <a href="terms">Conditions d’utilisation</a>.</p>
+</section>
+
+<section id="ko" class="ls" lang="ko">
+<h1>개인정보처리방침</h1>
+<p class="muted">Schools AI(이하 "당사") · 최종 업데이트: 2026년 10월 16일 · 문의: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
+<p>Schools AI(<a href="https://chat.schoolsai.work/landing">chat.schoolsai.work</a>)는 AI 고객 응대 및 콘텐츠 작업 공간입니다. 사업자는 자신의 채널(예: Facebook, Instagram, WordPress, YouTube)을 연결해 AI 에이전트가 고객에게 답변하고 대신 콘텐츠를 게시하도록 합니다. 이 방침은 당사가 수집하는 정보와 그 이용 방법을 설명합니다.</p>
+
+<h2>1. 수집하는 정보</h2>
+<ul>
+<li><b>계정 데이터</b>: 가입할 때 제공하는 이메일 주소와 워크스페이스 설정.</li>
+<li><b>채널 연결 정보</b>: 연결한 채널의 식별자와 액세스 토큰(예: YouTube 채널 ID, 채널 이름, OAuth 리프레시 토큰), 그리고 본인의 Google Cloud 프로젝트에 대해 입력하는 OAuth 클라이언트 자격 증명.</li>
+<li><b>콘텐츠</b>: 게시물, 게시를 요청하는 동영상, 업로드한 지식 베이스 문서, 고객이 채널로 보내는 메시지와 댓글 및 생성된 답변.</li>
+<li><b>기술 데이터</b>: 보안과 악용 방지를 위해 사용하는 기본 로그(IP 주소, 브라우저 유형).</li>
+</ul>
+
+<h2>2. Google 및 YouTube API 서비스</h2>
+<div class="box">
+<p><b>Schools AI가 Google API에서 받은 정보를 다른 앱에 사용하거나 이전하는 경우, 제한적 사용(Limited Use) 요건을 포함해 <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API 서비스 사용자 데이터 정책</a>을 준수합니다.</b></p>
+</div>
+<p><i>YouTube 연결</i>을 클릭하면 Google로 로그인하고 아래 권한을 부여하게 됩니다. 이 권한은 본인의 채널에 대해서만 요청합니다.</p>
+<ul>
+<li><code>youtube.upload</code> — <i>본인</i>이 게시하도록 제출한 동영상을 <i>본인</i>이 선택한 제목, 설명, 공개 범위로 업로드하기 위해.</li>
+<li><code>youtube.readonly</code> — 연결된 채널을 표시할 수 있도록 채널의 기본 정보(ID와 이름)를 읽기 위해.</li>
+<li><code>youtube.force-ssl</code> — "봇이 댓글에 답변" 옵션을 켜 둔 경우, 채널 동영상의 댓글을 읽고 본인 채널에서 답글을 게시하기 위해.</li>
+</ul>
+<p><b>YouTube 데이터 사용 방식.</b> 이 권한으로 얻은 데이터는 위 기능, 즉 동영상 게시와 채널 댓글 읽기 및 답변을 제공하는 용도로만 사용합니다. 광고에 사용하지 않고, 판매하지 않으며, 사용자 프로필 작성이나 신용도 판단에 사용하지 않습니다. 이 데이터에 대한 사람의 접근은 보안, 요청하신 지원, 법적 준수에 필요한 범위로 제한됩니다.</p>
+<p><b>AI 처리.</b> 답변을 작성하기 위해 채널 댓글의 텍스트(그리고 본인의 지식 베이스 콘텐츠)가 워크스페이스를 구동하는 AI 모델 제공업체로 전송됩니다. 이는 해당 답변을 생성하는 용도로만 사용됩니다. Google 사용자 데이터를 범용 인공지능 또는 머신러닝 모델의 개발, 개선, 학습에 사용하는 것을 허용하지 않습니다.</p>
+<p><b>YouTube 약관.</b> YouTube 기능을 사용하면 <a href="https://www.youtube.com/t/terms">YouTube 서비스 약관</a>에도 구속되는 데 동의하는 것입니다. Google의 데이터 처리 방식은 <a href="https://policies.google.com/privacy">Google 개인정보처리방침</a>에 설명되어 있습니다.</p>
+
+<h2>3. 정보 이용 방법</h2>
+<p>서비스 운영(고객 응대, 콘텐츠 게시, 예약), 보안 유지, 지원 제공, 법적 의무 이행을 위해 이용합니다. 개인정보를 판매하지 않습니다.</p>
+
+<h2>4. 공유</h2>
+<p>제품 운영에 필요한 서비스 제공업체(호스팅 및 데이터베이스, AI 모델 제공업체, 연결한 메시징 플랫폼)와 각 업체의 약관에 따라 공유하거나 법률에서 요구하는 경우에만 데이터를 공유합니다. Google API 데이터를 광고 목적으로 공유하지 않습니다.</p>
+
+<h2>5. 저장, 보안, 보관</h2>
+<p>데이터는 당사의 데이터베이스와 파일 저장소에 저장되며 접근은 본인의 워크스페이스와 서비스를 운영하는 시스템으로 제한됩니다. 당사 서비스와의 연결에는 HTTPS를 사용합니다. 채널 토큰은 채널 연결을 해제하거나 워크스페이스를 삭제할 때까지 보관합니다. 고객 대화는 검토할 수 있도록 본인 또는 당사가 삭제할 때까지 보관합니다.</p>
+
+<h2>6. 선택 사항: 접근 권한 취소 및 데이터 삭제</h2>
+<ul>
+<li><b>Google 접근 권한은 언제든 취소할 수 있습니다</b>: <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> (업로드와 댓글 답변도 중단됩니다).</li>
+<li>대시보드의 <i>채널 설정</i>에서 채널 연결을 <b>해제</b>하거나 같은 화면에서 댓글 답변을 끌 수 있습니다.</li>
+<li><b>데이터 삭제</b>: 이메일로 요청하시면 저장된 토큰을 포함한 워크스페이스 데이터를 30일 이내에 삭제합니다.</li>
+</ul>
+
+<h2>7. 아동</h2>
+<p>이 서비스는 13세 미만 아동을 대상으로 하지 않으며 아동의 개인정보를 알면서 수집하지 않습니다.</p>
+
+<h2>8. 변경 및 문의</h2>
+<p>이 방침은 업데이트될 수 있으며, 그 경우 위의 날짜를 변경합니다. 질문이나 요청: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>. <a href="terms">서비스 약관</a>도 참고하세요.</p>
+</section>
+
 </main>
+<script>
+// Hiển thị đúng ngôn ngữ: #hash > ngôn ngữ đã chọn trong dashboard > English. Không có JS thì hiện tất cả các bản.
+(function(){var L=['en','vi','ja','es','fr','ko'];
+function pick(){var h=(location.hash||'').slice(1);if(L.indexOf(h)>-1)return h;try{var s=localStorage.getItem('lang');if(L.indexOf(s)>-1)return s}catch(e){}return 'en'}
+function show(){var c=pick();document.querySelectorAll('.ls').forEach(function(s){s.hidden=s.id!==c});
+document.querySelectorAll('.lang a[data-l]').forEach(function(a){a.classList.toggle('on',a.getAttribute('data-l')===c)});document.documentElement.lang=c}
+window.addEventListener('hashchange',show);show();})();
+</script>
 </body>
 </html>
