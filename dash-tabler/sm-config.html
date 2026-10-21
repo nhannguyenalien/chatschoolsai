@@ -248,6 +248,11 @@
               </select>
               <small class="form-hint mt-1">Áp dụng cho Facebook/Instagram/LinkedIn. "Dịch" tự dịch ngay trước khi đăng; "Bài riêng" tạo một bài khác nhau cho mỗi kênh từ cùng nguồn tin.</small>
             </div>
+            <div class="mb-3 d-none" id="page-appsecret-wrap">
+              <label class="form-label">App Secret của Meta App <span class="text-danger">*</span></label>
+              <input type="password" id="page-appsecret" class="form-control" autocomplete="off" placeholder="Meta for Developers → App → App settings → Basic → App secret → Show">
+              <small class="form-hint mt-1">Bắt buộc để <strong>nhận tin nhắn &amp; bình luận</strong> (dùng xác thực dữ liệu Meta gửi về). Thiếu thì vẫn đăng bài được nhưng bot sẽ không nhận được gì. Nhiều kênh cùng một Meta App chỉ cần nhập một lần.</small>
+            </div>
             <div class="mb-3">
               <label class="form-label">Cấu hình thêm (JSON, tuỳ chọn)</label>
               <div class="input-group">
@@ -273,10 +278,12 @@
               <h4 class="alert-title">Kết nối nhắn tin/bình luận tự động (Messenger &amp; Instagram)</h4>
               <div class="text-secondary">
                 <ol class="mb-0 ps-3">
+                  <li>Điền <strong>App Secret</strong> (Meta App → App settings → Basic) vào ô phía trên — <u>bắt buộc</u>, thiếu thì tin nhắn/bình luận không về hệ thống.</li>
                   <li>Bấm nút <strong>"Tạo Verify Token ngẫu nhiên"</strong> ở trên (hoặc tự nghĩ 1 chuỗi bất kỳ), rồi bấm <strong>Lưu</strong> kênh này lại.</li>
-                  <li>Vào Meta App Dashboard của bạn → Webhooks → đăng ký: Callback URL <code>https://apic.schoolsai.work/meta-webhook</code>, dán đúng Verify Token vừa tạo.</li>
+                  <li>Vào Meta App Dashboard của bạn → Webhooks → đối tượng <strong>Page</strong>: Callback URL <code>https://apic.schoolsai.work/meta-webhook</code>, dán đúng Verify Token vừa tạo.</li>
                   <li>Subscribe field <code>messages</code> (nhắn tin riêng) và <code>feed</code> (Facebook)/<code>comments</code> (Instagram) nếu muốn tự động trả lời bình luận.</li>
-                  <li>Nếu App của bạn chưa qua App Review cho <code>pages_messaging</code>/<code>pages_manage_engagement</code>, chỉ tài khoản admin/tester của App nhận được tin nhắn/bình luận thật khi test.</li>
+                  <li>Ở danh sách kênh bấm <strong>"Kiểm tra quyền"</strong> → nếu báo "Chưa nhận…" thì bấm nút đăng ký fanpage ngay trong kết quả. Khi tất cả xanh là xong.</li>
+                  <li>Nếu App của bạn chưa qua App Review cho <code>pages_messaging</code>/<code>pages_manage_engagement</code> (Advanced access), chỉ tài khoản có vai trò Admin/Developer/Tester của App nhận được tin nhắn/bình luận khi test; khách bên ngoài chỉ hoạt động sau khi App được duyệt và chuyển Live.</li>
                 </ol>
               </div>
             </div>
@@ -334,8 +341,8 @@
         youtube: 'Cài đặt kênh (nên đổi bằng nút "Kết nối YouTube"): {"privacy":"public|unlisted|private","auto_reply":true,"tags":["a"],"category_id":"22","made_for_kids":false}. Mặc định privacy = public; Client ID/Secret của Google cũng nằm trong ô này.',
         whatsapp: 'Điền {"app_secret":"...","verify_token":"..."} — app_secret lấy ở Meta App Dashboard → App settings → Basic (dùng để xác thực tin Meta gửi tới); bấm "Tạo Verify Token ngẫu nhiên" để sinh verify_token.',
         sanity: 'Tuỳ chọn — chỉnh tên document type/field cho khớp schema riêng của bạn: {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}. Bỏ trống = dùng mặc định trên.',
-        facebook: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
-        instagram: 'Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
+        facebook: 'App Secret nhập ở ô riêng phía trên. Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
+        instagram: 'App Secret nhập ở ô riêng phía trên. Bấm "Tạo Verify Token ngẫu nhiên" bên dưới để tự điền {"verify_token":"..."} — cần khi đăng ký nhận nhắn tin/bình luận tự động (xem hướng dẫn bên dưới).',
     };
     const META_WEBHOOK_PLATFORMS = ['facebook', 'instagram', 'whatsapp'];
     const PLATFORM_ICON = {
@@ -537,6 +544,10 @@
         }
     }
 
+    function pageAppSecretOf(pc) {
+        try { return String(JSON.parse(pc.extra_config || '{}').app_secret || '').trim(); } catch { return ''; }
+    }
+
     function renderPages() {
         const tbody = document.getElementById('pages-table-body');
         tbody.innerHTML = '';
@@ -552,7 +563,7 @@
               <td>${escHtml(pc.label||'')}</td>
               <td class="text-secondary">${escHtml(pc.page_id||'')}</td>
               <td class="token-mask">••••••••${escHtml((pc.access_token||'').slice(-6))}</td>
-              <td>${pc.is_active ? '<span class="badge bg-green-lt">Hoạt động</span>' : '<span class="badge bg-secondary-lt">Tạm dừng</span>'}</td>
+              <td>${pc.is_active ? '<span class="badge bg-green-lt">Hoạt động</span>' : '<span class="badge bg-secondary-lt">Tạm dừng</span>'}${pc.is_active && META_WEBHOOK_PLATFORMS.includes(pc.platform) && !pagesConfigCache.some(p => p.is_active && META_WEBHOOK_PLATFORMS.includes(p.platform) && pageAppSecretOf(p)) ? '<div><span class="badge bg-orange-lt mt-1" title="Chưa có App Secret nên chưa nhận được tin nhắn/bình luận. Bấm Sửa để nhập.">Thiếu App Secret — chưa nhận tin/bình luận</span></div>' : ''}</td>
               <td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary edit-page-btn">Sửa</button>${pc.platform === 'facebook' ? ' <button class="btn btn-sm btn-outline-primary check-perm-btn" title="Xem token đang có những quyền nào">Kiểm tra quyền</button>' : ''}</td>`;
             tr.querySelector('.edit-page-btn').addEventListener('click', () => openPageModal(pc));
             tr.querySelector('.check-perm-btn')?.addEventListener('click', (event) => checkPagePermissions(pc, event.currentTarget));
@@ -571,6 +582,7 @@
         const isMeta = META_WEBHOOK_PLATFORMS.includes(platform);
         document.getElementById('page-content-mode-wrap').classList.toggle('d-none', !['facebook', 'instagram', 'linkedin'].includes(platform));
         document.getElementById('gen-verify-token-btn').classList.toggle('d-none', !isMeta);
+        document.getElementById('page-appsecret-wrap').classList.toggle('d-none', !isMeta);
         document.getElementById('meta-webhook-guide').classList.toggle('d-none', !(isMeta && platform !== 'whatsapp'));
         document.getElementById('whatsapp-webhook-guide').classList.toggle('d-none', platform !== 'whatsapp');
         document.getElementById('test-wordpress-btn').classList.toggle('d-none', !(platform === 'wordpress' && document.getElementById('page-id-hidden').value));
@@ -629,6 +641,7 @@
         try { extraObj = JSON.parse(pc?.extra_config || '{}') || {}; } catch {}
         document.getElementById('page-content-mode').value = extraObj.content_mode || 'same';
         document.getElementById('page-extra').value = pc?.extra_config || '';
+        document.getElementById('page-appsecret').value = extraObj.app_secret || '';
         document.getElementById('page-active').checked = pc ? !!pc.is_active : true;
         document.getElementById('delete-page-btn').classList.toggle('d-none', !pc);
         updatePageFieldLabels();
@@ -655,6 +668,16 @@
         const contentMode = document.getElementById('page-content-mode').value;
         if (['facebook', 'instagram', 'linkedin'].includes(document.getElementById('page-platform').value) && contentMode !== 'same') extraObj.content_mode = contentMode;
         else delete extraObj.content_mode;
+        const savePlatform = document.getElementById('page-platform').value;
+        if (META_WEBHOOK_PLATFORMS.includes(savePlatform)) {
+            // Ô App Secret riêng ghi đè giá trị trong JSON; để trống thì giữ nguyên giá trị đang có trong JSON.
+            const appSecret = document.getElementById('page-appsecret').value.trim();
+            if (appSecret) extraObj.app_secret = appSecret;
+            // Kênh cùng tenant dùng chung Meta App thì chỉ cần một kênh có app_secret (server cũng tra theo cách này).
+            const siblingHasSecret = pagesConfigCache.some(pc => pc.id !== id && pc.is_active && META_WEBHOOK_PLATFORMS.includes(pc.platform) && pageAppSecretOf(pc));
+            if (document.getElementById('page-active').checked && !extraObj.app_secret && !siblingHasSecret
+                && !confirm('Chưa có App Secret của Meta App.\n\nKênh vẫn đăng bài được, nhưng sẽ KHÔNG nhận được tin nhắn/bình luận của khách (bot không trả lời).\n\nBấm Cancel để quay lại nhập App Secret, hoặc OK để lưu khi chưa nhập.')) return;
+        }
         extraRaw = Object.keys(extraObj).length ? JSON.stringify(extraObj, null, 2) : '';
         const data = {
             tenant: window.TENANT,

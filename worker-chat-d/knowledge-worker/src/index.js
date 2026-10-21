@@ -4837,7 +4837,8 @@ async function handleMetaWebhookEvent(request, env, ctx) {
   const secretPlatform = isWhatsAppPayload(parsed) ? "whatsapp" : parsed?.object === "instagram" ? "instagram" : "facebook";
   const secrets = await metaAppSecretsForPayload(env, parsed, secretPlatform);
   if (!secrets.length) {
-    console.error("[Meta Webhook] Không có app_secret của kênh/tenant để xác thực chữ ký");
+    const ids = (parsed?.entry || []).map((entry) => String(entry?.id || "")).filter(Boolean).slice(0, 5).join(",");
+    console.error(`[Meta Webhook] Không có app_secret của kênh/tenant để xác thực chữ ký (object=${parsed?.object || ""} entry_id=${ids})`);
     return new Response("Webhook not configured", { status: 503 });
   }
   let verified = false;
