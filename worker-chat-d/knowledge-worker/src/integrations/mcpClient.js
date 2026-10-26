@@ -139,10 +139,10 @@ export function compactToolResult(raw, maxChars = MAX_RESULT_CHARS) {
 
 // Vòng tool-calling ngắn để lấy dữ liệu thật. `tools` là schema OpenAI, `execute(name, args)` chạy tool và trả chuỗi.
 // Trả về khối context cho bot ("" nếu không cần gọi tool).
-export async function gatherToolContext({ tools, execute, chatFetch, chatUrl, apiKey, model, extraBody = {}, history, imageBaseUrls = [] }) {
+export async function gatherToolContext({ tools, execute, chatFetch, chatUrl, apiKey, model, extraBody = {}, extraPrompt = "", history, imageBaseUrls = [] }) {
   if (!tools.length) return "";
   const known = new Set(tools.map((t) => t.function.name));
-  const messages = [{ role: "system", content: RETRIEVAL_PROMPT }, ...history];
+  const messages = [{ role: "system", content: RETRIEVAL_PROMPT + extraPrompt }, ...history];
   const blocks = [];
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     const res = await chatFetch(chatUrl, {

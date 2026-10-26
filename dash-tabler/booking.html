@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Đặt lịch — AI Admin</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+
+  <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <script src="_shared/auth.js"></script>
+  <script src="_shared/ui.js"></script>
+  <script src="_shared/i18n.js?v=20261021-1"></script>
+  <script src="_shared/sidebar.js?v=20261021-cal"></script>
+
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+    body { font-family: var(--tblr-font-sans-serif); }
+    #login-modal { position:fixed;inset:0;z-index:1055;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.7);backdrop-filter:blur(4px); }
+    #login-modal.hidden { display:none!important; }
+    #toast-container { position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+    .toast-item { pointer-events:auto;min-width:280px;padding:12px 16px;border-radius:8px;font-size:13.5px;font-weight:500;background:#fde8e7;color:#c92a2a;border:1px solid #d63939; }
+    .toast-item.ok { background:#d1f0e0;color:#1c5c33;border-color:#2fb344; }
+
+    .week-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:8px; }
+    .day-col { background:var(--tblr-bg-surface-secondary); border-radius:8px; padding:8px; min-height:120px; }
+    .day-col.today { outline:2px solid var(--tblr-primary); outline-offset:-2px; }
+    .day-head { font-size:13px; font-weight:600; margin-bottom:6px; display:flex; justify-content:space-between; color:var(--tblr-secondary); }
+    .bk { background:var(--tblr-bg-surface); border:1px solid var(--tblr-border-color); border-left:4px solid #2fb344; border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:13px; cursor:pointer; }
+    .bk.pending { border-left-color:#f59f00; }
+    .bk.blocked { border-left-color:#9aa4b2; background:var(--tblr-bg-surface-secondary); }
+    .bk.cancelled { border-left-color:#d63939; opacity:.55; text-decoration:line-through; }
+    .bk .t { font-weight:600; }
+    .bk .sub { color:var(--tblr-secondary); font-size:12px; }
+    .day-list .bk { display:flex; gap:12px; align-items:center; font-size:14px; padding:10px 12px; }
+    .day-list .bk .main { flex:1; min-width:0; }
+    @media (max-width:992px) { .week-grid { grid-template-columns:1fr; } }
+  </style>
+    <!-- consent + gtm -->
+    <script src="/_shared/consent.js"></script>
+</head>
+<body class="layout-fluid">
+
+<div id="login-modal" class="hidden">
+  <div class="card shadow-lg" style="width:100%;max-width:400px;border-radius:1rem;">
+    <div class="card-body text-center py-5">
+      <h2 class="h2 mb-3">AI Admin</h2>
+      <div class="mb-3 text-start"><label class="form-label">Email</label><input type="text" id="login-email" class="form-control"/></div>
+      <div class="mb-4 text-start"><label class="form-label">Mật khẩu</label><input type="password" id="login-password" class="form-control"/></div>
+      <div id="login-error" class="alert alert-danger d-none text-start p-2 mb-3"></div>
+      <button class="btn btn-primary w-100" onclick="doLogin()">Đăng nhập</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<div class="page">
+  <div id="sidebar-placeholder"></div>
+  <div class="page-wrapper">
+    <div class="page-body mt-3">
+      <div class="container-xl">
+
+        <div class="row align-items-center mb-3">
+          <div class="col">
+            <h2 class="page-title">Đặt lịch</h2>
+            <div class="text-secondary mt-1">Lịch khách đặt qua chat và lịch thêm tay. Khách đặt xong bạn sẽ nhận tin Telegram.</div>
+          </div>
+        </div>
+
+        <div id="setup" class="d-none">
+          <div class="card"><div class="card-body">
+            <h3 class="card-title">Bật đặt lịch cho chatbot</h3>
+            <p class="text-secondary">Chọn loại hình để điền sẵn giờ làm, dịch vụ và sức chứa. Bạn có thể chỉnh sau.</p>
+            <div class="row g-3" id="templates"></div>
+          </div></div>
+        </div>
+
+        <div id="main" class="d-none">
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <div class="btn-group">
+              <button class="btn btn-outline-secondary" onclick="shift(-1)"><i class="ti ti-chevron-left"></i></button>
+              <button class="btn btn-outline-secondary" onclick="goToday()">Hôm nay</button>
+              <button class="btn btn-outline-secondary" onclick="shift(1)"><i class="ti ti-chevron-right"></i></button>
+            </div>
+            <div class="fw-bold" id="range-label" style="min-width:170px"></div>
+            <div class="btn-group ms-2">
+              <button class="btn btn-outline-primary" id="mode-day" onclick="setMode('day')">Ngày</button>
+              <button class="btn btn-outline-primary" id="mode-week" onclick="setMode('week')">Tuần</button>
+            </div>
+            <div class="ms-auto d-flex flex-wrap gap-2">
+              <button class="btn btn-outline-secondary" onclick="copyIcs()"><i class="ti ti-calendar-share me-1"></i>Link lịch (Google/Apple)</button>
+              <button class="btn btn-outline-secondary" onclick="openBlock()"><i class="ti ti-ban me-1"></i>Chặn lịch</button>
+              <button class="btn btn-primary" onclick="openCreate()"><i class="ti ti-plus me-1"></i>Thêm lịch</button>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-3 small text-secondary mb-2">
+            <span><span class="badge bg-success me-1"> </span>Đã xác nhận</span>
+            <span><span class="badge bg-warning me-1"> </span>Chờ xác nhận</span>
+            <span><span class="badge bg-secondary me-1"> </span>Đã chặn</span>
+            <span><span class="badge bg-danger me-1"> </span>Đã huỷ</span>
+            <span id="pending-count" class="ms-auto"></span>
+          </div>
+          <div id="board"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal modal-blur fade" id="create-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Thêm lịch</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3"><label class="form-label">Dịch vụ</label><select id="c-service" class="form-select" onchange="syncServiceFields()"></select></div>
+      <div class="row g-2 mb-3">
+        <div class="col"><label class="form-label">Ngày</label><input type="date" id="c-date" class="form-control"/></div>
+        <div class="col" id="c-time-wrap"><label class="form-label">Giờ</label><input type="time" id="c-time" class="form-control"/></div>
+        <div class="col d-none" id="c-nights-wrap"><label class="form-label">Số đêm</label><input type="number" id="c-nights" class="form-control" min="1" value="1"/></div>
+        <div class="col"><label class="form-label" id="c-qty-label">Số khách</label><input type="number" id="c-qty" class="form-control" min="1" value="1"/></div>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col"><label class="form-label">Tên khách</label><input type="text" id="c-name" class="form-control"/></div>
+        <div class="col"><label class="form-label">Số điện thoại</label><input type="tel" id="c-phone" class="form-control"/></div>
+      </div>
+      <div class="mb-1"><label class="form-label">Ghi chú</label><input type="text" id="c-notes" class="form-control"/></div>
+      <div id="c-error" class="alert alert-danger d-none mt-3 mb-0 p-2"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" id="c-submit" onclick="submitCreate()">Lưu lịch</button></div>
+  </div></div>
+</div>
+
+<div class="modal modal-blur fade" id="block-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Chặn lịch</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <p class="text-secondary small">Khách sẽ không đặt được trong khoảng này. Để trống giờ để chặn cả ngày.</p>
+      <div class="row g-2 mb-3">
+        <div class="col"><label class="form-label">Ngày</label><input type="date" id="b-date" class="form-control"/></div>
+        <div class="col"><label class="form-label">Từ</label><input type="time" id="b-from" class="form-control"/></div>
+        <div class="col"><label class="form-label">Đến</label><input type="time" id="b-to" class="form-control"/></div>
+      </div>
+      <div class="mb-3"><label class="form-label">Áp dụng cho</label><select id="b-resource" class="form-select"></select></div>
+      <div class="mb-1"><label class="form-label">Lý do</label><input type="text" id="b-note" class="form-control" placeholder="Nghỉ lễ, bảo trì..."/></div>
+      <div id="b-error" class="alert alert-danger d-none mt-3 mb-0 p-2"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="submitBlock()">Chặn</button></div>
+  </div></div>
+</div>
+
+<div class="modal modal-blur fade" id="detail-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="detail-title"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="detail-body"></div>
+    <div class="modal-footer" id="detail-foot"></div>
+  </div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+const TEMPLATES = [
+  { id: 'restaurant', icon: 'ti-tools-kitchen-2', name: 'Nhà hàng', desc: 'Đặt bàn theo giờ, tính theo số khách' },
+  { id: 'spa', icon: 'ti-massage', name: 'Spa / Salon', desc: 'Dịch vụ theo kỹ thuật viên, mỗi người một lượt' },
+  { id: 'clinic', icon: 'ti-stethoscope', name: 'Phòng khám', desc: 'Lịch khám theo bác sĩ, nghỉ Chủ nhật' },
+  { id: 'hotel', icon: 'ti-bed', name: 'Khách sạn', desc: 'Đặt phòng theo đêm, nhận 14:00 trả 12:00' }
+];
+const STATUS = { pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận', cancelled: 'Đã huỷ', blocked: 'Đã chặn' };
+const DAY = 86400000;
+
+let data = null, offset = 420, mode = 'week', anchor = null; // anchor: 'YYYY-MM-DD' theo giờ địa phương của cơ sở
+
+(async () => {
+  await requireAuth();
+  const user = window.AUTH_USER;
+  if (!user || !window.TENANT) return;
+  document.getElementById('login-modal').classList.add('hidden');
+  renderSidebar(user);
+  try { mode = localStorage.getItem('booking-mode') === 'day' ? 'day' : 'week'; } catch {}
+  anchor = localDate(new Date());
+  await load();
+})();
+
+async function doLogin() {
+  try {
+    await PB.collection('tenants').authWithPassword(document.getElementById('login-email').value.trim(), document.getElementById('login-password').value);
+    location.reload();
+  } catch (e) { const b = document.getElementById('login-error'); b.textContent = e.message || 'Sai tài khoản hoặc mật khẩu'; b.classList.remove('d-none'); }
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function toast(msg, ok) { const el = document.createElement('div'); el.className = 'toast-item' + (ok ? ' ok' : ''); el.textContent = msg; document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), 6000); }
+const pbDate = (v) => { const d = new Date(String(v || '').replace(' ', 'T')); return isNaN(d) ? null : d; };
+
+// Mọi ngày/giờ hiển thị theo múi giờ của cơ sở (settings.tz_offset_min), không theo máy người xem.
+const localISO = (d) => new Date(d.getTime() + offset * 60000).toISOString();
+const localDate = (d) => localISO(d).slice(0, 10);
+const localTime = (d) => localISO(d).slice(11, 16);
+const addDays = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
+const startOfWeek = (ymd) => addDays(ymd, -((new Date(ymd + 'T00:00:00Z').getUTCDay() + 6) % 7));
+const dayStartUtc = (ymd) => new Date(Date.parse(ymd + 'T00:00:00Z') - offset * 60000);
+const fmtDay = (ymd) => { const d = new Date(ymd + 'T00:00:00Z'); return ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getUTCDay()] + ' ' + ymd.slice(8) + '/' + ymd.slice(5, 7); };
+
+function range() {
+  const from = mode === 'week' ? startOfWeek(anchor) : anchor;
+  const days = mode === 'week' ? 7 : 1;
+  return { from, days, to: addDays(from, days) };
+}
+
+async function api(method, body) {
+  const url = `${WORKER_URL}/api/account/booking` + (method === 'GET' ? `?${body}` : '');
+  const res = await fetch(url, {
+    method, headers: { Authorization: PB.authStore.token, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
+    body: method === 'POST' ? JSON.stringify({ tenant: window.TENANT, ...body }) : undefined, cache: 'no-store'
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+async function load() {
+  try {
+    const r = range();
+    const qs = () => new URLSearchParams({ tenant: window.TENANT, from: dayStartUtc(r.from).toISOString(), to: dayStartUtc(r.to).toISOString() }).toString();
+    data = await api('GET', qs());
+    if (data.enabled && data.settings.tz_offset_min !== offset) { offset = data.settings.tz_offset_min; return load(); }
+  } catch (e) { toast('Lỗi tải lịch: ' + e.message); data = null; return; }
+  render();
+}
+
+function render() {
+  const enabled = !!data?.enabled;
+  document.getElementById('setup').classList.toggle('d-none', enabled);
+  document.getElementById('main').classList.toggle('d-none', !enabled);
+  if (!enabled) { renderTemplates(); return; }
+  const r = range();
+  document.getElementById('range-label').textContent = mode === 'week' ? `${fmtDay(r.from)} – ${fmtDay(addDays(r.to, -1))}` : fmtDay(r.from) + '/' + r.from.slice(0, 4);
+  document.getElementById('mode-day').classList.toggle('active', mode === 'day');
+  document.getElementById('mode-week').classList.toggle('active', mode === 'week');
+  const pending = data.bookings.filter((b) => b.status === 'pending').length;
+  document.getElementById('pending-count').innerHTML = pending ? `<span class="badge bg-warning">${pending} lịch chờ xác nhận</span>` : '';
+  const today = localDate(new Date());
+  const byDay = {};
+  for (const b of data.bookings) { if (b.status === 'cancelled' && b.service_name === 'Đã chặn') continue; const s = pbDate(b.start); if (s) (byDay[localDate(s)] ||= []).push(b); }
+  const cell = (b) => {
+    const s = pbDate(b.start), e = pbDate(b.end);
+    const night = data.services.find((x) => x.id === b.service_id)?.unit === 'night';
+    const when = night ? `${localDate(s)} → ${localDate(e)}` : `${localTime(s)}–${localTime(e)}`;
+    const who = b.status === 'blocked' ? (b.customer_name || 'Đã chặn') : `${esc(b.customer_name || '—')}${b.party_size > 1 ? ` · ${b.party_size}` : ''}`;
+    const sub = [b.status === 'blocked' ? (b.resource_name || 'Cả cơ sở') : b.service_name, b.resource_name && b.status !== 'blocked' ? b.resource_name : '', b.phone].filter(Boolean).map(esc).join(' · ');
+    return `<div class="bk ${esc(b.status)}" onclick="openDetail('${esc(b.id)}')"><div class="main"><div><span class="t">${esc(when)}</span> ${who}</div><div class="sub">${sub}</div></div></div>`;
+  };
+  const days = Array.from({ length: r.days }, (_, i) => addDays(r.from, i));
+  const body = (d) => (byDay[d] || []).map(cell).join('') || '<div class="text-secondary small">Trống</div>';
+  document.getElementById('board').innerHTML = mode === 'week'
+    ? `<div class="week-grid">${days.map((d) => `<div class="day-col${d === today ? ' today' : ''}"><div class="day-head"><span>${fmtDay(d)}</span><span>${(byDay[d] || []).filter((b) => ['pending', 'confirmed'].includes(b.status)).length || ''}</span></div>${body(d)}</div>`).join('')}</div>`
+    : `<div class="card"><div class="card-body day-list">${body(days[0])}</div></div>`;
+}
+
+function renderTemplates() {
+  document.getElementById('templates').innerHTML = TEMPLATES.map((t) => `<div class="col-md-3"><div class="card card-link h-100" style="cursor:pointer" onclick="setup('${t.id}')"><div class="card-body text-center"><i class="ti ${t.icon}" style="font-size:2rem"></i><div class="fw-bold mt-2">${esc(t.name)}</div><div class="text-secondary small">${esc(t.desc)}</div></div></div></div>`).join('');
+}
+
+async function setup(template) {
+  try { await api('POST', { action: 'setup', template }); toast('Đã bật đặt lịch', true); await load(); }
+  catch (e) { toast('Không bật được: ' + e.message); }
+}
+
+function setMode(m) { mode = m; try { localStorage.setItem('booking-mode', m); } catch {} load(); }
+function shift(n) { anchor = addDays(anchor, n * (mode === 'week' ? 7 : 1)); load(); }
+function goToday() { anchor = localDate(new Date()); load(); }
+
+async function copyIcs() {
+  try { await navigator.clipboard.writeText(data.calendar_url); toast('Đã sao chép link. Dán vào Google Calendar → Thêm lịch → Từ URL.', true); }
+  catch { prompt('Sao chép link lịch:', data.calendar_url); }
+}
+
+const modal = (id) => bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
+const show = (id, msg) => { const el = document.getElementById(id); el.textContent = msg || ''; el.classList.toggle('d-none', !msg); };
+const val = (id) => document.getElementById(id).value.trim();
+
+function openCreate() {
+  const services = data.services.filter((s) => s.status !== 'inactive');
+  document.getElementById('c-service').innerHTML = services.length ? services.map((s) => `<option value="${esc(s.name)}" data-unit="${esc(s.unit || 'minute')}">${esc(s.name)}</option>`).join('') : '<option value="" data-unit="minute">Đặt chỗ</option>';
+  document.getElementById('c-date').value = anchor;
+  for (const id of ['c-time', 'c-name', 'c-phone', 'c-notes']) document.getElementById(id).value = '';
+  document.getElementById('c-qty').value = 1; document.getElementById('c-nights').value = 1;
+  show('c-error'); syncServiceFields(); modal('create-modal').show();
+}
+function syncServiceFields() {
+  const night = document.getElementById('c-service').selectedOptions[0]?.dataset.unit === 'night';
+  document.getElementById('c-time-wrap').classList.toggle('d-none', night);
+  document.getElementById('c-nights-wrap').classList.toggle('d-none', !night);
+  document.getElementById('c-qty-label').textContent = night ? 'Số phòng' : 'Số khách';
+}
+async function submitCreate() {
+  const btn = document.getElementById('c-submit'); btn.disabled = true; show('c-error');
+  try {
+    await api('POST', { action: 'create', booking: { service: val('c-service'), date: val('c-date'), time: val('c-time'), nights: Number(val('c-nights')) || 1, quantity: Number(val('c-qty')) || 1, customer_name: val('c-name'), phone: val('c-phone'), notes: val('c-notes') } });
+    modal('create-modal').hide(); toast('Đã thêm lịch', true); await load();
+  } catch (e) { show('c-error', e.message); } finally { btn.disabled = false; }
+}
+
+function openBlock() {
+  document.getElementById('b-date').value = anchor;
+  for (const id of ['b-from', 'b-to', 'b-note']) document.getElementById(id).value = '';
+  const res = data.resources.filter((r) => r.status !== 'inactive');
+  document.getElementById('b-resource').innerHTML = '<option value="">Cả cơ sở</option>' + res.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+  show('b-error'); modal('block-modal').show();
+}
+async function submitBlock() {
+  show('b-error');
+  try {
+    await api('POST', { action: 'block', block: { date: val('b-date'), time_from: val('b-from'), time_to: val('b-to'), resource_id: val('b-resource'), note: val('b-note') } });
+    modal('block-modal').hide(); toast('Đã chặn lịch', true); await load();
+  } catch (e) { show('b-error', e.message); }
+}
+
+function openDetail(id) {
+  const b = data.bookings.find((x) => x.id === id); if (!b) return;
+  const s = pbDate(b.start), e = pbDate(b.end);
+  document.getElementById('detail-title').textContent = b.status === 'blocked' ? 'Lịch đã chặn' : (b.service_name || 'Đặt chỗ');
+  const rows = [['Trạng thái', STATUS[b.status] || b.status], ['Thời gian', `${localDate(s)} ${localTime(s)} → ${localDate(e)} ${localTime(e)}`], ['Khách', b.customer_name], ['Điện thoại', b.phone], ['Số lượng', b.status === 'blocked' ? '' : b.party_size], ['Phục vụ', b.resource_name], ['Ghi chú', b.notes], ['Nguồn', b.source === 'chat' ? 'Khách đặt qua chat' : b.source === 'dashboard' ? 'Thêm tay' : b.source]];
+  document.getElementById('detail-body').innerHTML = `<table class="table table-sm mb-0"><tbody>${rows.filter((r) => r[1]).map((r) => `<tr><td class="text-secondary" style="width:110px">${r[0]}</td><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
+  const btn = (st, cls, label) => `<button class="btn ${cls}" onclick="setStatus('${esc(b.id)}','${st}')">${label}</button>`;
+  document.getElementById('detail-foot').innerHTML = [
+    b.status === 'pending' ? btn('confirmed', 'btn-success', 'Xác nhận') : '',
+    b.status === 'confirmed' ? btn('pending', 'btn-outline-secondary', 'Đưa về chờ') : '',
+    b.status !== 'cancelled' ? btn('cancelled', 'btn-outline-danger', b.status === 'blocked' ? 'Bỏ chặn' : 'Huỷ lịch') : ''
+  ].join('');
+  modal('detail-modal').show();
+}
+async function setStatus(id, status) {
+  try { await api('POST', { action: 'status', id, status }); modal('detail-modal').hide(); await load(); }
+  catch (e) { toast('Không cập nhật được: ' + e.message); }
+}
+</script>
+</body>
+</html>

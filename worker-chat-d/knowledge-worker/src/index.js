@@ -44,6 +44,11 @@ import { testWordPressConnection } from "./integrations/wordpress.js";
 import { signYouTubeState, verifyYouTubeState, youtubeAuthUrl, exchangeYouTubeCode, fetchYouTubeChannel, publishToYouTube, youtubePlatformPatch, youtubeSettings, refreshYouTubeAccessToken } from "./integrations/youtube.js";
 import { createLoyaltyApi } from "./api/loyalty.js";
 import { createLoyaltyRepository } from "./repositories/pocketbase/loyaltyRepository.js";
+import { BOOKING_TEMPLATES } from "./domain/booking/availability.js";
+import { buildIcs, feedToken, verifyFeedToken } from "./domain/booking/ics.js";
+import { BookingAdminError, blockTime, createManual, loadOverview, setStatus, setupFromTemplate } from "./workflows/booking/bookingAdmin.js";
+import { createBookingRepository } from "./repositories/pocketbase/bookingRepository.js";
+import { BOOKING_GUARD_NOTE, BOOKING_RETRIEVAL_PROMPT, createBookingTools } from "./workflows/booking/bookingTools.js";
 import { addLinkedPhone, buildCustomerOverview, parseLinkedPhones } from "./domain/customerPortal.js";
 import { createRewardWorldAdminApi } from "./api/rewardWorldAdmin.js";
 import { createReloadlyRewardProvider } from "./adapters/rewards/reloadly.js";
@@ -53,6 +58,7 @@ import { API_DOCS_HTML } from "./docs.js";
 import { CONTENT_PLANNING_COLLECTIONS, CONTENT_PLANNING_COLLECTION_EXTENSIONS } from "../../../scripts/pb-content-planning-schema.mjs";
 import { LOYALTY_COLLECTIONS } from "../../../scripts/pb-loyalty-schema.mjs";
 
+import { BOOKING_COLLECTIONS } from "../../../scripts/pb-booking-schema.mjs";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -192,6 +198,16 @@ var index_default = {
       // Route dùng ANYTHINGLLM/TELEGRAM/OPENAI/ADMIN_SECRET -> nạp system_config trước, ghi đè lên env.
       const env2 = { ...env, ...await getSystemConfig(env) };
       if (url.pathname.startsWith("/api/v1/admin/reward-world/")) {
+      if (url.pathname === "/api/v1/booking/calendar.ics" && request.method === "GET") {
+        const tenant = url.searchParams.get("tenant") || "";
+        if (!tenant || !(await verifyFeedToken(tenant, env2.ADMIN_SECRET, url.searchParams.get("token")))) return new Response("Not found", { status: 404, headers: cors });
+        return await handleBookingCalendarFeed(env2, cors, tenant);
+      }
+      if (url.pathname === "/api/v1/admin/booking/setup" && request.method === "POST") {
+        const providedKey = request.headers.get("X-Admin-Secret") || "";
+        if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
+        return await handleBookingSetup(request, env2, cors, url.origin);
+      }
         const providedKey = request.headers.get("X-Admin-Secret") || "";
         if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         const pbToken = await getPbToken(env2);
@@ -400,6 +416,9 @@ var index_default = {
         return await handleAccountBotConfig(request, env2, cors, url);
       }
       if (url.pathname === "/api/account/workspaces" && request.method === "GET") {
+      if (url.pathname === "/api/account/booking" && ["GET", "POST"].includes(request.method)) {
+        return await handleAccountBooking(request, env2, cors, url);
+      }
         return await handleAccountListWorkspaces(request, env2, cors);
       }
       if (url.pathname === "/api/account/workspaces" && request.method === "POST") {
@@ -1065,16 +1084,46 @@ __name(loadTenantMcpServer, "loadTenantMcpServer");
 
 // Tra dữ liệu thật của tenant (MCP server + các tool GET tenant tự khai báo trong agent_tools, vd WooCommerce Store API)
 // rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
+// Đặt lịch qua chat: chỉ bật cho tenant đã có dòng booking_settings. Kết quả tra cấu hình được nhớ 60s để chat thường không tốn thêm request.
+const bookingEnabledCache = new Map();
+async function loadBookingTools(env, pbToken, tenant, session) {
+  const client = createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+  const repository = createBookingRepository(client);
+  const cached = bookingEnabledCache.get(tenant);
+  let enabled = cached && Date.now() - cached.at < 60000 ? cached.enabled : null;
+  if (enabled === null) {
+    enabled = !!(await repository.getSettings(tenant).catch(() => null));
+    bookingEnabledCache.set(tenant, { enabled, at: Date.now() });
+  }
+  if (!enabled) return null;
+  return createBookingTools({
+    repository, tenant, session,
+    notifyOwner: async (text) => { await notifyBookingOwner(env, pbToken, tenant, text); }
+  });
+}
+__name(loadBookingTools, "loadBookingTools");
+
+async function notifyBookingOwner(env, pbToken, tenant, text) {
+  if (!env.TELEGRAM_BOT_TOKEN) return;
+  const res = await fetchWithTimeout(
+    `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&fields=owner_telegram_chat_id&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`,
+    { headers: { Authorization: pbToken } }
+  );
+  const chatId = (await res.json()).items?.[0]?.owner_telegram_chat_id;
+  if (chatId) await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, text);
+}
+__name(notifyBookingOwner, "notifyBookingOwner");
+
 async function buildToolContext(env, pbToken, tenant, session, question, reservedQuota) {
   try {
     if (!env.OPENAI_KEY) return "";
-    const [server, customAll] = await Promise.all([loadTenantMcpServer(env, pbToken, tenant), loadCustomAgentTools(env, pbToken, tenant)]);
+    const [server, customAll, booking] = await Promise.all([loadTenantMcpServer(env, pbToken, tenant), loadCustomAgentTools(env, pbToken, tenant), loadBookingTools(env, pbToken, tenant, session)]);
     const getTools = customAll.filter((t) => (t.method || "GET").toUpperCase() === "GET" && isValidCustomToolName(t.name));
-    if (!server && !getTools.length) return "";
+    if (!server && !getTools.length && !booking) return "";
     const mcpTools = server ? await listMcpTools(server, fetchExternalUrlSafely, `${tenant}:${server.url}`).catch((err) => { console.error(`[Chat] MCP tools/list lỗi (tenant ${tenant}):`, err.message); return []; }) : [];
     const mcpNames = new Set(mcpTools.map((t) => t.name));
     const extra = getTools.filter((t) => !mcpNames.has(t.name));
-    const tools = [...mcpTools.map(mcpToolToOpenAi), ...extra.map(customToolToOpenAiSchema)];
+    const tools = [...mcpTools.map(mcpToolToOpenAi), ...extra.map(customToolToOpenAiSchema), ...(booking ? booking.schemas : [])];
     if (!tools.length) return "";
 
     const filter = `tenant='${escFilterValue(tenant)}' && session='${escFilterValue(session)}'`;
@@ -1084,9 +1133,10 @@ async function buildToolContext(env, pbToken, tenant, session, question, reserve
     if (!last || last.role !== "user" || last.content !== question.slice(0, 1000)) history.push({ role: "user", content: question });
     const model = env.MCP_CHAT_MODEL || env.MARKETPLACE_CHAT_MODEL || "gpt-4o-mini";
     const origins = [...new Set([server?.url, ...extra.map((t) => t.url_template)].filter(Boolean).map((u) => { try { return new URL(u.replace(/\{[^}]*\}/g, "x")).origin; } catch { return null; } }).filter(Boolean))];
-    return await gatherToolContext({
+    const gathered = await gatherToolContext({
       tools, history, imageBaseUrls: origins,
-      execute: (name, args) => mcpNames.has(name)
+      extraPrompt: booking ? BOOKING_RETRIEVAL_PROMPT : "",
+      execute: (name, args) => booking?.names.has(name) ? booking.execute(name, args) : mcpNames.has(name)
         ? callMcpTool(server, fetchExternalUrlSafely, name, args)
         : executeCustomerFacingTool(extra, name, args, 400000),
       chatFetch: createMeteredAiFetch(env, tenant, pbToken, reservedQuota),
@@ -1095,6 +1145,7 @@ async function buildToolContext(env, pbToken, tenant, session, question, reserve
     });
   } catch (err) {
     console.error(`[Chat] Tra cứu dữ liệu lỗi (tenant ${tenant}):`, err.message);
+    return booking ? [gathered, BOOKING_GUARD_NOTE].filter(Boolean).join("\n\n") : gathered;
     return "";
   }
 }
@@ -8828,73 +8879,143 @@ async function handleContentPlanningSetup(env, cors) {
 }
 __name(handleContentPlanningSetup, "handleContentPlanningSetup");
 
-// Loyalty is a core tenant feature, so a newly deployed environment must not depend
-// on a manual PocketBase import. This migration is additive and idempotent: it only
-// creates missing collections or adds missing fields/indexes, never removes data.
+// Additive and idempotent: creates missing collections or adds missing fields/indexes, never removes data.
+// Dùng cho các tính năng lõi không được phụ thuộc vào import PocketBase thủ công (Loyalty, Booking...).
+async function syncCollections(env, pbToken, definitions) {
+  const headers = { Authorization: pbToken, "Content-Type": "application/json" };
+  const auditFields = [
+    { name: "created", type: "autodate", onCreate: true, onUpdate: false },
+    { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
+  ];
+  const toModernField = (field) => {
+    const { options = {}, ...base } = field;
+    if (field.type === "number") return { ...base, min: options.min, max: options.max, onlyInt: options.noDecimal };
+    return { ...base, ...options };
+  };
+
+  // Existing installations reveal whether this PocketBase expects `fields`
+  // (modern) or `schema` (legacy) collection payloads.
+  const probe = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definitions[0].name}`, { headers });
+  let modern = true;
+  if (probe.ok) {
+    const collection = await probe.json();
+    modern = Array.isArray(collection.fields);
+  } else if (probe.status !== 404) {
+    throw new Error(`Không kiểm tra được schema ${definitions[0].name} (${probe.status})`);
+  }
+
+  for (const definition of definitions) {
+    let existing = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definition.name}`, { headers });
+    if (existing.status === 404) {
+      const payload = modern
+        ? { ...definition, fields: [...definition.schema, ...auditFields].map(toModernField) }
+        : { ...definition };
+      if (modern) delete payload.schema;
+      const created = await fetchWithTimeout(`${env.PB_URL}/api/collections`, {
+        method: "POST", headers, body: JSON.stringify(payload)
+      });
+      if (created.ok) continue;
+      // Another isolate may have created it between GET and POST.
+      existing = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definition.name}`, { headers });
+// ================= [ĐẶT LỊCH: setup theo mẫu ngành + lịch ICS] =================
+async function bookingFeedUrl(env, origin, tenant) {
+  return `${origin}/api/v1/booking/calendar.ics?tenant=${encodeURIComponent(tenant)}&token=${await feedToken(tenant, env.ADMIN_SECRET)}`;
+}
+__name(bookingFeedUrl, "bookingFeedUrl");
+
+// Bật đặt lịch cho 1 tenant: tạo collection còn thiếu rồi điền sẵn cấu hình theo mẫu ngành (restaurant|spa|clinic|hotel).
+// Idempotent: tenant đã có cấu hình thì giữ nguyên, chỉ trả lại link lịch.
+async function handleBookingSetup(request, env, cors, origin) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "").trim();
+  if (!tenant) return json({ error: "Thiếu tenant" }, 400);
+  if (!BOOKING_TEMPLATES[body.template]) return json({ error: `template phải là một trong: ${Object.keys(BOOKING_TEMPLATES).join(", ")}` }, 400);
+  const pbToken = await getPbToken(env);
+  await syncCollections(env, pbToken, BOOKING_COLLECTIONS);
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+  const { created } = await setupFromTemplate(repository, tenant, body.template);
+  if (created) bookingEnabledCache.delete(tenant);
+  return json({ success: true, created, calendar_url: await bookingFeedUrl(env, origin, tenant) });
+}
+__name(handleBookingSetup, "handleBookingSetup");
+
+// Trang quản lý đặt lịch của dashboard (đăng nhập bằng token PocketBase của chủ workspace).
+async function handleAccountBooking(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
+  const tenant = String((request.method === "POST" ? body.tenant : url.searchParams.get("tenant")) || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: access.token, fetchImpl: fetchWithTimeout }));
+  try {
+    if (request.method === "GET") {
+      const overview = await loadOverview(repository, tenant, url.searchParams.get("from"), url.searchParams.get("to"));
+      return json(overview.enabled ? { ...overview, calendar_url: await bookingFeedUrl(env, url.origin, tenant) } : overview);
+    }
+    switch (body.action) {
+      case "setup":
+        await syncCollections(env, access.token, BOOKING_COLLECTIONS);
+        bookingEnabledCache.delete(tenant);
+        return json({ success: true, ...await setupFromTemplate(repository, tenant, body.template) });
+      case "create": return json({ success: true, booking: await createManual(repository, tenant, body.booking || {}) });
+      case "block": return json({ success: true, block: await blockTime(repository, tenant, body.block || {}) });
+      case "status": return json({ success: true, ...await setStatus(repository, tenant, String(body.id || ""), body.status) });
+      default: return json({ error: "action không hợp lệ" }, 400);
+    }
+  } catch (err) {
+    if (err instanceof BookingAdminError) return json({ error: err.message }, err.status);
+    console.error("[Booking] Lỗi:", err);
+    return json({ error: "Không xử lý được yêu cầu đặt lịch" }, 502);
+  }
+}
+__name(handleAccountBooking, "handleAccountBooking");
+
+async function handleBookingCalendarFeed(env, cors, tenant) {
+  const pbToken = await getPbToken(env);
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+  const now = Date.now();
+  const bookings = await repository.listBookings(tenant, new Date(now - 30 * 864e5).toISOString(), new Date(now + 365 * 864e5).toISOString());
+  return new Response(buildIcs({ calendarName: `Lịch đặt chỗ - ${tenant}`, bookings }), {
+    headers: { ...cors, "Content-Type": "text/calendar; charset=utf-8", "Cache-Control": "private, max-age=300" }
+  });
+}
+__name(handleBookingCalendarFeed, "handleBookingCalendarFeed");
+
+      if (!existing.ok) throw new Error(`Không tạo được ${definition.name}: ${await created.text()}`);
+    }
+    if (!existing.ok) throw new Error(`Không kiểm tra được ${definition.name} (${existing.status})`);
+
+    const collection = await existing.json();
+    const key = Array.isArray(collection.fields) ? "fields" : "schema";
+    const current = collection[key] || [];
+    const wanted = definition.schema.map(field => key === "fields" ? toModernField(field) : field);
+    const missing = wanted.filter(field => !current.some(candidate => candidate.name === field.name));
+    // So khớp theo TÊN index (giữa 2 dấu backtick sau CREATE [UNIQUE] INDEX), không so nguyên
+    // chuỗi — PocketBase có thể trả lại chuỗi index đã lưu khác định dạng chút so với chuỗi
+    // trong LOYALTY_COLLECTIONS (khoảng trắng, thứ tự...), nên so nguyên chuỗi cứ tưởng "thiếu"
+    // rồi PATCH tạo lại, trong khi PocketBase từ chối vì index CÙNG TÊN đã tồn tại — lỗi 400
+    // lặp lại ở MỌI request, ensureLoyaltySchema không bao giờ set được _loyaltySchemaReady.
+    const indexName = (sql) => /CREATE(?:\s+UNIQUE)?\s+INDEX\s+`([^`]+)`/i.exec(sql || "")?.[1] || sql;
+    const currentIndexNames = new Set((collection.indexes || []).map(indexName));
+    const missingIndexes = (definition.indexes || []).filter((idx) => !currentIndexNames.has(indexName(idx)));
+    if (!missing.length && !missingIndexes.length) continue;
+    const indexes = [...(collection.indexes || []), ...missingIndexes];
+    const updated = await fetchWithTimeout(`${env.PB_URL}/api/collections/${collection.id}`, {
+      method: "PATCH", headers, body: JSON.stringify({ [key]: [...current, ...missing], indexes })
+    });
+    if (!updated.ok) throw new Error(`Không cập nhật được ${definition.name}: ${await updated.text()}`);
+  }
+}
+__name(syncCollections, "syncCollections");
+
+// Loyalty is a core tenant feature, so a newly deployed environment must not depend on a manual PocketBase import.
 async function ensureLoyaltySchema(env, pbToken) {
   if (_loyaltySchemaReady) return;
   if (_loyaltySchemaPromise) return _loyaltySchemaPromise;
 
   _loyaltySchemaPromise = (async () => {
-    const headers = { Authorization: pbToken, "Content-Type": "application/json" };
-    const auditFields = [
-      { name: "created", type: "autodate", onCreate: true, onUpdate: false },
-      { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
-    ];
-    const toModernField = (field) => {
-      const { options = {}, ...base } = field;
-      if (field.type === "number") return { ...base, min: options.min, max: options.max, onlyInt: options.noDecimal };
-      return { ...base, ...options };
-    };
-
-    // Existing installations reveal whether this PocketBase expects `fields`
-    // (modern) or `schema` (legacy) collection payloads.
-    const probe = await fetchWithTimeout(`${env.PB_URL}/api/collections/loyalty_programs`, { headers });
-    let modern = true;
-    if (probe.ok) {
-      const collection = await probe.json();
-      modern = Array.isArray(collection.fields);
-    } else if (probe.status !== 404) {
-      throw new Error(`Không kiểm tra được schema Loyalty (${probe.status})`);
-    }
-
-    for (const definition of LOYALTY_COLLECTIONS) {
-      let existing = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definition.name}`, { headers });
-      if (existing.status === 404) {
-        const payload = modern
-          ? { ...definition, fields: [...definition.schema, ...auditFields].map(toModernField) }
-          : { ...definition };
-        if (modern) delete payload.schema;
-        const created = await fetchWithTimeout(`${env.PB_URL}/api/collections`, {
-          method: "POST", headers, body: JSON.stringify(payload)
-        });
-        if (created.ok) continue;
-        // Another isolate may have created it between GET and POST.
-        existing = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definition.name}`, { headers });
-        if (!existing.ok) throw new Error(`Không tạo được ${definition.name}: ${await created.text()}`);
-      }
-      if (!existing.ok) throw new Error(`Không kiểm tra được ${definition.name} (${existing.status})`);
-
-      const collection = await existing.json();
-      const key = Array.isArray(collection.fields) ? "fields" : "schema";
-      const current = collection[key] || [];
-      const wanted = definition.schema.map(field => key === "fields" ? toModernField(field) : field);
-      const missing = wanted.filter(field => !current.some(candidate => candidate.name === field.name));
-      // So khớp theo TÊN index (giữa 2 dấu backtick sau CREATE [UNIQUE] INDEX), không so nguyên
-      // chuỗi — PocketBase có thể trả lại chuỗi index đã lưu khác định dạng chút so với chuỗi
-      // trong LOYALTY_COLLECTIONS (khoảng trắng, thứ tự...), nên so nguyên chuỗi cứ tưởng "thiếu"
-      // rồi PATCH tạo lại, trong khi PocketBase từ chối vì index CÙNG TÊN đã tồn tại — lỗi 400
-      // lặp lại ở MỌI request, ensureLoyaltySchema không bao giờ set được _loyaltySchemaReady.
-      const indexName = (sql) => /CREATE(?:\s+UNIQUE)?\s+INDEX\s+`([^`]+)`/i.exec(sql || "")?.[1] || sql;
-      const currentIndexNames = new Set((collection.indexes || []).map(indexName));
-      const missingIndexes = (definition.indexes || []).filter((idx) => !currentIndexNames.has(indexName(idx)));
-      if (!missing.length && !missingIndexes.length) continue;
-      const indexes = [...(collection.indexes || []), ...missingIndexes];
-      const updated = await fetchWithTimeout(`${env.PB_URL}/api/collections/${collection.id}`, {
-        method: "PATCH", headers, body: JSON.stringify({ [key]: [...current, ...missing], indexes })
-      });
-      if (!updated.ok) throw new Error(`Không cập nhật được ${definition.name}: ${await updated.text()}`);
-    }
+    await syncCollections(env, pbToken, LOYALTY_COLLECTIONS);
     _loyaltySchemaReady = true;
   })().catch(error => {
     _loyaltySchemaPromise = null;

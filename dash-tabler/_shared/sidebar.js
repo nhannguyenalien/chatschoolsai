@@ -23,6 +23,7 @@ const SIDEBAR_NAV = [
       { href: 'agent-chat.html', icon: 'ti-message-2-bot',  labelKey: 'nav_agent_chat' },
       { href: 'knowledge.html',icon: 'ti-book',             labelKey: 'nav_knowledge' },
       { href: 'messages.html', icon: 'ti-message-circle',   labelKey: 'nav_messages' },
+      { href: 'booking.html',  icon: 'ti-calendar-check',   labelKey: 'nav_booking' },
       // Loyalty tạm tắt (menu + trang redirect về config.html) — bật lại: thêm dòng loyalty.html và bỏ redirect trong loyalty.html.
       { href: 'customer/',     icon: 'ti-arrows-right-left', labelKey: 'nav_customer_view' },
       // "leads.html" (nav_leads) đã bỏ — trang này chưa từng được xây, link chết âm thầm rơi về
