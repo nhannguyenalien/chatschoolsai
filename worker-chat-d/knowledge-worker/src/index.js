@@ -1104,13 +1104,18 @@ async function loadBookingTools(env, pbToken, tenant, session) {
 __name(loadBookingTools, "loadBookingTools");
 
 async function notifyBookingOwner(env, pbToken, tenant, text) {
-  if (!env.TELEGRAM_BOT_TOKEN) return;
-  const res = await fetchWithTimeout(
-    `${env.PB_URL}/api/collections/bot_configs/records?perPage=1&fields=owner_telegram_chat_id&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`,
-    { headers: { Authorization: pbToken } }
-  );
-  const chatId = (await res.json()).items?.[0]?.owner_telegram_chat_id;
-  if (chatId) await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, text);
+  const get = async (collection, filter, fields) => {
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/${collection}/records?perPage=1&fields=${fields}&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+    return res.ok ? (await res.json()).items?.[0] : null;
+  };
+  const t = escFilterValue(tenant);
+  const chatId = (await get("bot_configs", `tenant='${t}'`, "owner_telegram_chat_id"))?.owner_telegram_chat_id;
+  if (chatId && env.TELEGRAM_BOT_TOKEN) {
+    try { await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, text); return; } catch (err) { console.error("[Booking] Telegram lỗi, chuyển sang AI Agent tổng:", err.message); }
+  }
+  const accountId = (await get("tenant_memberships", `tenant='${t}' && status='active' && role='owner'`, "account"))?.account
+    || (await get("tenants", `tenant='${t}'`, "id"))?.id;
+  if (accountId) await saveMasterMessage(env, pbToken, { id: accountId }, "assistant", text);
 }
 __name(notifyBookingOwner, "notifyBookingOwner");
 
