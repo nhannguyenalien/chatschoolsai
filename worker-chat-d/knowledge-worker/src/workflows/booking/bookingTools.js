@@ -135,9 +135,19 @@ export function createBookingTools({ repository, tenant, session = "", source = 
     return { cancelled: true, ...info, status: "cancelled" };
   }
 
+  // Model không biết hôm nay là ngày nào: báo ngày giờ hiện tại theo múi giờ cơ sở để quy "ngày mai", "thứ 6"... ra YYYY-MM-DD.
+  async function dateHint() {
+    const { settings } = await load();
+    const local = formatLocal(now(), settings.tz_offset_min);
+    const weekday = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"][new Date(`${local.date}T00:00:00Z`).getUTCDay()];
+    const hours = settings.tz_offset_min / 60;
+    return ` BÂY GIỜ là ${weekday}, ngày ${local.date}, ${local.time} (UTC${hours >= 0 ? "+" : ""}${hours}). Quy mọi cách nói ngày ("hôm nay", "ngày mai", "thứ sáu") ra đúng ngày YYYY-MM-DD tính từ hôm nay, không đoán ngày khác.`;
+  }
+
   const handlers = { check_availability: checkAvailability, create_booking: createBooking, cancel_booking: cancelBooking };
   return {
     schemas: bookingToolSchemas(),
+    dateHint,
     names: new Set(BOOKING_TOOL_NAMES),
     async execute(name, args = {}) {
       const handler = handlers[name];

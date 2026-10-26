@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const intOr = (value, fallback) => (Number.isFinite(Number(value)) && value !== "" && value !== null && value !== undefined ? Math.trunc(Number(value)) : fallback);
+// PocketBase lưu number chưa nhập thành 0 chứ không phải trống, nên với cấu hình 0 nghĩa là "chưa đặt" -> dùng mặc định.
+const settingOr = (value, fallback) => intOr(value, 0) || fallback;
 
 export function normalizeSettings(record) {
   const r = record || {};
@@ -22,11 +24,11 @@ export function normalizeSettings(record) {
     open_time: /^\d{1,2}:\d{2}$/.test(r.open_time || "") ? r.open_time : DEFAULT_SETTINGS.open_time,
     close_time: /^\d{1,2}:\d{2}$/.test(r.close_time || "") ? r.close_time : DEFAULT_SETTINGS.close_time,
     closed_days: closed,
-    tz_offset_min: intOr(r.tz_offset_min, DEFAULT_SETTINGS.tz_offset_min),
-    min_notice_min: Math.max(0, intOr(r.min_notice_min, DEFAULT_SETTINGS.min_notice_min)),
-    slot_step_min: Math.max(5, intOr(r.slot_step_min, DEFAULT_SETTINGS.slot_step_min)),
-    default_capacity: Math.max(1, intOr(r.default_capacity, DEFAULT_SETTINGS.default_capacity)),
-    default_duration_min: Math.max(5, intOr(r.default_duration_min, DEFAULT_SETTINGS.default_duration_min)),
+    tz_offset_min: settingOr(r.tz_offset_min, DEFAULT_SETTINGS.tz_offset_min),
+    min_notice_min: Math.max(0, settingOr(r.min_notice_min, DEFAULT_SETTINGS.min_notice_min)),
+    slot_step_min: Math.max(5, settingOr(r.slot_step_min, DEFAULT_SETTINGS.slot_step_min)),
+    default_capacity: Math.max(1, settingOr(r.default_capacity, DEFAULT_SETTINGS.default_capacity)),
+    default_duration_min: Math.max(5, settingOr(r.default_duration_min, DEFAULT_SETTINGS.default_duration_min)),
     manual_confirm: r.manual_confirm === true,
   };
 }
@@ -142,14 +144,17 @@ export function findFreeTimes({ service, resources, bookings, settings, dateStr,
 }
 
 // Mẫu cấu hình theo ngành: chủ chỉ chọn loại hình rồi sửa tên/số, không phải điền từng mục.
+const BASE_SETTINGS = { tz_offset_min: 420, min_notice_min: 60, slot_step_min: 30, default_capacity: 1, default_duration_min: 60, open_time: "08:00", close_time: "21:00", closed_days: "" };
+const withDefaults = (settings) => ({ ...BASE_SETTINGS, ...settings });
+
 export const BOOKING_TEMPLATES = Object.freeze({
   restaurant: {
-    settings: { business_type: "restaurant", open_time: "10:00", close_time: "22:00", default_capacity: 40, default_duration_min: 90 },
+    settings: withDefaults({ business_type: "restaurant", open_time: "10:00", close_time: "22:00", default_capacity: 40, default_duration_min: 90 }),
     services: [{ name: "Đặt bàn", unit: "minute", duration_min: 90, resource_group: "" }],
     resources: [{ name: "Sảnh chính", group: "", capacity: 40 }],
   },
   spa: {
-    settings: { business_type: "spa", open_time: "09:00", close_time: "21:00", default_duration_min: 60 },
+    settings: withDefaults({ business_type: "spa", open_time: "09:00", close_time: "21:00", default_duration_min: 60 }),
     services: [
       { name: "Massage 60 phút", unit: "minute", duration_min: 60, resource_group: "" },
       { name: "Chăm sóc da mặt", unit: "minute", duration_min: 60, resource_group: "" },
@@ -157,12 +162,12 @@ export const BOOKING_TEMPLATES = Object.freeze({
     resources: [{ name: "Kỹ thuật viên 1", group: "", capacity: 1 }, { name: "Kỹ thuật viên 2", group: "", capacity: 1 }],
   },
   clinic: {
-    settings: { business_type: "clinic", open_time: "08:00", close_time: "17:00", closed_days: "0", slot_step_min: 20, default_duration_min: 20 },
+    settings: withDefaults({ business_type: "clinic", open_time: "08:00", close_time: "17:00", closed_days: "0", slot_step_min: 20, default_duration_min: 20 }),
     services: [{ name: "Khám tổng quát", unit: "minute", duration_min: 20, resource_group: "" }],
     resources: [{ name: "Bác sĩ 1", group: "", capacity: 1 }],
   },
   hotel: {
-    settings: { business_type: "hotel", default_capacity: 5 },
+    settings: withDefaults({ business_type: "hotel", default_capacity: 5 }),
     services: [{ name: "Phòng Standard", unit: "night", resource_group: "Standard" }],
     resources: [{ name: "Standard", group: "Standard", capacity: 5 }],
   },

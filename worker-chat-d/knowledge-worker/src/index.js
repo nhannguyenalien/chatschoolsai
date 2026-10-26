@@ -1140,7 +1140,7 @@ async function buildToolContext(env, pbToken, tenant, session, question, reserve
     const origins = [...new Set([server?.url, ...extra.map((t) => t.url_template)].filter(Boolean).map((u) => { try { return new URL(u.replace(/\{[^}]*\}/g, "x")).origin; } catch { return null; } }).filter(Boolean))];
     const gathered = await gatherToolContext({
       tools, history, imageBaseUrls: origins,
-      extraPrompt: booking ? BOOKING_RETRIEVAL_PROMPT : "",
+      extraPrompt: booking ? BOOKING_RETRIEVAL_PROMPT + await booking.dateHint() : "",
       execute: (name, args) => booking?.names.has(name) ? booking.execute(name, args) : mcpNames.has(name)
         ? callMcpTool(server, fetchExternalUrlSafely, name, args)
         : executeCustomerFacingTool(extra, name, args, 400000),
@@ -8899,14 +8899,16 @@ async function syncCollections(env, pbToken, definitions) {
   };
 
   // Existing installations reveal whether this PocketBase expects `fields`
-  // (modern) or `schema` (legacy) collection payloads.
-  const probe = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definitions[0].name}`, { headers });
+  // (modern) or `schema` (legacy) collection payloads. Collections mới chưa có để dò nên thử thêm
+  // một collection chắc chắn đã tồn tại (bot_configs), nếu không PocketBase bản cũ sẽ bị tạo nhầm bằng `fields`.
   let modern = true;
-  if (probe.ok) {
-    const collection = await probe.json();
-    modern = Array.isArray(collection.fields);
-  } else if (probe.status !== 404) {
-    throw new Error(`Không kiểm tra được schema ${definitions[0].name} (${probe.status})`);
+  for (const name of [definitions[0].name, "bot_configs"]) {
+    const probe = await fetchWithTimeout(`${env.PB_URL}/api/collections/${name}`, { headers });
+    if (probe.ok) {
+      modern = Array.isArray((await probe.json()).fields);
+      break;
+    }
+    if (probe.status !== 404) throw new Error(`Không kiểm tra được schema ${name} (${probe.status})`);
   }
 
   for (const definition of definitions) {

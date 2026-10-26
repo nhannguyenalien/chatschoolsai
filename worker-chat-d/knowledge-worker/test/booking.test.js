@@ -221,3 +221,22 @@ test("thêm tay dùng chung luật sức chứa, chặn lịch làm hết chỗ,
   assert.deepEqual(await setStatus(repo, "t1", id, "cancelled"), { id, status: "cancelled" });
   assert.equal(repo.rows[0].status, "cancelled");
 });
+
+test("PocketBase lưu number chưa nhập thành 0: cấu hình 0 dùng mặc định, mẫu ngành ghi đủ giá trị", () => {
+  const fromPb = normalizeSettings({ tz_offset_min: 0, min_notice_min: 0, slot_step_min: 0, default_capacity: 0, default_duration_min: 0, open_time: "09:00", close_time: "21:00" });
+  assert.equal(fromPb.tz_offset_min, 420);
+  assert.equal(fromPb.min_notice_min, 60);
+  assert.equal(fromPb.slot_step_min, 30);
+  assert.equal(fromPb.default_capacity, 1);
+  for (const [name, template] of Object.entries(BOOKING_TEMPLATES)) {
+    for (const key of ["tz_offset_min", "min_notice_min", "slot_step_min", "default_capacity", "default_duration_min", "open_time", "close_time"]) {
+      assert.ok(template.settings[key], `${name}.${key}`);
+    }
+  }
+});
+
+test("dateHint báo thứ/ngày/giờ hiện tại theo múi giờ cơ sở", async () => {
+  const tools = createBookingTools({ repository: fakeRepo({ settings: spaSettings, services: spaServices }), tenant: "t1", now: () => NOW });
+  const hint = await tools.dateHint();
+  assert.match(hint, /Thứ hai, ngày 2026-10-26, 08:00 \(UTC\+7\)/);
+});
