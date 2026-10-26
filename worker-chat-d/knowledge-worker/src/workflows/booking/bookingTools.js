@@ -1,15 +1,7 @@
+import { cancelledNotice, msg, newBookingNotice, reasonText } from "../../domain/booking/i18n.js";
 import { checkSlot, findFreeTimes, findService, formatLocal, normalizePhone, normalizeSettings, parseLocal, slotWindow } from "../../domain/booking/availability.js";
 
 const DAY = 24 * 60 * 60000;
-const REASONS = {
-  invalid_time: "Ngày/giờ không hợp lệ (cần ngày YYYY-MM-DD, giờ HH:MM).",
-  past: "Thời điểm này đã qua.",
-  too_soon: "Quá sát giờ, cần đặt trước theo quy định của cơ sở.",
-  closed_day: "Cơ sở nghỉ vào ngày này.",
-  outside_hours: "Ngoài giờ phục vụ.",
-  too_large: "Vượt quá sức chứa tối đa.",
-  full: "Đã hết chỗ ở thời điểm này.",
-};
 
 export const BOOKING_TOOL_NAMES = Object.freeze(["check_availability", "create_booking", "cancel_booking"]);
 
@@ -46,7 +38,9 @@ const describe = (record, offset) => {
 };
 
 // Bộ công cụ đặt lịch cho một lượt chat. `repository` là bookingRepository; `notifyOwner` gửi tin cho chủ (lỗi thì bỏ qua).
-export function createBookingTools({ repository, tenant, session = "", source = "chat", now = () => new Date(), notifyOwner = async () => {} }) {
+// `lang`: ngôn ngữ của văn bản trong kết quả tool (model sẽ diễn đạt lại cho khách); `ownerLang`: ngôn ngữ tin báo cho chủ.
+export function createBookingTools({ repository, tenant, session = "", source = "chat", lang = "en", ownerLang = "vi", now = () => new Date(), notifyOwner = async () => {} }) {
+  const R = (reason) => reasonText(reason, lang);
   let loaded = null;
   const load = async () => {
     loaded ||= Promise.all([repository.getSettings(tenant), repository.listServices(tenant), repository.listResources(tenant)])
@@ -59,14 +53,14 @@ export function createBookingTools({ repository, tenant, session = "", source = 
     const { settings, services, resources } = await load();
     const found = findService(services, args.service, settings);
     if (found.error) return { error: found.error, options: found.options };
-    if (needTime && found.service.unit !== "night" && !args.time) return { error: "missing_time", message: "Cần giờ cụ thể." };
+    if (needTime && found.service.unit !== "night" && !args.time) return { error: "missing_time", message: msg("need_time", lang) };
     const quantity = Math.max(1, Math.trunc(Number(args.quantity) || 1));
     if (!needTime && found.service.unit !== "night" && !args.time) {
       const day = parseLocal(args.date, "00:00", settings.tz_offset_min);
-      return day ? { settings, resources, service: found.service, win: null, day, quantity } : { error: "invalid_time", message: REASONS.invalid_time };
+      return day ? { settings, resources, service: found.service, win: null, day, quantity } : { error: "invalid_time", message: R("invalid_time") };
     }
     const win = slotWindow(found.service, args.date, args.time, args.nights, settings);
-    if (!win?.start || !win.end) return { error: "invalid_time", message: REASONS.invalid_time };
+    if (!win?.start || !win.end) return { error: "invalid_time", message: R("invalid_time") };
     return { settings, resources, service: found.service, win, quantity };
   }
 
@@ -82,29 +76,29 @@ export function createBookingTools({ repository, tenant, session = "", source = 
     const isNight = service.unit === "night";
     if (!isNight && !args.time) {
       const times = findFreeTimes({ service, resources, bookings, settings, dateStr: args.date, quantity, now: now() });
-      return { service: service.name, date: args.date, available: times.length > 0, suggested_times: times, ...(times.length ? {} : { message: REASONS.full }) };
+      return { service: service.name, date: args.date, available: times.length > 0, suggested_times: times, ...(times.length ? {} : { message: R("full") }) };
     }
     const result = checkSlot({ service, resources, bookings, settings, ...win, quantity, now: now() });
     if (result.ok) return { service: service.name, date: args.date, time: args.time || undefined, nights: win.nights, quantity, available: true };
     const suggested = !isNight && ["full", "too_soon"].includes(result.reason)
       ? findFreeTimes({ service, resources, bookings, settings, dateStr: args.date, quantity, now: now() }) : [];
-    return { service: service.name, date: args.date, time: args.time || undefined, available: false, reason: result.reason, message: REASONS[result.reason], suggested_times: suggested };
+    return { service: service.name, date: args.date, time: args.time || undefined, available: false, reason: result.reason, message: R(result.reason), suggested_times: suggested };
   }
 
   async function createBooking(args) {
     const name = String(args.customer_name || "").trim().slice(0, 100);
     const phone = normalizePhone(args.phone);
-    if (!name) return { error: "missing_name", message: "Cần tên khách." };
-    if (phone.length < 8 || phone.length > 15) return { error: "invalid_phone", message: "Số điện thoại không hợp lệ." };
+    if (!name) return { error: "missing_name", message: msg("need_name", lang) };
+    if (phone.length < 8 || phone.length > 15) return { error: "invalid_phone", message: msg("bad_phone", lang) };
     const ctx = await resolve(args, { needTime: true });
     if (ctx.error) return ctx;
     const { settings, resources, service, win, quantity } = ctx;
     const key = `${session}:${service.id || "-"}:${win.start.toISOString()}:${phone}`;
     const existing = await repository.findByIdempotencyKey(tenant, key);
-    if (existing) return { booked: true, duplicate: true, ...describe(existing, settings.tz_offset_min), message: "Lịch này đã được ghi nhận trước đó." };
+    if (existing) return { booked: true, duplicate: true, ...describe(existing, settings.tz_offset_min), message: msg("duplicate", lang) };
     // Kiểm tra lại ngay trước khi ghi để hạn chế đặt trùng giữa hai khách cùng lúc.
     const result = checkSlot({ service, resources, bookings: await bookingsAround(ctx), settings, ...win, quantity, now: now() });
-    if (!result.ok) return { booked: false, reason: result.reason, message: REASONS[result.reason] };
+    if (!result.ok) return { booked: false, reason: result.reason, message: R(result.reason) };
     const record = await repository.createBooking({
       tenant, service_id: service.id, service_name: service.name, resource_id: result.resource.id, resource_name: result.resource.name,
       start: win.start.toISOString(), end: win.end.toISOString(), party_size: quantity,
@@ -112,26 +106,26 @@ export function createBookingTools({ repository, tenant, session = "", source = 
       status: settings.manual_confirm ? "pending" : "confirmed", source, idempotency_key: key,
     });
     const info = describe(record, settings.tz_offset_min);
-    await tell(`📅 Lịch mới (${record.status === "pending" ? "chờ xác nhận" : "đã xác nhận"}): ${info.service} • ${info.date} ${info.time} • ${quantity} • ${name} ${phone} • mã ${info.code}`);
+    await tell(newBookingNotice(ownerLang, { status: record.status, service: info.service, when: `${info.date} ${info.time}`, qty: quantity, name, phone, code: info.code }));
     return {
       booked: true, ...info, customer_name: name, phone,
-      message: record.status === "pending" ? "Đã ghi nhận, cơ sở sẽ xác nhận lại với khách." : "Đã đặt thành công.",
+      message: msg(record.status === "pending" ? "pending" : "booked", lang),
     };
   }
 
   async function cancelBooking(args) {
     const { settings } = await load();
     const phone = normalizePhone(args.phone);
-    if (phone.length < 8) return { error: "invalid_phone", message: "Số điện thoại không hợp lệ." };
+    if (phone.length < 8) return { error: "invalid_phone", message: msg("bad_phone", lang) };
     let matches = await repository.listUpcomingByPhone(tenant, phone, now().toISOString());
     const code = String(args.code || "").trim().toUpperCase();
     if (code) matches = matches.filter((b) => codeOf(b) === code);
     if (args.date) matches = matches.filter((b) => formatLocal(new Date(b.start), settings.tz_offset_min).date === args.date);
-    if (!matches.length) return { cancelled: false, message: "Không tìm thấy lịch phù hợp." };
-    if (matches.length > 1) return { cancelled: false, message: "Khách có nhiều lịch, cần mã lịch hoặc ngày để chọn.", bookings: matches.map((b) => describe(b, settings.tz_offset_min)) };
+    if (!matches.length) return { cancelled: false, message: msg("not_found", lang) };
+    if (matches.length > 1) return { cancelled: false, message: msg("many", lang), bookings: matches.map((b) => describe(b, settings.tz_offset_min)) };
     await repository.updateBooking(matches[0].id, { status: "cancelled" });
     const info = describe(matches[0], settings.tz_offset_min);
-    await tell(`❌ Khách huỷ lịch: ${info.service} • ${info.date} ${info.time} • mã ${info.code}`);
+    await tell(cancelledNotice(ownerLang, { service: info.service, when: `${info.date} ${info.time}`, code: info.code }));
     return { cancelled: true, ...info, status: "cancelled" };
   }
 

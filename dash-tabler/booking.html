@@ -14,6 +14,7 @@
   <script src="_shared/ui.js"></script>
   <script src="_shared/i18n.js?v=20261021-1"></script>
   <script src="_shared/sidebar.js?v=20261021-cal"></script>
+  <script src="_shared/i18n-booking.js?v=20261026-1"></script>
 
   <style>
     @import url('https://rsms.me/inter/inter.css');
@@ -66,14 +67,14 @@
         <div class="row align-items-center mb-3">
           <div class="col">
             <h2 class="page-title">Đặt lịch</h2>
-            <div class="text-secondary mt-1">Lịch khách đặt qua chat và lịch thêm tay. Khách đặt xong bạn sẽ nhận tin Telegram.</div>
+            <div class="text-secondary mt-1">Lịch khách đặt qua chat và lịch thêm tay. Có lịch mới bạn sẽ nhận thông báo qua Telegram hoặc AI Agent tổng.</div>
           </div>
         </div>
 
         <div id="setup" class="d-none">
           <div class="card"><div class="card-body">
             <h3 class="card-title">Bật đặt lịch cho chatbot</h3>
-            <p class="text-secondary">Chọn loại hình để điền sẵn giờ làm, dịch vụ và sức chứa. Bạn có thể chỉnh sau.</p>
+            <p class="text-secondary">Chọn loại hình để điền sẵn giờ làm, dịch vụ và sức chứa, hoặc nhờ AI Agent tự cấu hình theo mô tả của bạn.</p>
             <div class="row g-3" id="templates"></div>
           </div></div>
         </div>
@@ -163,12 +164,21 @@
 <script>
 const TEMPLATES = [
   { id: 'restaurant', icon: 'ti-tools-kitchen-2', name: 'Nhà hàng', desc: 'Đặt bàn theo giờ, tính theo số khách' },
-  { id: 'spa', icon: 'ti-massage', name: 'Spa / Salon', desc: 'Dịch vụ theo kỹ thuật viên, mỗi người một lượt' },
+  { id: 'spa', icon: 'ti-massage', name: 'Spa / Massage', desc: 'Dịch vụ theo kỹ thuật viên, mỗi người một lượt' },
+  { id: 'salon', icon: 'ti-scissors', name: 'Salon tóc & nail', desc: 'Cắt, nhuộm, làm nail theo nhân viên' },
   { id: 'clinic', icon: 'ti-stethoscope', name: 'Phòng khám', desc: 'Lịch khám theo bác sĩ, nghỉ Chủ nhật' },
-  { id: 'hotel', icon: 'ti-bed', name: 'Khách sạn', desc: 'Đặt phòng theo đêm, nhận 14:00 trả 12:00' }
+  { id: 'dental', icon: 'ti-dental', name: 'Nha khoa', desc: 'Khám, lấy cao răng, trám răng theo bác sĩ' },
+  { id: 'hotel', icon: 'ti-bed', name: 'Khách sạn', desc: 'Đặt phòng theo đêm, nhận 14:00 trả 12:00' },
+  { id: 'homestay', icon: 'ti-home', name: 'Homestay', desc: 'Nhiều loại phòng, đặt theo đêm' },
+  { id: 'realestate', icon: 'ti-building-community', name: 'Bất động sản', desc: 'Đặt lịch xem nhà, tư vấn dự án theo nhân viên' },
+  { id: 'sports', icon: 'ti-ball-tennis', name: 'Sân thể thao', desc: 'Thuê sân theo giờ (pickleball, tennis, bóng đá...)' },
+  { id: 'fitness', icon: 'ti-barbell', name: 'Gym / Yoga', desc: 'PT 1-1 và lớp tập nhóm có số chỗ' },
+  { id: 'meeting_room', icon: 'ti-presentation', name: 'Phòng họp / Coworking', desc: 'Thuê phòng họp theo giờ hoặc nửa ngày' },
+  { id: 'carcare', icon: 'ti-car', name: 'Rửa xe / Gara', desc: 'Rửa xe, chăm sóc nội thất, bảo dưỡng theo khoang' }
 ];
 const STATUS = { pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận', cancelled: 'Đã huỷ', blocked: 'Đã chặn' };
 const DAY = 86400000;
+const lang = () => { try { return localStorage.getItem('lang') || 'vi'; } catch { return 'vi'; } };
 
 let data = null, offset = 420, mode = 'week', anchor = null; // anchor: 'YYYY-MM-DD' theo giờ địa phương của cơ sở
 
@@ -192,6 +202,7 @@ async function doLogin() {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function toast(msg, ok) { const el = document.createElement('div'); el.className = 'toast-item' + (ok ? ' ok' : ''); el.textContent = msg; document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), 6000); }
+const isBlock = (b) => b.status === 'blocked' || String(b.extra_json || '').includes('"block"');
 const pbDate = (v) => { const d = new Date(String(v || '').replace(' ', 'T')); return isNaN(d) ? null : d; };
 
 // Mọi ngày/giờ hiển thị theo múi giờ của cơ sở (settings.tz_offset_min), không theo máy người xem.
@@ -201,7 +212,7 @@ const localTime = (d) => localISO(d).slice(11, 16);
 const addDays = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
 const startOfWeek = (ymd) => addDays(ymd, -((new Date(ymd + 'T00:00:00Z').getUTCDay() + 6) % 7));
 const dayStartUtc = (ymd) => new Date(Date.parse(ymd + 'T00:00:00Z') - offset * 60000);
-const fmtDay = (ymd) => { const d = new Date(ymd + 'T00:00:00Z'); return ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getUTCDay()] + ' ' + ymd.slice(8) + '/' + ymd.slice(5, 7); };
+const fmtDay = (ymd) => new Intl.DateTimeFormat(lang(), { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(ymd + 'T00:00:00Z'));
 
 function range() {
   const from = mode === 'week' ? startOfWeek(anchor) : anchor;
@@ -210,10 +221,10 @@ function range() {
 }
 
 async function api(method, body) {
-  const url = `${WORKER_URL}/api/account/booking` + (method === 'GET' ? `?${body}` : '');
+  const url = `${WORKER_URL}/api/account/booking` + (method === 'GET' ? `?${body}&lang=${lang()}` : '');
   const res = await fetch(url, {
     method, headers: { Authorization: PB.authStore.token, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
-    body: method === 'POST' ? JSON.stringify({ tenant: window.TENANT, ...body }) : undefined, cache: 'no-store'
+    body: method === 'POST' ? JSON.stringify({ tenant: window.TENANT, lang: lang(), ...body }) : undefined, cache: 'no-store'
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
@@ -236,14 +247,14 @@ function render() {
   document.getElementById('main').classList.toggle('d-none', !enabled);
   if (!enabled) { renderTemplates(); return; }
   const r = range();
-  document.getElementById('range-label').textContent = mode === 'week' ? `${fmtDay(r.from)} – ${fmtDay(addDays(r.to, -1))}` : fmtDay(r.from) + '/' + r.from.slice(0, 4);
+  document.getElementById('range-label').textContent = mode === 'week' ? `${fmtDay(r.from)} – ${fmtDay(addDays(r.to, -1))}` : new Intl.DateTimeFormat(lang(), { dateStyle: 'full', timeZone: 'UTC' }).format(new Date(r.from + 'T00:00:00Z'));
   document.getElementById('mode-day').classList.toggle('active', mode === 'day');
   document.getElementById('mode-week').classList.toggle('active', mode === 'week');
   const pending = data.bookings.filter((b) => b.status === 'pending').length;
   document.getElementById('pending-count').innerHTML = pending ? `<span class="badge bg-warning">${pending} lịch chờ xác nhận</span>` : '';
   const today = localDate(new Date());
   const byDay = {};
-  for (const b of data.bookings) { if (b.status === 'cancelled' && b.service_name === 'Đã chặn') continue; const s = pbDate(b.start); if (s) (byDay[localDate(s)] ||= []).push(b); }
+  for (const b of data.bookings) { if (b.status === 'cancelled' && isBlock(b)) continue; const s = pbDate(b.start); if (s) (byDay[localDate(s)] ||= []).push(b); }
   const cell = (b) => {
     const s = pbDate(b.start), e = pbDate(b.end);
     const night = data.services.find((x) => x.id === b.service_id)?.unit === 'night';
@@ -260,7 +271,8 @@ function render() {
 }
 
 function renderTemplates() {
-  document.getElementById('templates').innerHTML = TEMPLATES.map((t) => `<div class="col-md-3"><div class="card card-link h-100" style="cursor:pointer" onclick="setup('${t.id}')"><div class="card-body text-center"><i class="ti ${t.icon}" style="font-size:2rem"></i><div class="fw-bold mt-2">${esc(t.name)}</div><div class="text-secondary small">${esc(t.desc)}</div></div></div></div>`).join('');
+  document.getElementById('templates').innerHTML = TEMPLATES.map((t) => `<div class="col-6 col-md-4 col-xl-3"><div class="card card-link h-100" style="cursor:pointer" onclick="setup('${t.id}')"><div class="card-body text-center"><i class="ti ${t.icon}" style="font-size:2rem"></i><div class="fw-bold mt-2">${esc(t.name)}</div><div class="text-secondary small">${esc(t.desc)}</div></div></div></div>`).join('')
+    + `<div class="col-6 col-md-4 col-xl-3"><a class="card card-link h-100 text-decoration-none" href="agent-chat.html"><div class="card-body text-center"><i class="ti ti-sparkles" style="font-size:2rem"></i><div class="fw-bold mt-2">Ngành khác</div><div class="text-secondary small">Mô tả cho AI Agent, ví dụ: "sân pickleball 4 sân, mở 6h-22h, thuê 1 giờ 150k"</div></div></a></div>`;
 }
 
 async function setup(template) {

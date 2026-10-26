@@ -43,12 +43,13 @@ import { listCommentThreads, pickCommentsToReply, postCommentReply } from "./int
 import { testWordPressConnection } from "./integrations/wordpress.js";
 import { signYouTubeState, verifyYouTubeState, youtubeAuthUrl, exchangeYouTubeCode, fetchYouTubeChannel, publishToYouTube, youtubePlatformPatch, youtubeSettings, refreshYouTubeAccessToken } from "./integrations/youtube.js";
 import { createLoyaltyApi } from "./api/loyalty.js";
-import { createLoyaltyRepository } from "./repositories/pocketbase/loyaltyRepository.js";
-import { BOOKING_TEMPLATES } from "./domain/booking/availability.js";
 import { buildIcs, feedToken, verifyFeedToken } from "./domain/booking/ics.js";
-import { BookingAdminError, blockTime, createManual, loadOverview, setStatus, setupFromTemplate } from "./workflows/booking/bookingAdmin.js";
+import { msg, pickLang } from "./domain/booking/i18n.js";
+import { TEMPLATE_KEYS } from "./domain/booking/templates.js";
+import { BookingAdminError, applyBookingConfig, blockTime, createManual, describeBookingConfig, loadOverview, setStatus, setupFromTemplate } from "./workflows/booking/bookingAdmin.js";
 import { createBookingRepository } from "./repositories/pocketbase/bookingRepository.js";
 import { BOOKING_GUARD_NOTE, BOOKING_RETRIEVAL_PROMPT, createBookingTools } from "./workflows/booking/bookingTools.js";
+import { createLoyaltyRepository } from "./repositories/pocketbase/loyaltyRepository.js";
 import { addLinkedPhone, buildCustomerOverview, parseLinkedPhones } from "./domain/customerPortal.js";
 import { createRewardWorldAdminApi } from "./api/rewardWorldAdmin.js";
 import { createReloadlyRewardProvider } from "./adapters/rewards/reloadly.js";
@@ -57,8 +58,8 @@ import { fulfillClaim } from "./workflows/loyalty/rewardCatalog.js";
 import { API_DOCS_HTML } from "./docs.js";
 import { CONTENT_PLANNING_COLLECTIONS, CONTENT_PLANNING_COLLECTION_EXTENSIONS } from "../../../scripts/pb-content-planning-schema.mjs";
 import { LOYALTY_COLLECTIONS } from "../../../scripts/pb-loyalty-schema.mjs";
-
 import { BOOKING_COLLECTIONS } from "../../../scripts/pb-booking-schema.mjs";
+
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -197,7 +198,6 @@ var index_default = {
       }
       // Route dùng ANYTHINGLLM/TELEGRAM/OPENAI/ADMIN_SECRET -> nạp system_config trước, ghi đè lên env.
       const env2 = { ...env, ...await getSystemConfig(env) };
-      if (url.pathname.startsWith("/api/v1/admin/reward-world/")) {
       if (url.pathname === "/api/v1/booking/calendar.ics" && request.method === "GET") {
         const tenant = url.searchParams.get("tenant") || "";
         if (!tenant || !(await verifyFeedToken(tenant, env2.ADMIN_SECRET, url.searchParams.get("token")))) return new Response("Not found", { status: 404, headers: cors });
@@ -208,6 +208,7 @@ var index_default = {
         if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         return await handleBookingSetup(request, env2, cors, url.origin);
       }
+      if (url.pathname.startsWith("/api/v1/admin/reward-world/")) {
         const providedKey = request.headers.get("X-Admin-Secret") || "";
         if (!env2.ADMIN_SECRET || providedKey !== env2.ADMIN_SECRET) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
         const pbToken = await getPbToken(env2);
@@ -415,10 +416,10 @@ var index_default = {
       if (url.pathname === "/api/account/bot-config" && ["GET", "PUT"].includes(request.method)) {
         return await handleAccountBotConfig(request, env2, cors, url);
       }
-      if (url.pathname === "/api/account/workspaces" && request.method === "GET") {
       if (url.pathname === "/api/account/booking" && ["GET", "POST"].includes(request.method)) {
         return await handleAccountBooking(request, env2, cors, url);
       }
+      if (url.pathname === "/api/account/workspaces" && request.method === "GET") {
         return await handleAccountListWorkspaces(request, env2, cors);
       }
       if (url.pathname === "/api/account/workspaces" && request.method === "POST") {
@@ -1082,27 +1083,32 @@ async function loadTenantMcpServer(env, pbToken, tenant) {
 }
 __name(loadTenantMcpServer, "loadTenantMcpServer");
 
-// Tra dữ liệu thật của tenant (MCP server + các tool GET tenant tự khai báo trong agent_tools, vd WooCommerce Store API)
-// rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
-// Đặt lịch qua chat: chỉ bật cho tenant đã có dòng booking_settings. Kết quả tra cấu hình được nhớ 60s để chat thường không tốn thêm request.
+// Đặt lịch qua chat: chỉ bật cho tenant đã có dòng booking_settings. Kết quả tra cấu hình (kèm ngôn ngữ) được nhớ 60s để chat thường không tốn thêm request.
 const bookingEnabledCache = new Map();
 async function loadBookingTools(env, pbToken, tenant, session) {
-  const client = createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
-  const repository = createBookingRepository(client);
-  const cached = bookingEnabledCache.get(tenant);
-  let enabled = cached && Date.now() - cached.at < 60000 ? cached.enabled : null;
-  if (enabled === null) {
-    enabled = !!(await repository.getSettings(tenant).catch(() => null));
-    bookingEnabledCache.set(tenant, { enabled, at: Date.now() });
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+  let entry = bookingEnabledCache.get(tenant);
+  if (!entry || Date.now() - entry.at >= 60000) {
+    const enabled = !!(await repository.getSettings(tenant).catch(() => null));
+    let responseLanguage = "";
+    if (enabled) {
+      const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records?perPage=1&fields=response_language&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers: { Authorization: pbToken } }).catch(() => null);
+      responseLanguage = res?.ok ? (await res.json().catch(() => ({}))).items?.[0]?.response_language || "" : "";
+    }
+    entry = { enabled, at: Date.now(), responseLanguage };
+    bookingEnabledCache.set(tenant, entry);
   }
-  if (!enabled) return null;
+  if (!entry.enabled) return null;
   return createBookingTools({
     repository, tenant, session,
+    // Kết quả tool để tiếng Anh khi bot tự nhận ngôn ngữ khách (model diễn đạt lại); tin báo chủ mặc định tiếng Việt.
+    lang: pickLang(entry.responseLanguage, "en"), ownerLang: pickLang(entry.responseLanguage, "vi"),
     notifyOwner: async (text) => { await notifyBookingOwner(env, pbToken, tenant, text); }
   });
 }
 __name(loadBookingTools, "loadBookingTools");
 
+// Báo chủ có lịch mới/huỷ: Telegram nếu đã kết nối, không có thì ghi vào cuộc trò chuyện của AI Agent tổng để chủ thấy khi mở dashboard.
 async function notifyBookingOwner(env, pbToken, tenant, text) {
   const get = async (collection, filter, fields) => {
     const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/${collection}/records?perPage=1&fields=${fields}&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
@@ -1119,6 +1125,8 @@ async function notifyBookingOwner(env, pbToken, tenant, text) {
 }
 __name(notifyBookingOwner, "notifyBookingOwner");
 
+// Tra dữ liệu thật của tenant (MCP server + các tool GET tenant tự khai báo trong agent_tools, vd WooCommerce Store API)
+// rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
 async function buildToolContext(env, pbToken, tenant, session, question, reservedQuota) {
   try {
     if (!env.OPENAI_KEY) return "";
@@ -1148,9 +1156,9 @@ async function buildToolContext(env, pbToken, tenant, session, question, reserve
       chatUrl: `${env.OPENAI_BASE_URL}/chat/completions`, apiKey: env.OPENAI_KEY, model,
       extraBody: toolCallReasoning(model)
     });
+    return booking ? [gathered, BOOKING_GUARD_NOTE].filter(Boolean).join("\n\n") : gathered;
   } catch (err) {
     console.error(`[Chat] Tra cứu dữ liệu lỗi (tenant ${tenant}):`, err.message);
-    return booking ? [gathered, BOOKING_GUARD_NOTE].filter(Boolean).join("\n\n") : gathered;
     return "";
   }
 }
@@ -6954,6 +6962,62 @@ var CONFIG_CHAT_TOOLS = [
         required: ["customer_ref", "points_delta", "reason"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "setup_booking",
+      description: "Bật/cấu hình tính năng ĐẶT LỊCH cho chatbot (nhà hàng, spa, phòng khám, khách sạn, BĐS xem nhà, sân thể thao, salon, homestay, nha khoa, gym, phòng họp, rửa xe... hoặc ngành bất kỳ) từ mô tả của chủ. Có thể chọn `template` để điền sẵn rồi ghi đè bằng các trường khác, hoặc tự khai báo `services` và `resources` từ lời chủ (vd 'sân pickleball 4 sân, mở 6h-22h, thuê 1 giờ 150k'). Dịch vụ cùng `resource_group` với tài nguyên thì dịch vụ đó chỉ dùng các tài nguyên của nhóm đó; bỏ trống = dùng mọi tài nguyên. `capacity` của tài nguyên: 1 người/lượt (spa, bác sĩ, sân) hoặc số khách tối đa cùng lúc (nhà hàng, lớp học) hoặc số phòng cùng loại (khách sạn). Gọi lại để sửa: mục trùng tên (không phân biệt dấu) được cập nhật; `replace`=true thì mục cũ không còn trong danh sách bị tắt. Gọi get_booking_config trước nếu cần xem cấu hình hiện tại.",
+      parameters: {
+        type: "object",
+        properties: {
+          template: { type: "string", enum: TEMPLATE_KEYS, description: "Mẫu ngành điền sẵn: restaurant, spa, clinic, hotel, realestate, sports, salon, homestay, dental, fitness, meeting_room, carcare" },
+          language: { type: "string", enum: ["vi", "en", "ja", "es", "fr", "ko"], description: "Ngôn ngữ chủ đang dùng; tên dịch vụ/tài nguyên của mẫu sẽ viết bằng ngôn ngữ này" },
+          business_type: { type: "string", description: "Loại hình, vd 'pickleball'" },
+          open_time: { type: "string", description: "Giờ mở cửa HH:MM (24h)" },
+          close_time: { type: "string", description: "Giờ đóng cửa HH:MM (24h)" },
+          closed_days: { type: "array", items: { type: "integer" }, description: "Ngày nghỉ hằng tuần: 0=Chủ nhật, 1=Thứ hai ... 6=Thứ bảy" },
+          slot_step_min: { type: "integer", description: "Bước giờ gợi ý cho khách, phút (vd 30)" },
+          min_notice_min: { type: "integer", description: "Phải đặt trước tối thiểu bao nhiêu phút" },
+          default_capacity: { type: "integer", description: "Sức chứa mặc định khi chưa khai báo tài nguyên" },
+          default_duration_min: { type: "integer", description: "Thời lượng mặc định (phút)" },
+          manual_confirm: { type: "boolean", description: "true = chủ phải xác nhận từng lịch; false = tự xác nhận khi còn chỗ" },
+          services: {
+            type: "array",
+            description: "Danh sách dịch vụ khách có thể đặt",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                unit: { type: "string", enum: ["minute", "night"], description: "minute = theo giờ/phút; night = theo đêm (khách sạn, homestay)" },
+                duration_min: { type: "integer", description: "Thời lượng phút (bỏ qua nếu theo đêm)" },
+                price_text: { type: "string", description: "Giá hiển thị, vd '150k/giờ'" },
+                resource_group: { type: "string", description: "Nhóm tài nguyên được dùng (khớp `group` của tài nguyên)" }
+              },
+              required: ["name"]
+            }
+          },
+          resources: {
+            type: "array",
+            description: "Danh sách tài nguyên: kỹ thuật viên, bác sĩ, sân, phòng, nhân viên tư vấn...",
+            items: {
+              type: "object",
+              properties: { name: { type: "string" }, group: { type: "string" }, capacity: { type: "integer" } },
+              required: ["name"]
+            }
+          },
+          replace: { type: "boolean", description: "true = tắt dịch vụ/tài nguyên cũ không còn trong danh sách mới" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_booking_config",
+      description: "Xem cấu hình đặt lịch hiện tại (giờ làm, dịch vụ, tài nguyên). Trả lời chưa bật nếu chưa cấu hình.",
+      parameters: { type: "object", properties: {} }
+    }
   }
 ];
 
@@ -7268,6 +7332,24 @@ async function executeConfigChatTool(env, pbToken, cfg, name, args, customTools 
       });
       if (!res.ok) return "Tạo kh\xE1ch thất bại.";
       return `Đ\xE3 tạo kh\xE1ch mới ${ref}.`;
+    }
+    case "setup_booking": {
+      await syncCollections(env, pbToken, BOOKING_COLLECTIONS);
+      const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+      try {
+        const lang = pickLang(args.language, pickLang(cfg.response_language, "vi"));
+        const result = await applyBookingConfig(repository, cfg.tenant, args, lang);
+        bookingEnabledCache.delete(cfg.tenant);
+        return `Đã cập nhật cấu hình đặt lịch: ${JSON.stringify(result)}. Chatbot sẽ nhận đặt lịch từ giờ. Chủ xem và chỉnh lịch ở trang Đặt lịch của dashboard.`;
+      } catch (err) {
+        if (err instanceof BookingAdminError) return `Không cấu hình được: ${err.message}`;
+        throw err;
+      }
+    }
+    case "get_booking_config": {
+      const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+      const snapshot = await describeBookingConfig(repository, cfg.tenant);
+      return snapshot ? JSON.stringify(snapshot) : "Chưa bật đặt lịch. Dùng setup_booking để cấu hình.";
     }
     case "adjust_loyalty_points": {
       const delta = Number(args.points_delta);
@@ -8924,71 +9006,6 @@ async function syncCollections(env, pbToken, definitions) {
       if (created.ok) continue;
       // Another isolate may have created it between GET and POST.
       existing = await fetchWithTimeout(`${env.PB_URL}/api/collections/${definition.name}`, { headers });
-// ================= [ĐẶT LỊCH: setup theo mẫu ngành + lịch ICS] =================
-async function bookingFeedUrl(env, origin, tenant) {
-  return `${origin}/api/v1/booking/calendar.ics?tenant=${encodeURIComponent(tenant)}&token=${await feedToken(tenant, env.ADMIN_SECRET)}`;
-}
-__name(bookingFeedUrl, "bookingFeedUrl");
-
-// Bật đặt lịch cho 1 tenant: tạo collection còn thiếu rồi điền sẵn cấu hình theo mẫu ngành (restaurant|spa|clinic|hotel).
-// Idempotent: tenant đã có cấu hình thì giữ nguyên, chỉ trả lại link lịch.
-async function handleBookingSetup(request, env, cors, origin) {
-  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
-  const body = await request.json().catch(() => ({}));
-  const tenant = String(body.tenant || "").trim();
-  if (!tenant) return json({ error: "Thiếu tenant" }, 400);
-  if (!BOOKING_TEMPLATES[body.template]) return json({ error: `template phải là một trong: ${Object.keys(BOOKING_TEMPLATES).join(", ")}` }, 400);
-  const pbToken = await getPbToken(env);
-  await syncCollections(env, pbToken, BOOKING_COLLECTIONS);
-  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
-  const { created } = await setupFromTemplate(repository, tenant, body.template);
-  if (created) bookingEnabledCache.delete(tenant);
-  return json({ success: true, created, calendar_url: await bookingFeedUrl(env, origin, tenant) });
-}
-__name(handleBookingSetup, "handleBookingSetup");
-
-// Trang quản lý đặt lịch của dashboard (đăng nhập bằng token PocketBase của chủ workspace).
-async function handleAccountBooking(request, env, cors, url) {
-  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
-  const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
-  const tenant = String((request.method === "POST" ? body.tenant : url.searchParams.get("tenant")) || "");
-  const access = await resolveMediaTenantAccess(request, env, tenant);
-  if (access.error) return json({ error: access.error }, access.status);
-  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: access.token, fetchImpl: fetchWithTimeout }));
-  try {
-    if (request.method === "GET") {
-      const overview = await loadOverview(repository, tenant, url.searchParams.get("from"), url.searchParams.get("to"));
-      return json(overview.enabled ? { ...overview, calendar_url: await bookingFeedUrl(env, url.origin, tenant) } : overview);
-    }
-    switch (body.action) {
-      case "setup":
-        await syncCollections(env, access.token, BOOKING_COLLECTIONS);
-        bookingEnabledCache.delete(tenant);
-        return json({ success: true, ...await setupFromTemplate(repository, tenant, body.template) });
-      case "create": return json({ success: true, booking: await createManual(repository, tenant, body.booking || {}) });
-      case "block": return json({ success: true, block: await blockTime(repository, tenant, body.block || {}) });
-      case "status": return json({ success: true, ...await setStatus(repository, tenant, String(body.id || ""), body.status) });
-      default: return json({ error: "action không hợp lệ" }, 400);
-    }
-  } catch (err) {
-    if (err instanceof BookingAdminError) return json({ error: err.message }, err.status);
-    console.error("[Booking] Lỗi:", err);
-    return json({ error: "Không xử lý được yêu cầu đặt lịch" }, 502);
-  }
-}
-__name(handleAccountBooking, "handleAccountBooking");
-
-async function handleBookingCalendarFeed(env, cors, tenant) {
-  const pbToken = await getPbToken(env);
-  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
-  const now = Date.now();
-  const bookings = await repository.listBookings(tenant, new Date(now - 30 * 864e5).toISOString(), new Date(now + 365 * 864e5).toISOString());
-  return new Response(buildIcs({ calendarName: `Lịch đặt chỗ - ${tenant}`, bookings }), {
-    headers: { ...cors, "Content-Type": "text/calendar; charset=utf-8", "Cache-Control": "private, max-age=300" }
-  });
-}
-__name(handleBookingCalendarFeed, "handleBookingCalendarFeed");
-
       if (!existing.ok) throw new Error(`Không tạo được ${definition.name}: ${await created.text()}`);
     }
     if (!existing.ok) throw new Error(`Không kiểm tra được ${definition.name} (${existing.status})`);
@@ -9031,6 +9048,74 @@ async function ensureLoyaltySchema(env, pbToken) {
   return _loyaltySchemaPromise;
 }
 __name(ensureLoyaltySchema, "ensureLoyaltySchema");
+
+// ================= [ĐẶT LỊCH: setup theo mẫu ngành + lịch ICS] =================
+async function bookingFeedUrl(env, origin, tenant) {
+  return `${origin}/api/v1/booking/calendar.ics?tenant=${encodeURIComponent(tenant)}&token=${await feedToken(tenant, env.ADMIN_SECRET)}`;
+}
+__name(bookingFeedUrl, "bookingFeedUrl");
+
+// Bật đặt lịch cho 1 tenant: tạo collection còn thiếu rồi điền sẵn cấu hình theo mẫu ngành (restaurant|spa|clinic|hotel).
+// Idempotent: tenant đã có cấu hình thì giữ nguyên, chỉ trả lại link lịch.
+async function handleBookingSetup(request, env, cors, origin) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = await request.json().catch(() => ({}));
+  const tenant = String(body.tenant || "").trim();
+  if (!tenant) return json({ error: "Thiếu tenant" }, 400);
+  if (!TEMPLATE_KEYS.includes(body.template)) return json({ error: `template: ${TEMPLATE_KEYS.join(", ")}` }, 400);
+  const pbToken = await getPbToken(env);
+  await syncCollections(env, pbToken, BOOKING_COLLECTIONS);
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+  const { created } = await setupFromTemplate(repository, tenant, body.template, pickLang(body.lang, "vi"));
+  if (created) bookingEnabledCache.delete(tenant);
+  return json({ success: true, created, calendar_url: await bookingFeedUrl(env, origin, tenant) });
+}
+__name(handleBookingSetup, "handleBookingSetup");
+
+// Trang quản lý đặt lịch của dashboard (đăng nhập bằng token PocketBase của chủ workspace).
+async function handleAccountBooking(request, env, cors, url) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
+  const tenant = String((request.method === "POST" ? body.tenant : url.searchParams.get("tenant")) || "");
+  const lang = pickLang(request.method === "POST" ? body.lang : url.searchParams.get("lang"), "vi");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: access.token, fetchImpl: fetchWithTimeout }));
+  try {
+    if (request.method === "GET") {
+      const overview = await loadOverview(repository, tenant, url.searchParams.get("from"), url.searchParams.get("to"), lang);
+      return json(overview.enabled ? { ...overview, calendar_url: await bookingFeedUrl(env, url.origin, tenant) } : overview);
+    }
+    switch (body.action) {
+      case "setup":
+        await syncCollections(env, access.token, BOOKING_COLLECTIONS);
+        bookingEnabledCache.delete(tenant);
+        return json({ success: true, ...await setupFromTemplate(repository, tenant, body.template, lang) });
+      case "create": return json({ success: true, booking: await createManual(repository, tenant, body.booking || {}, () => new Date(), lang) });
+      case "block": return json({ success: true, block: await blockTime(repository, tenant, body.block || {}, lang) });
+      case "status": return json({ success: true, ...await setStatus(repository, tenant, String(body.id || ""), body.status, lang) });
+      default: return json({ error: "action không hợp lệ" }, 400);
+    }
+  } catch (err) {
+    if (err instanceof BookingAdminError) return json({ error: err.message }, err.status);
+    console.error("[Booking] Lỗi:", err);
+    return json({ error: "Không xử lý được yêu cầu đặt lịch" }, 502);
+  }
+}
+__name(handleAccountBooking, "handleAccountBooking");
+
+async function handleBookingCalendarFeed(env, cors, tenant) {
+  const pbToken = await getPbToken(env);
+  const repository = createBookingRepository(createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout }));
+  const now = Date.now();
+  const bookings = await repository.listBookings(tenant, new Date(now - 30 * 864e5).toISOString(), new Date(now + 365 * 864e5).toISOString());
+  const botRes = await fetchWithTimeout(`${env.PB_URL}/api/collections/bot_configs/records?perPage=1&fields=response_language&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`, { headers: { Authorization: pbToken } }).catch(() => null);
+  const lang = pickLang(botRes?.ok ? (await botRes.json().catch(() => ({}))).items?.[0]?.response_language : "", "vi");
+  return new Response(buildIcs({ calendarName: `${msg("calendar", lang)} - ${tenant}`, bookings, lang }), {
+    headers: { ...cors, "Content-Type": "text/calendar; charset=utf-8", "Cache-Control": "private, max-age=300" }
+  });
+}
+__name(handleBookingCalendarFeed, "handleBookingCalendarFeed");
 
 // ================= [API: LỊCH ĐĂNG BÀI TỰ ĐỘNG] =================
 async function tenantHasSocialPage(env, pbToken, tenant, pageId) {

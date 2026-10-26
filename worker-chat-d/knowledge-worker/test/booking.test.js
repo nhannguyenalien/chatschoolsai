@@ -194,7 +194,7 @@ test("loadOverview báo enabled=false khi chưa bật và giới hạn khoảng 
   const overview = await loadOverview(repo, "t1", "2026-10-26T00:00:00Z", "2026-11-02T00:00:00Z");
   assert.equal(overview.enabled, true);
   assert.equal(overview.services.length, 2);
-  await assert.rejects(() => loadOverview(repo, "t1", "2026-01-01T00:00:00Z", "2026-12-01T00:00:00Z"), /Tối đa/);
+  await assert.rejects(() => loadOverview(repo, "t1", "2026-01-01T00:00:00Z", "2026-12-01T00:00:00Z"), /62/);
   await assert.rejects(() => loadOverview(repo, "t1", "nope", "2026-12-01T00:00:00Z"), BookingAdminError);
 });
 
@@ -239,4 +239,106 @@ test("dateHint báo thứ/ngày/giờ hiện tại theo múi giờ cơ sở", as
   const tools = createBookingTools({ repository: fakeRepo({ settings: spaSettings, services: spaServices }), tenant: "t1", now: () => NOW });
   const hint = await tools.dateHint();
   assert.match(hint, /Thứ hai, ngày 2026-10-26, 08:00 \(UTC\+7\)/);
+});
+
+import { TEMPLATE_KEYS, buildTemplate } from "../src/domain/booking/templates.js";
+import { BOOKING_LANGS, cancelledNotice, newBookingNotice, pickLang, reasonText } from "../src/domain/booking/i18n.js";
+import { applyBookingConfig, describeBookingConfig } from "../src/workflows/booking/bookingAdmin.js";
+
+test("12 mẫu ngành đủ 6 ngôn ngữ, tên không để sót chỗ giữ {n} và nhóm nội bộ không bị dịch", () => {
+  assert.equal(TEMPLATE_KEYS.length, 12);
+  for (const key of TEMPLATE_KEYS) {
+    const vi = buildTemplate(key, "vi");
+    for (const lang of BOOKING_LANGS) {
+      const t = buildTemplate(key, lang);
+      assert.equal(t.services.length, vi.services.length);
+      assert.equal(t.resources.length, vi.resources.length);
+      for (const item of [...t.services, ...t.resources]) assert.ok(item.name && !item.name.includes("{n}") && !item.name.includes("|"), `${key}/${lang}: ${item.name}`);
+      assert.deepEqual(t.resources.map((r) => r.group), vi.resources.map((r) => r.group));
+      assert.deepEqual(t.services.map((s) => s.resource_group), vi.services.map((s) => s.resource_group));
+    }
+    assert.notEqual(buildTemplate(key, "ja").services[0].name, vi.services[0].name);
+  }
+  assert.deepEqual(buildTemplate("sports", "en").resources.map((r) => r.name), ["Court 1", "Court 2", "Court 3", "Court 4"]);
+});
+
+test("mỗi mẫu ngành chạy được thật: có chỗ trống trong giờ làm việc ở mọi ngôn ngữ", () => {
+  for (const key of TEMPLATE_KEYS) {
+    const t = buildTemplate(key, "en");
+    const settings = normalizeSettings(t.settings);
+    const resources = t.resources.map((r, i) => ({ id: `r${i}`, ...r }));
+    for (const s of t.services) {
+      const service = { id: s.name, ...s };
+      if (service.unit === "night") {
+        const win = slotWindow(service, "2026-11-10", "", 2, settings);
+        assert.equal(checkSlot({ service, resources, bookings: [], settings, ...win, now: NOW }).ok, true, `${key}/${s.name}`);
+      } else {
+        assert.ok(findFreeTimes({ service, resources, bookings: [], settings, dateStr: "2026-11-10", now: NOW }).length > 0, `${key}/${s.name}`);
+      }
+    }
+  }
+});
+
+test("thông báo và lỗi có đủ 6 ngôn ngữ, ngôn ngữ lạ/auto rơi về mặc định", () => {
+  assert.equal(pickLang("auto"), "en");
+  assert.equal(pickLang("ja-JP"), "ja");
+  assert.equal(pickLang("xx", "vi"), "vi");
+  for (const lang of BOOKING_LANGS) {
+    for (const reason of ["invalid_time", "past", "too_soon", "closed_day", "outside_hours", "too_large", "full"]) assert.ok(reasonText(reason, lang).length > 3, `${lang}/${reason}`);
+    assert.doesNotMatch(newBookingNotice(lang, { status: "confirmed", service: "S", when: "d t", qty: 2, name: "N", phone: "P", code: "C" }), /\{|undefined/);
+    assert.doesNotMatch(cancelledNotice(lang, { service: "S", when: "w", code: "C" }), /\{|undefined/);
+  }
+  assert.match(newBookingNotice("ja", { status: "pending", service: "S", when: "w", qty: 1, name: "N", phone: "P", code: "C" }), /確認待ち/);
+  assert.match(reasonText("full", "fr"), /Complet/);
+});
+
+test("tool trả văn bản theo ngôn ngữ cấu hình và báo chủ theo ngôn ngữ chủ", async () => {
+  const repository = fakeRepo({ settings: spaSettings, services: spaServices, resources: [spaResources[0]] });
+  const notes = [];
+  const tools = createBookingTools({ repository, tenant: "t1", session: "s", lang: "es", ownerLang: "ko", now: () => NOW, notifyOwner: async (m) => notes.push(m) });
+  const run = async (name, args) => JSON.parse(await tools.execute(name, args));
+  const args = { service: "massage", date: "2026-10-27", time: "10:00", customer_name: "Ana", phone: "0912345678" };
+  assert.match((await run("create_booking", args)).message, /con éxito/);
+  assert.match(notes[0], /새 예약/);
+  assert.match((await run("create_booking", { ...args, phone: "0900000009" })).message, /Completo/);
+  assert.match((await run("create_booking", { ...args, customer_name: "" })).message, /nombre/);
+});
+
+test("applyBookingConfig: cấu hình từ hội thoại, ghi đè theo tên không dấu, replace tắt mục cũ", async () => {
+  const store = { settings: null, services: [], resources: [], seq: 0 };
+  const repo = {
+    getSettings: async () => store.settings,
+    listServices: async () => store.services,
+    listResources: async () => store.resources,
+    createRecord: async (c, r) => { const row = { id: `x${++store.seq}`, ...r }; if (c === "booking_settings") store.settings = row; else store[c === "booking_services" ? "services" : "resources"].push(row); return row; },
+    updateRecord: async (c, id, patch) => { const list = c === "booking_settings" ? [store.settings] : store[c === "booking_services" ? "services" : "resources"]; Object.assign(list.find((x) => x.id === id), patch); },
+  };
+  const first = await applyBookingConfig(repo, "t1", {
+    business_type: "pickleball", open_time: "6:00", close_time: "22:00", slot_step_min: 60, closed_days: [0],
+    services: [{ name: "Thuê sân 1 giờ", duration_min: 60, price_text: "150k", resource_group: "court" }],
+    resources: [{ name: "Sân 1", group: "court" }, { name: "Sân 2", group: "court", capacity: 1 }],
+  });
+  assert.deepEqual(first.services, { created: 1, updated: 0, deactivated: 0 });
+  assert.deepEqual(first.resources, { created: 2, updated: 0, deactivated: 0 });
+  assert.equal(store.settings.open_time, "06:00");
+  assert.equal(store.settings.closed_days, "0");
+  assert.equal(store.settings.tz_offset_min, 420);
+
+  const second = await applyBookingConfig(repo, "t1", { default_capacity: 2, services: [{ name: "thue san 1 gio", duration_min: 90 }, { name: "Thuê sân 2 giờ", duration_min: 120, resource_group: "court" }], resources: [{ name: "Sân 1", group: "court" }], replace: true });
+  assert.deepEqual(second.services, { created: 1, updated: 1, deactivated: 0 });
+  assert.deepEqual(second.resources, { created: 0, updated: 1, deactivated: 1 });
+  assert.equal(store.services[0].duration_min, 90);
+  assert.equal(store.resources.find((r) => r.name === "Sân 2").status, "inactive");
+  const snapshot = await describeBookingConfig(repo, "t1");
+  assert.equal(snapshot.resources.length, 1);
+  assert.equal(snapshot.settings.default_capacity, 2);
+
+  const odd = await applyBookingConfig(repo, "t1", { open_time: "25:99", slot_step_min: 1, default_capacity: -3 });
+  assert.deepEqual(odd, {});
+  assert.equal(store.settings.open_time, "06:00");
+  assert.equal(store.settings.slot_step_min, 60);
+  const tpl = await applyBookingConfig({ ...repo, getSettings: async () => null }, "t2", { template: "salon" }, "ja");
+  assert.equal(tpl.services.created, 3);
+  assert.ok(store.services.some((s) => s.name === "ヘアカット"));
+  await assert.rejects(() => applyBookingConfig(repo, "t1", { template: "casino" }), BookingAdminError);
 });

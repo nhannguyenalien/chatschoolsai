@@ -1,5 +1,7 @@
 // Lịch iCalendar chỉ đọc cho từng tenant: chủ cơ sở dán link vào Google/Apple/Outlook Calendar là thấy booking.
 
+import { msg } from "./i18n.js";
+
 const esc = (v) => String(v ?? "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 const stamp = (d) => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
@@ -11,13 +13,13 @@ function fold(line) {
   return parts.join("\r\n");
 }
 
-export function buildIcs({ calendarName, bookings, now = new Date() }) {
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SchoolsAI//Booking//VI", "CALSCALE:GREGORIAN", `X-WR-CALNAME:${esc(calendarName || "Lịch đặt chỗ")}`];
+export function buildIcs({ calendarName, bookings, now = new Date(), lang = "vi" }) {
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SchoolsAI//Booking//VI", "CALSCALE:GREGORIAN", `X-WR-CALNAME:${esc(calendarName || msg("calendar", lang))}`];
   for (const b of bookings || []) {
     if (b.status === "cancelled") continue;
     const blocked = b.status === "blocked";
-    const summary = blocked ? "Đã chặn lịch" : [b.service_name, b.customer_name && `${b.customer_name}${b.party_size > 1 ? ` (${b.party_size})` : ""}`].filter(Boolean).join(" - ") || "Đặt chỗ";
-    const description = [b.phone && `SĐT: ${b.phone}`, b.resource_name && `Phục vụ: ${b.resource_name}`, b.notes].filter(Boolean).join("\n");
+    const summary = blocked ? msg("blocked", lang) : [b.service_name, b.customer_name && `${b.customer_name}${b.party_size > 1 ? ` (${b.party_size})` : ""}`].filter(Boolean).join(" - ") || msg("booking", lang);
+    const description = [b.phone && `${msg("phone", lang)}: ${b.phone}`, b.resource_name && `${msg("served_by", lang)}: ${b.resource_name}`, b.notes].filter(Boolean).join("\n");
     lines.push(
       "BEGIN:VEVENT", `UID:${esc(b.id)}@booking.schoolsai`, `DTSTAMP:${stamp(now)}`, `DTSTART:${stamp(b.start)}`, `DTEND:${stamp(b.end)}`,
       `SUMMARY:${esc(summary)}`, ...(description ? [`DESCRIPTION:${esc(description)}`] : []),

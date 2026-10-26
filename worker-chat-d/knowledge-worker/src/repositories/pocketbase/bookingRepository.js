@@ -30,6 +30,7 @@ export function createBookingRepository(client) {
     },
     getBooking: (id) => client.get("bookings", id),
     createRecord: (collection, record) => client.create(collection, record),
+    updateRecord: (collection, id, patch) => client.update(collection, id, patch),
     createBooking: (record) => client.create("bookings", { ...record, start: pbDate(record.start), end: pbDate(record.end) }),
     updateBooking: (id, patch) => client.update("bookings", id, patch),
   };

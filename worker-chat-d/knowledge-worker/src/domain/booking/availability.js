@@ -143,32 +143,4 @@ export function findFreeTimes({ service, resources, bookings, settings, dateStr,
   return times;
 }
 
-// Mẫu cấu hình theo ngành: chủ chỉ chọn loại hình rồi sửa tên/số, không phải điền từng mục.
-const BASE_SETTINGS = { tz_offset_min: 420, min_notice_min: 60, slot_step_min: 30, default_capacity: 1, default_duration_min: 60, open_time: "08:00", close_time: "21:00", closed_days: "" };
-const withDefaults = (settings) => ({ ...BASE_SETTINGS, ...settings });
-
-export const BOOKING_TEMPLATES = Object.freeze({
-  restaurant: {
-    settings: withDefaults({ business_type: "restaurant", open_time: "10:00", close_time: "22:00", default_capacity: 40, default_duration_min: 90 }),
-    services: [{ name: "Đặt bàn", unit: "minute", duration_min: 90, resource_group: "" }],
-    resources: [{ name: "Sảnh chính", group: "", capacity: 40 }],
-  },
-  spa: {
-    settings: withDefaults({ business_type: "spa", open_time: "09:00", close_time: "21:00", default_duration_min: 60 }),
-    services: [
-      { name: "Massage 60 phút", unit: "minute", duration_min: 60, resource_group: "" },
-      { name: "Chăm sóc da mặt", unit: "minute", duration_min: 60, resource_group: "" },
-    ],
-    resources: [{ name: "Kỹ thuật viên 1", group: "", capacity: 1 }, { name: "Kỹ thuật viên 2", group: "", capacity: 1 }],
-  },
-  clinic: {
-    settings: withDefaults({ business_type: "clinic", open_time: "08:00", close_time: "17:00", closed_days: "0", slot_step_min: 20, default_duration_min: 20 }),
-    services: [{ name: "Khám tổng quát", unit: "minute", duration_min: 20, resource_group: "" }],
-    resources: [{ name: "Bác sĩ 1", group: "", capacity: 1 }],
-  },
-  hotel: {
-    settings: withDefaults({ business_type: "hotel", default_capacity: 5 }),
-    services: [{ name: "Phòng Standard", unit: "night", resource_group: "Standard" }],
-    resources: [{ name: "Standard", group: "Standard", capacity: 5 }],
-  },
-});
+export { BOOKING_TEMPLATES } from "./templates.js";
