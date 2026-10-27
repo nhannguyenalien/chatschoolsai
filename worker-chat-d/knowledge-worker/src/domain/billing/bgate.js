@@ -140,8 +140,11 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   }
   if (path === '/api/account/billing/setup' && request.method === 'GET') {
     const tenant = new URL(request.url).searchParams.get('tenant') || '';
-    if (!store || !/^[a-z0-9_-]{1,40}$/i.test(tenant) || !(await store.ownsTenant(account, tenant))) return reply({ error: 'Không tìm thấy workspace.' }, 404);
-    return reply({ tenant, status: (await store.setupState(tenant)).status || 'none' });
+    if (!store || !/^[a-z0-9_-]{1,40}$/i.test(tenant)) return reply({ error: 'Không tìm thấy workspace.' }, 404);
+    try {
+      if (!(await store.ownsTenant(account, tenant))) return reply({ error: 'Không tìm thấy workspace.' }, 404);
+      return reply({ tenant, status: (await store.setupState(tenant)).status || 'none' });
+    } catch { return reply({ error: 'Gói hỗ trợ cài đặt chưa sẵn sàng.' }, 503); }
   }
   const paymentMatch = path.match(/^\/api\/account\/billing\/payments\/([a-f0-9-]{36})$/i);
   if (paymentMatch && request.method === 'GET') {
@@ -192,10 +195,13 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   if (plan.kind === 'setup') {
     setupTenant = String(body.tenant || '');
     if (!/^[a-z0-9_-]{1,40}$/i.test(setupTenant)) return reply({ error: 'Thiếu workspace cần cài đặt.' }, 400);
-    if (!store || !(await store.ownsTenant(account, setupTenant))) return reply({ error: 'Bạn không phải chủ workspace này.' }, 403);
-    if (SETUP_STATUSES_DONE.includes((await store.setupState(setupTenant)).status)) {
-      return reply({ error: 'Workspace này đã mua gói hỗ trợ cài đặt.' }, 409);
-    }
+    if (!store) return reply({ error: 'Bạn không phải chủ workspace này.' }, 403);
+    try {
+      if (!(await store.ownsTenant(account, setupTenant))) return reply({ error: 'Bạn không phải chủ workspace này.' }, 403);
+      if (SETUP_STATUSES_DONE.includes((await store.setupState(setupTenant)).status)) {
+        return reply({ error: 'Workspace này đã mua gói hỗ trợ cài đặt.' }, 409);
+      }
+    } catch { return reply({ error: 'Gói hỗ trợ cài đặt chưa sẵn sàng.' }, 503); }
   }
   try {
     const response = await fetchImpl(`${BASE_URL}/api/v1/checkout`, {

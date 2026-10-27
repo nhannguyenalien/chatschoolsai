@@ -130,3 +130,11 @@ test('plans listing exposes the setup kind; status endpoint is owner-only; cron 
   assert.equal(await fetchPaidSetupOrder(env, ORDER, async () => Response.json({ ...order, status: 'paid', amount: '10' })), null);
   assert.equal(await fetchPaidSetupOrder(env, 'not-an-id', fetch), null);
 });
+
+test('storage failures (e.g. schema not created yet) fail closed with 503, never 500 or a sale', async () => {
+  const broken = { ownsTenant: async () => { throw new Error('bot_configs setup fields missing'); }, setupState: async () => ({ status: '' }) };
+  const provider = async () => { throw new Error('must not reach provider'); };
+  assert.equal((await handleBGate(checkout(), env, { id: 'acct' }, {}, provider, broken)).status, 503);
+  const res = await handleBGate(new Request('https://app.test/api/account/billing/setup?tenant=shop-a'), env, { id: 'acct' }, {}, provider, broken);
+  assert.equal(res.status, 503);
+});
