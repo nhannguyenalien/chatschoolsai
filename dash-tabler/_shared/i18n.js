@@ -16,7 +16,7 @@ const I18N_DICT = {
     nav_leads: "Khách Hàng Tiềm Năng",
     nav_billing: "Thanh Toán",
     nav_posts: "Bài Đăng BDS",
-    nav_composer: "Soạn Bài", nav_booking: "Đặt lịch",
+    nav_composer: "Soạn Bài", nav_blog: "Viết Blog", nav_calendar: "Lịch đăng bài", nav_booking: "Đặt lịch",
     nav_analytics: "Analytics",
     nav_sm_config: "Cấu Hình Kênh",
     nav_loyalty: "Khách Hàng & Tích Điểm",
@@ -136,7 +136,7 @@ const I18N_DICT = {
     nav_leads: "Leads",
     nav_billing: "Billing",
     nav_posts: "Social Posts",
-    nav_composer: "Composer", nav_booking: "Bookings",
+    nav_composer: "Composer", nav_blog: "Blog Editor", nav_calendar: "Publishing Calendar", nav_booking: "Bookings",
     nav_analytics: "Analytics",
     nav_sm_config: "Channel Settings",
     nav_loyalty: "Customers & Loyalty",
@@ -236,7 +236,7 @@ const I18N_DICT = {
     wg_tpl_purple_name: "Elegant Purple", wg_tpl_purple_desc: "Great fit for beauty and fashion brands"
   },
   ja: {
-    nav_overview: "概要", nav_bot_settings: "ボット設定", nav_agent_chat: "エージェントとチャット", nav_knowledge: "ナレッジベース", nav_messages: "チャット履歴", nav_leads: "見込み客", nav_billing: "請求", nav_posts: "SNS投稿", nav_composer: "投稿作成", nav_analytics: "分析", nav_sm_config: "チャンネル設定", nav_loyalty: "顧客・ロイヤルティ", nav_social_media: "ソーシャルメディア", logout: "ログアウト",
+    nav_overview: "概要", nav_bot_settings: "ボット設定", nav_agent_chat: "エージェントとチャット", nav_knowledge: "ナレッジベース", nav_messages: "チャット履歴", nav_leads: "見込み客", nav_billing: "請求", nav_posts: "SNS投稿", nav_composer: "投稿作成", nav_blog: "ブログ編集", nav_calendar: "投稿カレンダー", nav_analytics: "分析", nav_sm_config: "チャンネル設定", nav_loyalty: "顧客・ロイヤルティ", nav_social_media: "ソーシャルメディア", logout: "ログアウト",
     language: "言語", cfg_response_language: "返信言語", cfg_response_language_hint: "自動では顧客の言語を検出します。固定する場合は言語を選択してください。", comp_content_language: "コンテンツ言語", lang_auto_customer: "自動（顧客の言語）", lang_auto_interface: "自動（画面の言語）", btn_save: "保存", btn_cancel: "キャンセル", btn_delete: "削除", btn_add: "追加", btn_search: "検索", btn_send: "送信", loading: "読み込み中...",
     idx_title: "カスタマーAIハブ",
     cfg_breadcrumb: "ボット設定", cfg_title: "アシスタントを設定", cfg_subtitle: "チャットボットの性格、動作、技術パラメータを設定します。", cfg_agentchat_banner_title: "AIエージェントとチャット", cfg_agentchat_banner_sub: "会話するだけでシステムを設定できます。下のフォームを探す必要はありません。専用ページを開いてください。", cfg_card_api_title: "外部システム向けAPI", cfg_card_agent_title: "AI運用エージェント", cfg_card_tools_title: "エージェント用カスタムツール（外部API）", cfg_card_persona_title: "システムペルソナ",
@@ -250,7 +250,7 @@ const I18N_DICT = {
     nav_widget: "ウィジェット埋め込み", btn_copy: "コピー", wg_title: "チャットボットをウェブサイトに埋め込む", wg_templates_title: "テンプレート", wg_customize_title: "カスタム設定", wg_color: "アクセントカラー", wg_position: "チャットバブルの位置", wg_position_right: "右下", wg_position_left: "左下", wg_display_style: "表示スタイル", wg_style_bubble: "フローティングバブル", wg_style_sidebar: "サイドバー固定", wg_widget_lang: "ウィジェットの言語", wg_snippet_title: "埋め込みコード", wg_preview_title: "ライブプレビュー"
   },
   es: {
-    nav_overview: "Resumen", nav_bot_settings: "Configuración del bot", nav_agent_chat: "Chat con el agente", nav_knowledge: "Base de conocimiento", nav_messages: "Historial de chats", nav_leads: "Clientes potenciales", nav_billing: "Facturación", nav_posts: "Publicaciones sociales", nav_composer: "Redactor", nav_analytics: "Analítica", nav_sm_config: "Configuración de canales", nav_loyalty: "Clientes y fidelización", nav_social_media: "Redes sociales", logout: "Cerrar sesión",
+    nav_overview: "Resumen", nav_bot_settings: "Configuración del bot", nav_agent_chat: "Chat con el agente", nav_knowledge: "Base de conocimiento", nav_messages: "Historial de chats", nav_leads: "Clientes potenciales", nav_billing: "Facturación", nav_posts: "Publicaciones sociales", nav_composer: "Redactor", nav_blog: "Editor de blog", nav_calendar: "Calendario de publicaciones", nav_analytics: "Analítica", nav_sm_config: "Configuración de canales", nav_loyalty: "Clientes y fidelización", nav_social_media: "Redes sociales", logout: "Cerrar sesión",
     language: "Idioma", cfg_response_language: "Idioma de respuesta", cfg_response_language_hint: "El modo automático detecta el idioma del cliente; selecciona uno para fijarlo.", comp_content_language: "Idioma del contenido", lang_auto_customer: "Automático: idioma del cliente", lang_auto_interface: "Automático: idioma de la interfaz", btn_save: "Guardar", btn_cancel: "Cancelar", btn_delete: "Eliminar", btn_add: "Añadir", btn_search: "Buscar", btn_send: "Enviar", loading: "Cargando...",
     idx_title: "Centro de IA para clientes",
     cfg_breadcrumb: "Configuración del bot", cfg_title: "Configurar asistente", cfg_subtitle: "Configura la personalidad, el comportamiento y los parámetros técnicos de tu chatbot.", cfg_agentchat_banner_title: "Chat con el agente de IA", cfg_agentchat_banner_sub: "Habla para configurar el sistema sin buscar entre los formularios. Abre la página dedicada.", cfg_card_api_title: "API para sistemas externos", cfg_card_agent_title: "Agente de operaciones de IA", cfg_card_tools_title: "Herramientas personalizadas del agente (API externas)", cfg_card_persona_title: "Personalidad del sistema",
@@ -264,7 +264,7 @@ const I18N_DICT = {
     nav_widget: "Widget incrustado", btn_copy: "Copiar", wg_title: "Incrusta el chatbot en tu sitio web", wg_templates_title: "Plantillas", wg_customize_title: "Opciones personalizadas", wg_color: "Color de acento", wg_position: "Posición de la burbuja", wg_position_right: "Abajo a la derecha", wg_position_left: "Abajo a la izquierda", wg_display_style: "Estilo de visualización", wg_style_bubble: "Burbuja flotante", wg_style_sidebar: "Barra lateral fija", wg_widget_lang: "Idioma del widget", wg_snippet_title: "Código para incrustar", wg_preview_title: "Vista previa en vivo"
   },
   fr: {
-    nav_overview: "Vue d’ensemble", nav_bot_settings: "Paramètres du bot", nav_agent_chat: "Discuter avec l’agent", nav_knowledge: "Base de connaissances", nav_messages: "Historique des chats", nav_leads: "Prospects", nav_billing: "Facturation", nav_posts: "Publications sociales", nav_composer: "Rédacteur", nav_analytics: "Analytique", nav_sm_config: "Paramètres des canaux", nav_loyalty: "Clients et fidélité", nav_social_media: "Réseaux sociaux", logout: "Se déconnecter",
+    nav_overview: "Vue d’ensemble", nav_bot_settings: "Paramètres du bot", nav_agent_chat: "Discuter avec l’agent", nav_knowledge: "Base de connaissances", nav_messages: "Historique des chats", nav_leads: "Prospects", nav_billing: "Facturation", nav_posts: "Publications sociales", nav_composer: "Rédacteur", nav_blog: "Éditeur de blog", nav_calendar: "Calendrier de publication", nav_analytics: "Analytique", nav_sm_config: "Paramètres des canaux", nav_loyalty: "Clients et fidélité", nav_social_media: "Réseaux sociaux", logout: "Se déconnecter",
     language: "Langue", cfg_response_language: "Langue de réponse", cfg_response_language_hint: "Le mode automatique détecte la langue du client ; sélectionnez une langue pour la fixer.", comp_content_language: "Langue du contenu", lang_auto_customer: "Auto — langue du client", lang_auto_interface: "Auto — langue de l’interface", btn_save: "Enregistrer", btn_cancel: "Annuler", btn_delete: "Supprimer", btn_add: "Ajouter", btn_search: "Rechercher", btn_send: "Envoyer", loading: "Chargement...",
     idx_title: "Hub IA client",
     cfg_breadcrumb: "Configuration du bot", cfg_title: "Configurer l’assistant", cfg_subtitle: "Configurez la personnalité, le comportement et les paramètres techniques de votre chatbot.", cfg_agentchat_banner_title: "Discuter avec l’agent IA", cfg_agentchat_banner_sub: "Discutez simplement pour configurer le système sans parcourir les formulaires. Ouvrez la page dédiée.", cfg_card_api_title: "API pour les systèmes externes", cfg_card_agent_title: "Agent d’exploitation IA", cfg_card_tools_title: "Outils personnalisés de l’agent (API externes)", cfg_card_persona_title: "Personnalité du système",
@@ -278,7 +278,7 @@ const I18N_DICT = {
     nav_widget: "Widget à intégrer", btn_copy: "Copier", wg_title: "Intégrer le chatbot sur votre site", wg_templates_title: "Modèles", wg_customize_title: "Options personnalisées", wg_color: "Couleur d’accent", wg_position: "Position de la bulle", wg_position_right: "En bas à droite", wg_position_left: "En bas à gauche", wg_display_style: "Style d’affichage", wg_style_bubble: "Bulle flottante", wg_style_sidebar: "Barre latérale fixe", wg_widget_lang: "Langue du widget", wg_snippet_title: "Code à intégrer", wg_preview_title: "Aperçu en direct"
   },
   ko: {
-    nav_overview: "개요", nav_bot_settings: "봇 설정", nav_agent_chat: "에이전트와 채팅", nav_knowledge: "지식 베이스", nav_messages: "채팅 기록", nav_leads: "잠재 고객", nav_billing: "결제", nav_posts: "소셜 게시물", nav_composer: "게시물 작성", nav_analytics: "분석", nav_sm_config: "채널 설정", nav_loyalty: "고객 및 로열티", nav_social_media: "소셜 미디어", logout: "로그아웃",
+    nav_overview: "개요", nav_bot_settings: "봇 설정", nav_agent_chat: "에이전트와 채팅", nav_knowledge: "지식 베이스", nav_messages: "채팅 기록", nav_leads: "잠재 고객", nav_billing: "결제", nav_posts: "소셜 게시물", nav_composer: "게시물 작성", nav_blog: "블로그 편집", nav_calendar: "게시 캘린더", nav_analytics: "분석", nav_sm_config: "채널 설정", nav_loyalty: "고객 및 로열티", nav_social_media: "소셜 미디어", logout: "로그아웃",
     language: "언어", cfg_response_language: "응답 언어", cfg_response_language_hint: "자동 모드는 고객 언어를 감지합니다. 고정하려면 언어를 선택하세요.", comp_content_language: "콘텐츠 언어", lang_auto_customer: "자동 — 고객 언어", lang_auto_interface: "자동 — 인터페이스 언어", btn_save: "저장", btn_cancel: "취소", btn_delete: "삭제", btn_add: "추가", btn_search: "검색", btn_send: "보내기", loading: "불러오는 중...",
     idx_title: "고객 AI 허브",
     cfg_breadcrumb: "봇 설정", cfg_title: "어시스턴트 설정", cfg_subtitle: "챗봇의 성격, 동작 및 기술 매개변수를 설정합니다.", cfg_agentchat_banner_title: "AI 에이전트와 채팅", cfg_agentchat_banner_sub: "대화만으로 시스템을 설정할 수 있습니다. 아래 폼을 찾을 필요 없이 전용 페이지를 여세요.", cfg_card_api_title: "외부 시스템용 API", cfg_card_agent_title: "AI 운영 에이전트", cfg_card_tools_title: "에이전트 사용자 지정 도구(외부 API)", cfg_card_persona_title: "시스템 페르소나",
@@ -528,8 +528,12 @@ function translateLegacyContent(root = document) {
 }
 
 function getLang() {
-  const saved = localStorage.getItem("lang") || "vi";
-  return SUPPORTED_LANGS.includes(saved) ? saved : "vi";
+  const saved = localStorage.getItem("lang");
+  if (SUPPORTED_LANGS.includes(saved)) return saved;
+  // Khách chưa chọn: theo ngôn ngữ trình duyệt (vi, en, ja, es, fr, ko), không hỗ trợ thì tiếng Anh.
+  const prefs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"];
+  const match = prefs.map((l) => String(l).slice(0, 2).toLowerCase()).find((l) => SUPPORTED_LANGS.includes(l));
+  return match || "en";
 }
 
 function t(key) {

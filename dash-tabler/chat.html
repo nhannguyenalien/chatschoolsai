@@ -154,26 +154,26 @@
     <aside class="offcanvas-md offcanvas-start border-end d-flex flex-column bg-white flex-shrink-0" tabindex="-1" id="sidebar" style="width: 300px;">
         <div class="offcanvas-header border-bottom d-md-none bg-light">
             <h5 class="offcanvas-title d-flex align-items-center gap-2 fw-bold">
-                <i class="ti ti-bulb text-yellow fs-2"></i> Ghi chú quan trọng
+                <i class="ti ti-bulb text-yellow fs-2"></i> <span data-i18n="note_title">Ghi chú quan trọng</span>
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebar"></button>
         </div>
         
         <div class="p-3 border-bottom bg-light">
             <h2 class="fs-4 fw-bold text-body d-none d-md-flex align-items-center gap-2 mb-2">
-                <i class="ti ti-bulb text-yellow fs-2"></i> Ghi chú quan trọng
+                <i class="ti ti-bulb text-yellow fs-2"></i> <span data-i18n="note_title">Ghi chú quan trọng</span>
             </h2>
             <p class="text-secondary fs-5 mb-0">
-                Chào mừng <span id="uname-sidebar" class="fw-bold text-primary"></span> đến với hệ thống AI. Vui lòng gửi tin nhắn để bắt đầu.
+                <span data-i18n="welcome_a">Chào mừng</span> <span id="uname-sidebar" class="fw-bold text-primary"></span> <span data-i18n="welcome_b">đến với hệ thống AI. Vui lòng gửi tin nhắn để bắt đầu.</span>
             </p>
         </div>
 
         <div class="p-3 border-bottom">
-            <label class="form-label fs-5 fw-bold text-secondary mb-2">🔗 Lưu phiên chat sang máy khác:</label>
+            <label class="form-label fs-5 fw-bold text-secondary mb-2" data-i18n="save_session">🔗 Lưu phiên chat sang máy khác:</label>
             <div class="input-group input-group-flat">
                 <input type="text" id="session-url" readonly class="form-control text-secondary fs-5 bg-transparent" style="cursor: text;">
                 <span class="input-group-text p-0">
-                    <button class="btn btn-icon btn-light border-0 w-100 h-100" onclick="copySessionUrl()" title="Copy đường dẫn" style="border-radius: 0 4px 4px 0;">
+                    <button class="btn btn-icon btn-light border-0 w-100 h-100" onclick="copySessionUrl()" data-i18n-title="copy_link" title="Copy đường dẫn" style="border-radius: 0 4px 4px 0;">
                         <i class="ti ti-copy text-secondary fs-3" id="copy-icon"></i>
                     </button>
                 </span>
@@ -182,10 +182,10 @@
 
         <div class="p-3 flex-grow-1 overflow-auto">
             <h2 class="fs-4 fw-bold text-body mb-3 d-flex align-items-center gap-2">
-                <i class="ti ti-folder text-blue fs-2"></i> Tài liệu của bot
+                <i class="ti ti-folder text-blue fs-2"></i> <span data-i18n="bot_docs">Tài liệu của bot</span>
             </h2>
             <ul class="list-unstyled d-flex flex-column gap-2" id="file-list">
-                <li class="text-secondary fst-italic text-center py-4 fs-5">Chưa có tài liệu nào</li>
+                <li class="text-secondary fst-italic text-center py-4 fs-5" data-i18n="no_docs">Chưa có tài liệu nào</li>
             </ul>
         </div>
     </aside>
@@ -207,7 +207,8 @@
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                <button class="btn btn-icon btn-ghost-secondary" id="btn-call" onclick="startAiVoiceCall()" title="Gọi AI hỗ trợ">
+                <button class="btn btn-sm btn-ghost-secondary fw-bold" type="button" onclick="toggleChatLang()" data-i18n-title="lang_switch" title="Ngôn ngữ" id="lang-toggle-btn"></button>
+                <button class="btn btn-icon btn-ghost-secondary" id="btn-call" onclick="startAiVoiceCall()" data-i18n-title="call_ai" title="Gọi AI hỗ trợ">
                     <i class="ti ti-phone"></i>
                 </button>
                 <div class="badge bg-light text-secondary fs-5 fw-semibold d-none d-sm-block py-2 px-3 border" id="uname-header">
@@ -223,10 +224,10 @@
                 <span class="text-secondary flex-shrink-0 d-none" id="call-timer">00:00</span>
             </div>
             <div class="d-flex gap-2 flex-shrink-0">
-                <button class="btn btn-sm btn-icon btn-ghost-secondary d-none" id="call-btn-mute" onclick="toggleCallMute()" title="Tắt mic">
+                <button class="btn btn-sm btn-icon btn-ghost-secondary d-none" id="call-btn-mute" onclick="toggleCallMute()" data-i18n-title="mute" title="Tắt mic">
                     <i class="ti ti-microphone"></i>
                 </button>
-                <button class="btn btn-sm btn-icon btn-danger" id="call-btn-end" onclick="endCall()" title="Kết thúc/từ chối">
+                <button class="btn btn-sm btn-icon btn-danger" id="call-btn-end" onclick="endCall()" data-i18n-title="end_reject" title="Kết thúc/từ chối">
                     <i class="ti ti-phone-x"></i>
                 </button>
             </div>
@@ -248,13 +249,13 @@
 
         <div class="p-2 p-md-3 bg-white border-top flex-shrink-0">
             <div class="input-group bg-light border rounded-3 p-1 transition-shadow focus-within-shadow">
-                <label class="btn btn-icon btn-ghost-secondary border-0 mb-0 d-flex align-items-center justify-content-center align-self-end rounded-circle" title="Đính kèm file" style="width:40px;height:40px;">
+                <label class="btn btn-icon btn-ghost-secondary border-0 mb-0 d-flex align-items-center justify-content-center align-self-end rounded-circle" data-i18n-title="attach" title="Đính kèm file" style="width:40px;height:40px;">
                     <i class="ti ti-paperclip fs-2"></i>
                     <input type="file" id="file-upload" class="d-none" multiple onchange="handleFileUpload(event)"/>
                 </label>
                 
                 <textarea class="form-control bg-transparent border-0 shadow-none resize-none py-2 px-2" 
-                    id="chat-input" placeholder="Nhập tin nhắn..." rows="1" style="min-height: 40px; max-height: 120px;"></textarea>
+                    id="chat-input" data-i18n-placeholder="placeholder" placeholder="Nhập tin nhắn..." rows="1" style="min-height: 40px; max-height: 120px;"></textarea>
 
                 <button class="btn btn-primary btn-icon align-self-end rounded-3 mb-0" style="width:40px;height:40px;" disabled id="send-btn" onclick="send()">
                     <i class="ti ti-send"></i>
@@ -277,16 +278,16 @@
                 <div class="avatar avatar-lg bg-blue-lt rounded-circle mb-3">
                     <i class="ti ti-brand-telegram text-blue fs-1"></i>
                 </div>
-                <h3 class="fs-3 fw-bold text-body mb-2">Xác thực danh tính</h3>
-                <p class="text-secondary fs-5 mb-4">Bấm vào nút bên dưới để mở ứng dụng Telegram và chia sẻ số điện thoại an toàn.</p>
+                <h3 class="fs-3 fw-bold text-body mb-2" data-i18n="verify_title">Xác thực danh tính</h3>
+                <p class="text-secondary fs-5 mb-4" data-i18n="verify_desc">Bấm vào nút bên dưới để mở ứng dụng Telegram và chia sẻ số điện thoại an toàn.</p>
                 
                 <a id="telegram-link" href="#" target="_blank" class="btn w-100 fw-bold fs-4 mb-3" style="background-color:#2AABEE; color:white;">
-                    Mở Telegram ngay <i class="ti ti-external-link ms-2"></i>
+                    <span data-i18n="open_telegram">Mở Telegram ngay</span> <i class="ti ti-external-link ms-2"></i>
                 </a>
                 
                 <div class="d-flex align-items-center justify-content-center gap-2 text-warning fs-5 fw-medium mt-2">
                     <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
-                    Đang chờ bạn xác nhận...
+                    <span data-i18n="waiting_confirm">Đang chờ bạn xác nhận...</span>
                 </div>
             </div>
 
@@ -294,14 +295,14 @@
                 <div class="avatar avatar-lg bg-green-lt rounded-circle mb-3">
                     <i class="ti ti-circle-check-filled text-green fs-1"></i>
                 </div>
-                <h3 class="fs-3 fw-bold text-body mb-2" id="verify-step-2-title">Xác thực thành công!</h3>
+                <h3 class="fs-3 fw-bold text-body mb-2" id="verify-step-2-title" data-i18n="verify_ok">Xác thực thành công!</h3>
                 <p class="text-success fw-medium fs-5 mb-4" id="verified-phone-display"></p>
                 
                 <div class="mb-4 text-start">
-                    <label class="form-label fs-5 fw-bold text-secondary mb-1">Tên hiển thị của bạn:</label>
-                    <input type="text" id="new-username-input" class="form-control" placeholder="Ví dụ: Anh Tuấn...">
+                    <label class="form-label fs-5 fw-bold text-secondary mb-1" data-i18n="display_name">Tên hiển thị của bạn:</label>
+                    <input type="text" id="new-username-input" class="form-control" data-i18n-placeholder="name_example" placeholder="Ví dụ: Anh Tuấn...">
                 </div>
-                <button onclick="saveNewName()" class="btn btn-primary w-100 fw-bold fs-4">
+                <button onclick="saveNewName()" class="btn btn-primary w-100 fw-bold fs-4" data-i18n="save_start">
                     Lưu tên & Bắt đầu chat
                 </button>
             </div>
@@ -314,13 +315,13 @@
     <div class="card shadow-lg text-center" style="width: 100%; max-width: 340px; border-radius: 20px; margin: 0 16px;">
         <div class="card-body p-4">
             <div class="avatar avatar-xl rounded-circle bg-blue-lt mx-auto mb-3" id="incoming-call-avatar">🤖</div>
-            <h3 class="fs-2 fw-bold mb-1" id="incoming-call-name">Hỗ trợ viên</h3>
-            <p class="text-secondary mb-4">Đang gọi đến...</p>
+            <h3 class="fs-2 fw-bold mb-1" id="incoming-call-name" data-i18n="support_agent">Hỗ trợ viên</h3>
+            <p class="text-secondary mb-4" data-i18n="incoming">Đang gọi đến...</p>
             <div class="d-flex justify-content-center gap-4">
-                <button class="btn btn-danger btn-icon rounded-circle" style="width:60px;height:60px;" onclick="declineIncomingCall()" title="Từ chối">
+                <button class="btn btn-danger btn-icon rounded-circle" style="width:60px;height:60px;" onclick="declineIncomingCall()" data-i18n-title="decline" title="Từ chối">
                     <i class="ti ti-phone-x fs-1"></i>
                 </button>
-                <button class="btn btn-success btn-icon rounded-circle call-ring-pulse" style="width:60px;height:60px;" onclick="acceptIncomingCall()" title="Nghe">
+                <button class="btn btn-success btn-icon rounded-circle call-ring-pulse" style="width:60px;height:60px;" onclick="acceptIncomingCall()" data-i18n-title="accept" title="Nghe">
                     <i class="ti ti-phone fs-1"></i>
                 </button>
             </div>
@@ -332,14 +333,14 @@
     <div class="card shadow-lg text-center ai-voice-card">
         <div class="card-body p-4">
             <div class="rounded-circle bg-blue-lt mx-auto mb-3 d-flex align-items-center justify-content-center ai-voice-avatar-icon" id="ai-voice-avatar" style="transition: box-shadow 0.2s;">🤖</div>
-            <h3 class="fw-bold mb-2 ai-voice-title">AI hỗ trợ viên</h3>
-            <p class="text-secondary mb-1 ai-voice-status-text" id="ai-voice-status">Đang kết nối...</p>
+            <h3 class="fw-bold mb-2 ai-voice-title" data-i18n="ai_agent">AI hỗ trợ viên</h3>
+            <p class="text-secondary mb-1 ai-voice-status-text" id="ai-voice-status" data-i18n="connecting">Đang kết nối...</p>
             <p class="text-secondary mb-4 fw-medium d-none ai-voice-timer-text" id="ai-voice-timer">00:00</p>
             <div class="d-flex justify-content-center gap-4">
-                <button class="btn btn-icon rounded-circle btn-outline-secondary ai-voice-btn-secondary" id="ai-voice-mute-btn" onclick="toggleAiVoiceMute()" title="Tắt mic">
+                <button class="btn btn-icon rounded-circle btn-outline-secondary ai-voice-btn-secondary" id="ai-voice-mute-btn" onclick="toggleAiVoiceMute()" data-i18n-title="mute" title="Tắt mic">
                     <i class="ti ti-microphone"></i>
                 </button>
-                <button class="btn btn-danger btn-icon rounded-circle ai-voice-btn-end" onclick="endCall()" title="Kết thúc">
+                <button class="btn btn-danger btn-icon rounded-circle ai-voice-btn-end" onclick="endCall()" data-i18n-title="end" title="Kết thúc">
                     <i class="ti ti-phone-x"></i>
                 </button>
             </div>
@@ -356,12 +357,91 @@
 const pb = new PocketBase("https://nhannguyen123-chat.hf.space");
 const WORKER_URL = "https://apic.schoolsai.work";
 
+/* =========================================
+   0. I18N — vi / en
+   Thứ tự chọn ngôn ngữ: ?lang= -> lựa chọn đã lưu của khách -> ngôn ngữ trình duyệt
+   (vi* => tiếng Việt, còn lại => tiếng Anh). Đổi ngôn ngữ thì reload để mọi chuỗi vẽ lại.
+========================================= */
+const CHAT_I18N = {
+    vi: {
+        note_title: "Ghi chú quan trọng", welcome_a: "Chào mừng", welcome_b: "đến với hệ thống AI. Vui lòng gửi tin nhắn để bắt đầu.",
+        save_session: "🔗 Lưu phiên chat sang máy khác:", copy_link: "Copy đường dẫn", copy_failed: "Có lỗi xảy ra, vui lòng copy thủ công!",
+        bot_docs: "Tài liệu của bot", no_docs: "Chưa có tài liệu nào", kb_doc: "Tài liệu kiến thức", doc_default: "Tài liệu", click_view: "Bấm để xem",
+        call_ai: "Gọi AI hỗ trợ", mute: "Tắt mic", end_reject: "Kết thúc/từ chối", end: "Kết thúc", attach: "Đính kèm file",
+        placeholder: "Nhập tin nhắn...", verify_title: "Xác thực danh tính", verify_desc: "Bấm vào nút bên dưới để mở ứng dụng Telegram và chia sẻ số điện thoại an toàn.",
+        open_telegram: "Mở Telegram ngay", waiting_confirm: "Đang chờ bạn xác nhận...", verify_ok: "Xác thực thành công!", display_name: "Tên hiển thị của bạn:",
+        name_example: "Ví dụ: Anh Tuấn...", save_start: "Lưu tên & Bắt đầu chat", name_ph: "Nhập tên thật của bạn...", name_ph_long: "Nhập tên thật của bạn (VD: Anh Tuấn)...",
+        phone: "SĐT: ", update_name: "Cập nhật tên hiển thị", using_name: "Đang dùng tên: ", name_required: "Vui lòng nhập tên của bạn để tiện xưng hô nhé!",
+        sys_rename: (n) => `✅ **Hệ thống:** Khách hàng đã thay đổi thông tin định danh thành **${n}**.`, verified_phone: "Đã xác thực SĐT", rename: "Đổi tên",
+        upload_limit: "Bạn đã dùng hết 3 lượt gửi file ẩn danh hôm nay. Vui lòng xác thực SĐT để dùng không giới hạn!",
+        support_agent: "Hỗ trợ viên", incoming: "Đang gọi đến...", decline: "Từ chối", accept: "Nghe", ai_agent: "AI hỗ trợ viên", connecting: "Đang kết nối...",
+        hello: "Xin chào", greeting: "Xin chào! Tôi có thể giúp gì cho bạn?", voice_badge: "Giọng nói", voice_title: "Tin nhắn từ cuộc gọi AI",
+        err_config: "Không tải được cấu hình chat", err_send: "Không gửi được tin nhắn", err_quota: "⚠️ Bạn đã hết lượt chat trong tháng này. Vui lòng nâng cấp gói để tiếp tục.",
+        err_conn: "Kết nối đang gián đoạn, vui lòng thử lại nhé!", err_upload: "Upload thất bại, vui lòng thử lại!", err_file_http: (c) => `Lỗi ${c}`,
+        file_prompt: (n) => `Vui lòng nhập yêu cầu cho file "${n}"\n(Ví dụ: Tóm tắt file này, Tìm thông tin gì trong ảnh?):`,
+        file_note_required: "⚠️ Bắt buộc phải có ghi chú để AI hiểu file của bạn!", sent_image: "Ảnh đã gửi:", sent_doc: "Đã gửi tài liệu:", request: "Yêu cầu:",
+        calling_agent: "Đang gọi hỗ trợ viên...", call_failed: "Không thể gọi — thử lại sau", in_call_agent: "Đang gọi với hỗ trợ viên", err_start_call: "Không tạo được phiên gọi",
+        ai_connecting: "Đang kết nối với AI hỗ trợ viên...", ai_listening_free: "Đang nghe, bạn cứ nói tự nhiên...", ai_no_mic: "Không truy cập được micro",
+        ai_listening: "Đang nghe bạn nói...", ai_thinking: "AI đang xử lý...", ai_speaking: "AI đang trả lời...", ai_error_retry: "Lỗi kết nối AI, đang thử lại...",
+        ai_handoff: "Để mình chuyển bạn cho nhân viên hỗ trợ nhé...", lang_switch: "Ngôn ngữ"
+    },
+    en: {
+        note_title: "Important notes", welcome_a: "Welcome", welcome_b: "to the AI assistant. Send a message to get started.",
+        save_session: "🔗 Continue this chat on another device:", copy_link: "Copy link", copy_failed: "Something went wrong, please copy it manually.",
+        bot_docs: "Bot documents", no_docs: "No documents yet", kb_doc: "Knowledge document", doc_default: "Document", click_view: "Tap to view",
+        call_ai: "Talk to AI support", mute: "Mute mic", end_reject: "End / decline", end: "End call", attach: "Attach a file",
+        placeholder: "Type a message...", verify_title: "Verify your identity", verify_desc: "Tap the button below to open Telegram and share your phone number securely.",
+        open_telegram: "Open Telegram", waiting_confirm: "Waiting for your confirmation...", verify_ok: "Verified!", display_name: "Your display name:",
+        name_example: "e.g. John...", save_start: "Save name & start chatting", name_ph: "Enter your real name...", name_ph_long: "Enter your real name (e.g. John)...",
+        phone: "Phone: ", update_name: "Update display name", using_name: "Current name: ", name_required: "Please enter your name so we know how to address you.",
+        sys_rename: (n) => `✅ **System:** The customer changed their name to **${n}**.`, verified_phone: "Phone verified", rename: "Change name",
+        upload_limit: "You've used all 3 anonymous file uploads for today. Please verify your phone number for unlimited uploads.",
+        support_agent: "Support agent", incoming: "Incoming call...", decline: "Decline", accept: "Answer", ai_agent: "AI support", connecting: "Connecting...",
+        hello: "Hello", greeting: "Hello! How can I help you?", voice_badge: "Voice", voice_title: "Message from an AI call",
+        err_config: "Could not load chat settings", err_send: "Could not send your message", err_quota: "⚠️ You've reached this month's chat limit. Please upgrade your plan to continue.",
+        err_conn: "The connection was interrupted, please try again.", err_upload: "Upload failed, please try again.", err_file_http: (c) => `Error ${c}`,
+        file_prompt: (n) => `What would you like to ask about "${n}"?\n(e.g. Summarize this file, What is in this image?):`,
+        file_note_required: "⚠️ Please add a note so the AI understands your file.", sent_image: "Image sent:", sent_doc: "Document sent:", request: "Request:",
+        calling_agent: "Calling support...", call_failed: "Couldn't place the call — try again later", in_call_agent: "On a call with support", err_start_call: "Could not start the call",
+        ai_connecting: "Connecting to AI support...", ai_listening_free: "Listening — just speak naturally...", ai_no_mic: "Can't access the microphone",
+        ai_listening: "Listening...", ai_thinking: "AI is thinking...", ai_speaking: "AI is answering...", ai_error_retry: "Connection error, retrying...",
+        ai_handoff: "Let me transfer you to a human agent...", lang_switch: "Language"
+    }
+};
+const CHAT_LANG = (() => {
+    let saved = null;
+    try { saved = localStorage.getItem("chat_lang"); } catch (e) {}
+    const q = new URLSearchParams(location.search).get("lang");
+    if (q === "vi" || q === "en") { try { localStorage.setItem("chat_lang", q); } catch (e) {} return q; }
+    if (saved === "vi" || saved === "en") return saved;
+    const prefs = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"]);
+    return String(prefs[0]).toLowerCase().startsWith("vi") ? "vi" : "en";
+})();
+const CHAT_LOCALE = CHAT_LANG === "vi" ? "vi-VN" : "en-US";
+function T(key, ...args) {
+    const v = (CHAT_I18N[CHAT_LANG] && CHAT_I18N[CHAT_LANG][key]) ?? CHAT_I18N.vi[key] ?? key;
+    return typeof v === "function" ? v(...args) : v;
+}
+function applyChatI18n() {
+    document.documentElement.lang = CHAT_LANG;
+    document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = T(el.getAttribute("data-i18n")); });
+    document.querySelectorAll("[data-i18n-title]").forEach(el => { el.title = T(el.getAttribute("data-i18n-title")); });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = T(el.getAttribute("data-i18n-placeholder")); });
+}
+function toggleChatLang() {
+    try { localStorage.setItem("chat_lang", CHAT_LANG === "vi" ? "en" : "vi"); } catch (e) {}
+    const u = new URL(location.href); u.searchParams.delete("lang");
+    location.replace(u.toString());
+}
+applyChatI18n();
+document.getElementById("lang-toggle-btn").textContent = "🌐 " + (CHAT_LANG === "vi" ? "EN" : "VI");
+
 const rawTenant = new URLSearchParams(location.search).get("bot");
 const tenant = /^[a-z0-9_-]{1,40}$/i.test(rawTenant || "") ? rawTenant : "bds";
 
-const adjs = ["Cool","Nhanh","Thông","Hay","Vui","Giỏi","Mượt","Ngầu"];
-const animals = ["Mèo","Chó","Gấu","Cáo","Hổ","Rồng","Thỏ","Vịt"];
-function randomName(){ return adjs[Math.floor(Math.random()*adjs.length)] + " " + animals[Math.floor(Math.random()*animals.length)]; }
+const adjs = CHAT_LANG === "vi" ? ["Cool","Nhanh","Thông","Hay","Vui","Giỏi","Mượt","Ngầu"] : ["Cool","Swift","Clever","Happy","Lucky","Brave","Smooth","Bold"];
+const animals = CHAT_LANG === "vi" ? ["Mèo","Chó","Gấu","Cáo","Hổ","Rồng","Thỏ","Vịt"] : ["Cat","Dog","Bear","Fox","Tiger","Dragon","Rabbit","Duck"];
+function randomName(){ return CHAT_LANG === "vi" ? adjs[Math.floor(Math.random()*adjs.length)] + " " + animals[Math.floor(Math.random()*animals.length)] : adjs[Math.floor(Math.random()*adjs.length)] + " " + animals[Math.floor(Math.random()*animals.length)]; }
 
 let isVerified = false; 
 
@@ -378,13 +458,13 @@ let cfg = {
     bot_avatar: "🤖",
     color: "#206bc4", // Tabler Primary
     webhook: WORKER_URL + "/chat",
-    greeting: "Xin chào! Tôi có thể giúp gì cho bạn?"
+    greeting: T("greeting")
 };
 
 async function loadConfig(){
     try{
         const response = await fetch(WORKER_URL + "/chat/config?tenant=" + encodeURIComponent(tenant), { cache: "no-store" });
-        if (!response.ok) throw new Error("Không tải được cấu hình chat");
+        if (!response.ok) throw new Error(T("err_config"));
         const r = await response.json();
         cfg = {
             bot_name: r.bot_name || cfg.bot_name,
@@ -505,7 +585,7 @@ function appendMsg(r, scroll=true){
     const msgDiv = document.createElement('div');
     msgDiv.className = `d-flex gap-2 w-100 ${isUser ? 'justify-content-end' : 'justify-content-start'}`;
     
-    const time = new Date(r.created).toLocaleTimeString("vi-VN", { hour:"2-digit", minute:"2-digit" });
+    const time = new Date(r.created).toLocaleTimeString(CHAT_LOCALE, { hour:"2-digit", minute:"2-digit" });
 
     let avatarHtml = '';
     if (!isUser) {
@@ -517,7 +597,7 @@ function appendMsg(r, scroll=true){
     const alignClass = isUser ? 'align-items-end' : 'align-items-start';
     const cleanHTML = renderChatMessage(r.text);
     const voiceBadge = r.via_voice
-        ? `<span class="badge bg-purple-lt ms-1" title="Tin nhắn từ cuộc gọi AI"><i class="ti ti-microphone me-1"></i>Giọng nói</span>`
+        ? `<span class="badge bg-purple-lt ms-1" title="${T('voice_title')}"><i class="ti ti-microphone me-1"></i>${T('voice_badge')}</span>`
         : '';
 
     msgDiv.innerHTML = `
@@ -545,7 +625,7 @@ async function loadMsgs(){
             history.innerHTML = `
                 <div id="welcome-msg" class="d-flex flex-column align-items-center justify-content-center h-100 text-center opacity-75">
                     <div class="display-3 mb-3">${cfg.bot_avatar}</div>
-                    <p class="fs-4 text-body mb-2">Xin chào <strong class="fw-bold">${username}</strong>!</p>
+                    <p class="fs-4 text-body mb-2">${T('hello')} <strong class="fw-bold">${username}</strong>!</p>
                     <p class="fs-5 text-secondary p-3 bg-white border rounded-3 shadow-sm mx-auto" style="max-width: 80%;">
                        ${cfg.greeting}
                     </p>
@@ -595,7 +675,7 @@ async function send(){
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
-            const error = new Error(data.error?.message || data.error || "Không gửi được tin nhắn");
+            const error = new Error(data.error?.message || data.error || T("err_send"));
             error.code = data.error?.code || "CHAT_REQUEST_FAILED";
             throw error;
         }
@@ -604,8 +684,8 @@ async function send(){
         inputEl.value = text;
         inputEl.dispatchEvent(new Event("input"));
         const message = err.code === "MONTHLY_QUOTA_EXCEEDED"
-            ? "⚠️ Bạn đã hết lượt chat trong tháng này. Vui lòng nâng cấp gói để tiếp tục."
-            : `⚠️ ${err.message || "Kết nối đang gián đoạn, vui lòng thử lại nhé!"}`;
+            ? T("err_quota")
+            : `⚠️ ${err.message || T("err_conn")}`;
         appendMsg({ text: message, is_bot: true, created: new Date().toISOString() });
     } finally {
         document.getElementById("typing-indicator").classList.add("hidden");
@@ -658,7 +738,7 @@ function copySessionUrl() {
     navigator.clipboard.writeText(urlInput.value).then(() => {
         icon.className = "ti ti-check text-success fs-3";
         setTimeout(() => { icon.className = "ti ti-copy text-secondary fs-3"; }, 2000);
-    }).catch(err => alert('Có lỗi xảy ra, vui lòng copy thủ công!'));
+    }).catch(err => alert(T('copy_failed')));
 }
 
 /* =========================================
@@ -681,13 +761,13 @@ async function loadFileList() {
                 .catch(() => ({ items: [] }))
         ]);
         const knowledgeData = await knowledgeResponse.json().catch(() => ({}));
-        if (!knowledgeResponse.ok) throw new Error(knowledgeData.error || `Lỗi ${knowledgeResponse.status}`);
+        if (!knowledgeResponse.ok) throw new Error(knowledgeData.error || T("err_file_http", knowledgeResponse.status));
         const knowledgeDocs = knowledgeData.documents || [];
         const uploads = uploadsResult.items || [];
         fileList.innerHTML = '';
 
         if (knowledgeDocs.length === 0 && uploads.length === 0) {
-            fileList.innerHTML = '<li class="text-secondary fst-italic text-center py-2">Chưa có tài liệu nào</li>';
+            fileList.innerHTML = `<li class="text-secondary fst-italic text-center py-2">${T('no_docs')}</li>`;
             return;
         }
 
@@ -697,7 +777,7 @@ async function loadFileList() {
                 <div class="d-flex align-items-center gap-3 p-2 bg-blue-lt border rounded-3">
                     <div class="avatar avatar-md bg-blue-lt rounded"><i class="ti ti-book-2 fs-2"></i></div>
                     <div class="flex-fill min-w-0">
-                        <div class="fs-5 fw-bold text-body text-truncate" title="${escapeHtml(doc.title || 'Tài liệu kiến thức')}">${escapeHtml(doc.title || 'Tài liệu kiến thức')}</div>
+                        <div class="fs-5 fw-bold text-body text-truncate" title="${escapeHtml(doc.title || T('kb_doc'))}">${escapeHtml(doc.title || T('kb_doc'))}</div>
                         <div class="fs-6 text-secondary mt-1">Knowledge Base</div>
                     </div>
                 </div>`;
@@ -705,7 +785,7 @@ async function loadFileList() {
         });
 
         uploads.forEach(record => {
-            const fileName = record.original_name || "Tài liệu";
+            const fileName = record.original_name || T("doc_default");
             const fileUrl = pb.files.getUrl(record, record[FILE_COLUMN]); 
             const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
             
@@ -719,7 +799,7 @@ async function loadFileList() {
                     ${previewHtml}
                     <div class="flex-fill min-w-0">
                         <div class="fs-5 fw-bold text-body text-truncate" title="${fileName}">${fileName}</div>
-                        <div class="fs-6 text-secondary mt-1">Bấm để xem</div>
+                        <div class="fs-6 text-secondary mt-1">${T('click_view')}</div>
                     </div>
                 </a>
             `;
@@ -736,9 +816,9 @@ async function handleFileUpload(event) {
     const file = files[0]; 
     const isImage = file.name.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
 
-    const fileNote = prompt(`Vui lòng nhập yêu cầu cho file "${file.name}"\n(Ví dụ: Tóm tắt file này, Tìm thông tin gì trong ảnh?):`);
+    const fileNote = prompt(T("file_prompt", file.name));
     if (!fileNote || fileNote.trim() === "") {
-        alert("⚠️ Bắt buộc phải có ghi chú để AI hiểu file của bạn!");
+        alert(T("file_note_required"));
         event.target.value = ''; return;
     }
 
@@ -761,10 +841,10 @@ async function handleFileUpload(event) {
         let aiPayloadText = ""; 
         
         if (isImage) {
-            fileMessage = `🖼️ **Ảnh đã gửi:** ${fileNote}<br><img src="${fileUrl}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; border: 1px solid #e6e8eb;" alt="image"/>`;
+            fileMessage = `🖼️ **${T("sent_image")}** ${fileNote}<br><img src="${fileUrl}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; border: 1px solid #e6e8eb;" alt="image"/>`;
             aiPayloadText = `[Hình ảnh: ${fileUrl}] - Yêu cầu từ khách: ${fileNote}`;
         } else {
-            fileMessage = `📁 **Đã gửi tài liệu:** <a href="${fileUrl}" target="_blank" style="color: #206bc4; text-decoration: underline;">${file.name}</a><br>📝 **Yêu cầu:** ${fileNote}`;
+            fileMessage = `📁 **${T("sent_doc")}** <a href="${fileUrl}" target="_blank" style="color: #206bc4; text-decoration: underline;">${file.name}</a><br>📝 **${T("request")}** ${fileNote}`;
             aiPayloadText = `[Tài liệu: ${fileUrl}] - Yêu cầu từ khách: ${fileNote}`;
         }
 
@@ -782,7 +862,7 @@ async function handleFileUpload(event) {
         });
 
     } catch (error) {
-        alert("Upload thất bại, vui lòng thử lại!");
+        alert(T("err_upload"));
     } finally {
         uploadLabel.innerHTML = originalContent;
         uploadLabel.style.pointerEvents = 'auto';
@@ -922,7 +1002,7 @@ function callRtc(path, body) {
 
 async function createLocalCallLeg() {
     const created = await callRtc("/call/rtc/session-new");
-    if (!created?.sessionId) throw new Error(created?.error || "Không tạo được phiên gọi");
+    if (!created?.sessionId) throw new Error(created?.error || T("err_start_call"));
     callLocalSessionId = created.sessionId;
 
     callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1003,7 +1083,7 @@ function stopCallTimer() {
 
 async function startCall() {
     if (activeCallRecord && activeCallRecord.status !== "ended") return;
-    setCallBar({ visible: true, icon: "ti-phone-outgoing", text: "Đang gọi hỗ trợ viên...", showMute: false, timer: false });
+    setCallBar({ visible: true, icon: "ti-phone-outgoing", text: T("calling_agent"), showMute: false, timer: false });
     try {
         const leg = await createLocalCallLeg();
         activeCallRecord = await pb.collection("calls").create({
@@ -1012,7 +1092,7 @@ async function startCall() {
         });
     } catch (err) {
         console.error("Lỗi bắt đầu cuộc gọi:", err);
-        setCallBar({ visible: true, icon: "ti-phone-x", text: "Không thể gọi — thử lại sau", showMute: false, timer: false });
+        setCallBar({ visible: true, icon: "ti-phone-x", text: T("call_failed"), showMute: false, timer: false });
         setTimeout(() => setCallBar({ visible: false }), 2500);
         await teardownCallLocal();
     }
@@ -1023,14 +1103,14 @@ async function acceptIncomingCall() {
     if (!record) return;
     hideIncomingCallPopup();
     activeCallRecord = record;
-    setCallBar({ visible: true, icon: "ti-phone", text: "Đang kết nối...", showMute: false, timer: false });
+    setCallBar({ visible: true, icon: "ti-phone", text: T("connecting"), showMute: false, timer: false });
     try {
         const leg = await createLocalCallLeg();
         await pullRemoteCallLeg(record.admin_cf_session_id, record.admin_track_name);
         activeCallRecord = await pb.collection("calls").update(record.id, {
             customer_cf_session_id: leg.sessionId, customer_track_name: leg.trackName, status: "active"
         });
-        setCallBar({ visible: true, icon: "ti-phone", text: "Đang gọi với hỗ trợ viên", showMute: true, timer: true });
+        setCallBar({ visible: true, icon: "ti-phone", text: T("in_call_agent"), showMute: true, timer: true });
         startCallTimer();
     } catch (err) {
         console.error("Lỗi trả lời cuộc gọi:", err);
@@ -1121,7 +1201,7 @@ async function playAiVoiceGreeting() {
         const res = await fetch(WORKER_URL + "/ai-voice/greeting", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tenant, lang: navigator.language || "vi" })
+            body: JSON.stringify({ tenant, lang: CHAT_LANG === "vi" ? "vi" : (navigator.language || "en") })
         });
         const data = await res.json();
         if (!data.audioBase64) return;
@@ -1148,24 +1228,24 @@ async function startAiVoiceCall() {
     unlockAudioPlayback();
     aiVoiceState = "connecting";
     showAiVoiceOverlay();
-    setAiVoiceUI({ status: "Đang kết nối với AI hỗ trợ viên...", timer: false });
+    setAiVoiceUI({ status: T("ai_connecting"), timer: false });
     try {
         aiVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         aiVoiceMuted = false;
         document.getElementById("ai-voice-mute-btn").innerHTML = '<i class="ti ti-microphone"></i>';
         startAiVoiceTimer();
-        setAiVoiceUI({ status: "Đang kết nối...", timer: true });
+        setAiVoiceUI({ status: T("connecting"), timer: true });
 
         await playAiVoiceGreeting();
 
         if (aiVoiceState === "idle") return; // khách đã bấm kết thúc trong lúc nghe lời chào
         aiVoiceState = "listening";
-        setAiVoiceUI({ status: "Đang nghe, bạn cứ nói tự nhiên...", timer: true, listening: true });
+        setAiVoiceUI({ status: T("ai_listening_free"), timer: true, listening: true });
         startVadLoop();
     } catch (err) {
         console.error("Không xin được quyền micro:", err);
         aiVoiceState = "idle";
-        setAiVoiceUI({ status: "Không truy cập được micro" });
+        setAiVoiceUI({ status: T("ai_no_mic") });
         setTimeout(hideAiVoiceOverlay, 2000);
     }
 }
@@ -1234,7 +1314,7 @@ function startAiRecording() {
     aiVoiceRecordStartedAt = Date.now();
     aiVoiceRecorder.start();
     aiVoiceState = "recording";
-    setAiVoiceUI({ status: "Đang nghe bạn nói...", timer: true, listening: true });
+    setAiVoiceUI({ status: T("ai_listening"), timer: true, listening: true });
 }
 
 function stopAiRecording() {
@@ -1245,7 +1325,7 @@ async function sendAiVoiceTurn() {
     const durationMs = aiVoiceRecordStartedAt ? (Date.now() - aiVoiceRecordStartedAt) : 0;
     aiVoiceRecordStartedAt = null;
     aiVoiceState = "thinking";
-    setAiVoiceUI({ status: "AI đang xử lý...", timer: true });
+    setAiVoiceUI({ status: T("ai_thinking"), timer: true });
     startThinkingMusic();
 
     try {
@@ -1270,7 +1350,7 @@ async function sendAiVoiceTurn() {
         }
 
         aiVoiceState = "speaking";
-        setAiVoiceUI({ status: "AI đang trả lời...", timer: true, speaking: true });
+        setAiVoiceUI({ status: T("ai_speaking"), timer: true, speaking: true });
 
         const audioEl = document.getElementById("call-remote-audio");
         if (data.audioBase64) {
@@ -1284,7 +1364,7 @@ async function sendAiVoiceTurn() {
     } catch (err) {
         stopThinkingMusic();
         console.error("Lỗi khi gửi giọng nói tới AI:", err);
-        setAiVoiceUI({ status: "Lỗi kết nối AI, đang thử lại...", timer: true });
+        setAiVoiceUI({ status: T("ai_error_retry"), timer: true });
         setTimeout(() => { if (aiVoiceState !== "idle") backToListening(); }, 1500);
     }
 }
@@ -1297,12 +1377,12 @@ function afterAiReply(needsHuman) {
 
 function backToListening() {
     aiVoiceState = "listening";
-    setAiVoiceUI({ status: "Đang nghe, bạn cứ nói tự nhiên...", timer: true, listening: true });
+    setAiVoiceUI({ status: T("ai_listening_free"), timer: true, listening: true });
     if (!vadRafHandle) startVadLoop();
 }
 
 async function escalateToHuman() {
-    setAiVoiceUI({ status: "Để mình chuyển bạn cho nhân viên hỗ trợ nhé...", timer: true });
+    setAiVoiceUI({ status: T("ai_handoff"), timer: true });
     endAiVoiceLocal();
     await startCall();
 }
@@ -1369,7 +1449,7 @@ function handleCallRecord(record) {
     if (record.status === "active") {
         activeCallRecord = record;
         if (!callTimerHandle) startCallTimer();
-        setCallBar({ visible: true, icon: "ti-phone", text: "Đang gọi với hỗ trợ viên", showMute: true, timer: true });
+        setCallBar({ visible: true, icon: "ti-phone", text: T("in_call_agent"), showMute: true, timer: true });
         return;
     }
     if (["ended", "declined", "missed"].includes(record.status) && activeCallRecord && activeCallRecord.id === record.id) {
@@ -1397,7 +1477,7 @@ window.addEventListener("beforeunload", () => {
         document.getElementById('verify-step-1').classList.add('hidden');
         document.getElementById('verify-step-2').classList.remove('hidden');
         document.getElementById('new-username-input').value = "";
-        document.getElementById('new-username-input').placeholder = "Nhập tên thật của bạn (VD: Anh Tuấn)...";
+        document.getElementById('new-username-input').placeholder = T("name_ph_long");
         
         const currentUrl = new URL(window.location);
         currentUrl.searchParams.delete("show_name");
@@ -1427,10 +1507,10 @@ async function startVerification() {
                 isVerified = true;
                 document.getElementById('verify-step-1').classList.add('hidden');
                 document.getElementById('verify-step-2').classList.remove('hidden');
-                document.getElementById('verified-phone-display').innerText = "SĐT: " + e.record.phone;
-                document.getElementById('verify-step-2-title').innerText = "Xác thực thành công!";
+                document.getElementById('verified-phone-display').innerText = T("phone") + e.record.phone;
+                document.getElementById('verify-step-2-title').innerText = T("verify_ok");
                 document.getElementById('new-username-input').value = ""; 
-                document.getElementById('new-username-input').placeholder = "Nhập tên thật của bạn...";
+                document.getElementById('new-username-input').placeholder = T("name_ph");
                 pb.collection('verifications').unsubscribe(currentVerifyId);
             }
         });
@@ -1445,7 +1525,7 @@ function closeVerifyModal() {
 async function saveNewName() {
     const newName = document.getElementById('new-username-input').value.trim();
     if (!newName) {
-        alert("Vui lòng nhập tên của bạn để tiện xưng hô nhé!");
+        alert(T("name_required"));
         document.getElementById('new-username-input').focus(); return;
     }
 
@@ -1464,13 +1544,13 @@ async function saveNewName() {
 
     await pb.collection("messages").create({
         session: sessionId, tenant, username: cfg.bot_name,
-        text: `✅ **Hệ thống:** Khách hàng đã thay đổi thông tin định danh thành **${username}**.`, is_bot: true
+        text: T("sys_rename", username), is_bot: true
     });
 }
 
 function updateNameUI() {
-    const verifyHtml = isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue fs-4 ms-1 align-middle" title="Đã xác thực SĐT"></i>` : ``;
-    const editHtml = isVerified ? `<i class="ti ti-edit text-secondary cursor-pointer fs-4 ms-2 align-middle hover-primary" onclick="openEditNameModal()" title="Đổi tên"></i>` : ``;
+    const verifyHtml = isVerified ? `<i class="ti ti-rosette-discount-check-filled text-blue fs-4 ms-1 align-middle" title="${T('verified_phone')}"></i>` : ``;
+    const editHtml = isVerified ? `<i class="ti ti-edit text-secondary cursor-pointer fs-4 ms-2 align-middle hover-primary" onclick="openEditNameModal()" title="${T('rename')}"></i>` : ``;
 
     const headerEl = document.getElementById("uname-header");
     if (headerEl) headerEl.innerHTML = `👤 <span class="fw-bold">${username}</span> ${verifyHtml} ${editHtml}`;
@@ -1484,8 +1564,8 @@ function openEditNameModal() {
     document.getElementById('verify-step-1').classList.add('hidden');
     document.getElementById('verify-step-2').classList.remove('hidden');
     
-    document.getElementById('verify-step-2-title').innerText = "Cập nhật tên hiển thị";
-    document.getElementById('verified-phone-display').innerText = "Đang dùng tên: " + username;
+    document.getElementById('verify-step-2-title').innerText = T("update_name");
+    document.getElementById('verified-phone-display').innerText = T("using_name") + username;
     
     document.getElementById('new-username-input').value = username;
     document.getElementById('new-username-input').focus();
@@ -1498,7 +1578,7 @@ function checkGuestUploadLimit() {
     if (guestData.date !== today) guestData = { date: today, count: 0 };
     
     if (guestData.count >= 3) {
-        alert("Bạn đã dùng hết 3 lượt gửi file ẩn danh hôm nay. Vui lòng xác thực SĐT để dùng không giới hạn!");
+        alert(T("upload_limit"));
         startVerification(); 
         return false;
     }

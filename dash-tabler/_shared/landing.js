@@ -841,8 +841,9 @@ const LANDING_COPY = {
   }
 };
 (() => {
-  let lang = 'vi';
   const supportedLanguages = ['vi', 'en', 'ja', 'es', 'fr', 'ko'];
+  // Chưa chọn thì theo ngôn ngữ trình duyệt; không hỗ trợ thì tiếng Anh.
+  let lang = (navigator.languages || [navigator.language || 'en']).map(l => String(l).slice(0, 2).toLowerCase()).find(l => supportedLanguages.includes(l)) || 'en';
   try { const saved = localStorage.getItem('lang'); if (supportedLanguages.includes(saved)) lang = saved; } catch {}
   let activeDemo = 'chat';
   const copy = key => LANDING_COPY[key]?.[lang] || key;
