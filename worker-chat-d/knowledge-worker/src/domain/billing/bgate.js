@@ -7,7 +7,9 @@ const BASE_URL = 'https://billing.schoolsai.work';
 const INTERVALS = ['monthly', 'yearly'];
 
 // Whop only. Subscriptions (billing_interval) derive access from the BGate entitlement, which
-// carries the expiry. The add-on (kind: 'addon') is a one-off order credited once per order id.
+// carries the expiry. The add-on (kind: 'addon') is a one-off order credited once per order id. The
+// onboarding package (kind: 'setup') is a one-off, per-workspace service: payment only records the
+// purchase on the tenant; the setup itself is done by people.
 export const ADDON_MESSAGES = 1000;
 const MAX_ADDON_ORDERS = 500;
 export function billingCatalog(env) {
@@ -15,7 +17,7 @@ export function billingCatalog(env) {
   return Object.entries(catalog).flatMap(([id, plan]) => {
     if (!/^[a-z0-9_-]+$/.test(id) || typeof plan?.product !== 'string' || !plan.product ||
         plan.provider !== 'whop' || plan.currency !== 'USD' ||
-        (plan.kind === 'addon' ? plan.billing_interval !== undefined : !INTERVALS.includes(plan.billing_interval)) ||
+        (plan.kind === 'addon' || plan.kind === 'setup' ? plan.billing_interval !== undefined : !INTERVALS.includes(plan.billing_interval)) ||
         !Number.isFinite(plan.amount) || plan.amount <= 0 || !plan.label) return [];
     return [{ ...plan, id }];
   });
@@ -32,7 +34,7 @@ function parseExpiry(value) {
 // to run from polling, the webhook and the lazy refresh at the same time.
 export async function syncEntitlement(env, accountId, store, fetchImpl = fetch, now = Date.now()) {
   if (!env.BGATE_API_KEY) throw new Error('BGate not configured');
-  const products = [...new Set(billingCatalog(env).filter(plan => plan.kind !== 'addon').map(plan => plan.product))];
+  const products = [...new Set(billingCatalog(env).filter(plan => !plan.kind).map(plan => plan.product))];
   let expiresAt = 0;
   for (const product of products) {
     const response = await fetchImpl(`${BASE_URL}/api/v1/entitlements/${encodeURIComponent(accountId)}/${encodeURIComponent(product)}`, {
@@ -75,6 +77,22 @@ export async function grantAddon(accountId, orderId, store, now = Date.now()) {
   return { credited: true, messages: ADDON_MESSAGES };
 }
 
+export const SETUP_STATUSES_DONE = ['paid', 'in_progress', 'done'];
+
+// A paid order for the onboarding package, or null. Never trusts the browser: price, product,
+// provider and currency must match the server catalog.
+export async function fetchPaidSetupOrder(env, orderId, fetchImpl = fetch) {
+  if (!env.BGATE_API_KEY || !/^[a-f0-9-]{36}$/i.test(orderId || '')) return null;
+  const response = await fetchImpl(`${BASE_URL}/api/v1/payments/${orderId}`, {
+    headers: { 'x-api-key': env.BGATE_API_KEY }, signal: AbortSignal.timeout(20000)
+  });
+  if (!response.ok) return null;
+  const order = await response.json();
+  const plan = billingCatalog(env).find(item => item.kind === 'setup' && item.product === order.product &&
+    item.provider === order.provider && item.currency === order.currency && item.amount === Number(order.amount));
+  return order.id === orderId && order.status === 'paid' && plan ? order : null;
+}
+
 const hex = bytes => [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 
 // HMAC-SHA256 over `timestamp.raw_body`, five-minute window. The event only triggers an
@@ -113,12 +131,17 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   try { catalog = billingCatalog(env); }
   catch { return reply({ error: 'Cấu hình thanh toán chưa hợp lệ.' }, 503); }
   if (path === '/api/account/billing/plans' && request.method === 'GET') {
-    return reply({ plans: env.BGATE_API_KEY ? catalog.filter(plan => plan.kind !== 'addon' || effectivePlan(account) === 'pro').map(({ id, label, amount, currency }) => ({ id, label, amount, currency })) : [] });
+    return reply({ plans: env.BGATE_API_KEY ? catalog.filter(plan => plan.kind !== 'addon' || effectivePlan(account) === 'pro').map(({ id, label, amount, currency, kind }) => ({ id, label, amount, currency, ...(kind ? { kind } : {}) })) : [] });
   }
   if (path === '/api/account/billing/status' && request.method === 'GET') {
     if (!env.BGATE_API_KEY || !store) return reply({ error: 'Thanh toán chưa được cấu hình.' }, 503);
     try { return reply(await syncEntitlement(env, account.id, store, fetchImpl)); }
     catch { return reply({ error: 'Không kiểm tra được gói dịch vụ.' }, 502); }
+  }
+  if (path === '/api/account/billing/setup' && request.method === 'GET') {
+    const tenant = new URL(request.url).searchParams.get('tenant') || '';
+    if (!store || !/^[a-z0-9_-]{1,40}$/i.test(tenant) || !(await store.ownsTenant(account, tenant))) return reply({ error: 'Không tìm thấy workspace.' }, 404);
+    return reply({ tenant, status: (await store.setupState(tenant)).status || 'none' });
   }
   const paymentMatch = path.match(/^\/api\/account\/billing\/payments\/([a-f0-9-]{36})$/i);
   if (paymentMatch && request.method === 'GET') {
@@ -137,6 +160,11 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
         item.currency === order.currency && item.amount === Number(order.amount));
       const verified = order.status === 'paid' && Boolean(plan);
       // Pro is granted only by the entitlement BGate recorded for this account, never by the order alone.
+      if (verified && store && plan.kind === 'setup') {
+        const setup = await store.confirmSetupPaid(order.id, account.id);
+        return reply({ order_id: order.id, status: order.status, payment_verified: true,
+          service_activated: Boolean(setup), setup_tenant: setup?.tenant ?? null, setup_status: setup?.status ?? null });
+      }
       if (verified && store && plan.kind === 'addon') {
         const grant = await grantAddon(account.id, order.id, store);
         return reply({ order_id: order.id, status: order.status, payment_verified: true,
@@ -159,14 +187,24 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   if (plan.kind === 'addon' && effectivePlan(account) !== 'pro') {
     return reply({ error: 'Gói cộng thêm 1.000 câu chỉ dành cho tài khoản Pro. Vui lòng nâng cấp Pro trước.' }, 403);
   }
+  // The onboarding package is bought for one workspace the caller owns, once per workspace.
+  let setupTenant = '';
+  if (plan.kind === 'setup') {
+    setupTenant = String(body.tenant || '');
+    if (!/^[a-z0-9_-]{1,40}$/i.test(setupTenant)) return reply({ error: 'Thiếu workspace cần cài đặt.' }, 400);
+    if (!store || !(await store.ownsTenant(account, setupTenant))) return reply({ error: 'Bạn không phải chủ workspace này.' }, 403);
+    if (SETUP_STATUSES_DONE.includes((await store.setupState(setupTenant)).status)) {
+      return reply({ error: 'Workspace này đã mua gói hỗ trợ cài đặt.' }, 409);
+    }
+  }
   try {
     const response = await fetchImpl(`${BASE_URL}/api/v1/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.BGATE_API_KEY,
-        'idempotency-key': `${account.id}:${plan.id}:${body.request_id}` },
+        'idempotency-key': `${account.id}:${plan.id}:${setupTenant}:${body.request_id}` },
       body: JSON.stringify({ product: plan.product, user_id: account.id,
         provider: plan.provider, amount: plan.amount, currency: plan.currency,
-        ...(plan.kind === 'addon' ? {} : { billing_interval: plan.billing_interval, renewal_mode: 'automatic' }) }),
+        ...(plan.kind ? {} : { billing_interval: plan.billing_interval, renewal_mode: 'automatic' }) }),
       signal: AbortSignal.timeout(20000)
     });
     const data = await response.json().catch(() => null);
@@ -177,6 +215,8 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
     if (!/^[a-f0-9-]{36}$/i.test(data?.id || '') || data.user_id !== account.id ||
         data.product !== plan.product || data.provider !== plan.provider ||
         data.currency !== plan.currency || Number(data.amount) !== plan.amount) throw new Error('Checkout mismatch');
+    // Bind the order to the workspace before handing out the link so a later payment can be matched.
+    if (setupTenant) await store.bindSetupOrder(setupTenant, data.id);
     return reply({ checkout_url: checkoutUrl.href, order_id: data.id, status: data.status });
   } catch {
     return reply({ error: 'Không kết nối được cổng thanh toán. Vui lòng thử lại cùng giao dịch.' }, 502);

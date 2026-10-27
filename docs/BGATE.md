@@ -21,12 +21,23 @@ Whop only. Catalog (prices are server-owned):
 | monthly | schoolsai-pro-monthly | 19 USD | `billing_interval: monthly`, Whop auto-renew |
 | yearly | schoolsai-pro-yearly | 199 USD | `billing_interval: yearly` |
 | addon | schoolsai-messages-1000 | 7 USD | `kind: addon`, one-off, +1000 messages |
+| setup | schoolsai-setup | 300 USD | `kind: setup`, one-off per workspace, onboarding service done by people |
 
 Required PocketBase fields on `tenants` (create with `POST /tenants/setup-billing-fields`,
 `X-Admin-Secret`): `pro_expires_at`, `message_bonus_granted`, `message_bonus_used`, `bonus_orders`.
 Without them activation fails closed.
 
 ## Fulfillment
+
+- **Onboarding package ($300, once per workspace)**: checkout needs `tenant` (a workspace the
+  caller owns, with a bot_configs record) and is refused with 409 once that workspace is
+  `paid`/`in_progress`/`done`. The order id is bound to `bot_configs.setup_orders` and
+  `setup_status=pending`; a verified `paid` order (price/product/provider matched to the catalog)
+  moves it to `paid` and stores `setup_paid_at`. It is confirmed on the payment check, and by a
+  15-minute cron safety net for customers who pay and never return. Fulfilment is manual: staff
+  set `setup_status` to `in_progress` then `done` in PocketBase. If `SETUP_ALERT_CHAT_ID`
+  (Telegram chat id) is set, a message is sent on the first confirmation. Schema and write
+  protection: `node scripts/pb-setup-package-schema.mjs --apply`.
 
 - **Pro**: after a `paid` order that matches the catalog, the worker reads
   `GET /entitlements/{account}/{product}`. Only `active: true` with a future `expires_at` sets

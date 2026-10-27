@@ -16,7 +16,8 @@ import { fallbackPublishedUrl, resolvePublishedUrl } from "./domain/publishing/p
 import { classifyPublishError, failureNotice, metaApiError, nextRetryAt } from "./domain/publishing/retryPolicy.js";
 import { MEDIA_INSTRUCTION, detectMediaRequest, extractMediaFromSources } from "./domain/chat/productMedia.js";
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain/billing/costs.js";
-import { handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
+import { fetchPaidSetupOrder, handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
+import { createSetupStore } from "./domain/billing/setupOrders.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
 import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
 import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
@@ -458,7 +459,9 @@ var index_default = {
         return;
       }
       ctx.waitUntil(handlePublishDispatch(env2).catch((err) => console.error("[Publish] Lỗi tổng:", err)));
+      ctx.waitUntil(reconcileSetupOrders(env2).catch((err) => console.error("[Setup] Lỗi đối soát gói cài đặt:", err)));
       ctx.waitUntil(handleStaffTimeoutSweep(env2).catch((err) => console.error("[Staff Timeout] Lỗi tổng:", err)));
+      ctx.waitUntil(handleAiFailureRetrySweep(env2).catch((err) => console.error("[AI Retry] Lỗi tổng:", err)));
       ctx.waitUntil(handleYouTubeCommentReplies(env2).catch((err) => console.error("[YouTube Comment] Lỗi tổng:", err)));
       // Free plan chỉ cho 5 cron/tài khoản nên không tạo cron riêng cho ping — lồng vào đây,
       // tự lọc còn mỗi 30 phút (phút :00 và :30) để không ping quá thường xuyên.
@@ -855,9 +858,41 @@ function accountBillingStore(env) {
     if (!response.ok) throw new Error(`Account record failed (${response.status})`);
     return response.json();
   };
-  return { read: (id) => request(id), write: (id, patch) => request(id, patch) };
+  return { read: (id) => request(id), write: (id, patch) => request(id, patch), ...setupOrderStore(env) };
 }
 __name(accountBillingStore, "accountBillingStore");
+
+// Onboarding package store (bot_configs.setup_*), admin token. Alerts the platform owner on Telegram when
+// SETUP_ALERT_CHAT_ID is set; otherwise the status is only visible in PocketBase.
+function setupOrderStore(env) {
+  const call = async (path, init = {}) => {
+    const token = await getPbToken(env);
+    const response = await fetchWithTimeout(`${env.PB_URL}/api/collections/${path}`, {
+      ...init, headers: { Authorization: token, "Content-Type": "application/json" }
+    });
+    if (!response.ok) throw new Error(`PocketBase ${path} failed (${response.status})`);
+    return response.json();
+  };
+  const pb = {
+    list: async (collection, filter, perPage) => (await call(`${collection}/records?perPage=${perPage}&filter=${encodeURIComponent(filter)}`)).items || [],
+    get: (collection, id) => call(`${collection}/records/${encodeURIComponent(id)}`),
+    patch: (collection, id, body) => call(`${collection}/records/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) })
+  };
+  const notify = async ({ tenant, orderId }) => {
+    if (!env.SETUP_ALERT_CHAT_ID || !env.TELEGRAM_BOT_TOKEN) return;
+    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.SETUP_ALERT_CHAT_ID,
+      `Gói hỗ trợ cài đặt ($300) đã được thanh toán.\nWorkspace: ${tenant}\nĐơn: ${orderId}\nĐặt setup_status = in_progress khi bắt đầu, done khi hoàn tất (PocketBase > bot_configs).`);
+  };
+  return createSetupStore({ pb, notify });
+}
+__name(setupOrderStore, "setupOrderStore");
+
+async function reconcileSetupOrders(env) {
+  if (!env.BGATE_API_KEY) return;
+  const store = setupOrderStore(env);
+  await store.reconcilePending((orderId) => fetchPaidSetupOrder(env, orderId, fetchWithTimeout));
+}
+__name(reconcileSetupOrders, "reconcileSetupOrders");
 
 // Safety net for missed webhooks (e.g. a Whop auto-renewal): once pro_expires_at has passed,
 // re-read the entitlement before charging the account the free-plan quota. Throttled per isolate.

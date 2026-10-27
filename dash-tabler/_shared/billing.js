@@ -20,10 +20,27 @@ async function loadPaymentPlans() {
     const { plans } = await billingRequest('plans');
     if (!plans.length) { status.textContent = 'Thanh toán đang chờ cấu hình gói dịch vụ.'; return; }
     for (const plan of plans) {
-      const key = `bgate.checkout.${PB.authStore.model.id}.${plan.id}`;
+      const isSetup = plan.kind === 'setup';
+      const tenant = window.TENANT || '';
+      if (isSetup) {
+        if (!tenant) continue;
+        // Gói cài đặt mua theo từng workspace, 1 lần: đã mua thì chỉ hiện trạng thái.
+        let setup = { status: '' };
+        try { setup = await billingRequest(`setup?tenant=${encodeURIComponent(tenant)}`); } catch (error) { continue; }
+        if (['paid', 'in_progress', 'done'].includes(setup.status)) {
+          const note = document.createElement('p');
+          note.className = 'text-success mb-0';
+          note.textContent = ({ paid: 'Gói hỗ trợ cài đặt: đã thanh toán. Đội ngũ sẽ liên hệ để cấu hình cho workspace này.',
+            in_progress: 'Gói hỗ trợ cài đặt: đội ngũ đang cấu hình cho workspace này.',
+            done: 'Gói hỗ trợ cài đặt: đã hoàn tất.' })[setup.status];
+          container.insertBefore(note, status);
+          continue;
+        }
+      }
+      const key = `bgate.checkout.${PB.authStore.model.id}.${plan.id}${isSetup ? '.' + tenant : ''}`;
       const button = document.createElement('button');
-      button.className = 'btn btn-primary w-100';
-      button.textContent = `${plan.label} (${plan.amount} ${plan.currency})`;
+      button.className = isSetup ? 'btn btn-outline-primary w-100' : 'btn btn-primary w-100';
+      button.textContent = isSetup ? `${plan.label} — workspace ${tenant} (${plan.amount} ${plan.currency}, trả 1 lần)` : `${plan.label} (${plan.amount} ${plan.currency})`;
       button.onclick = async () => {
         const buttons = [...container.querySelectorAll('button')];
         buttons.forEach(item => { item.disabled = true; });
@@ -32,7 +49,7 @@ async function loadPaymentPlans() {
           // Keep the same id on retries/reload after a timeout to avoid duplicate orders.
           const requestId = sessionStorage.getItem(key) || crypto.randomUUID();
           sessionStorage.setItem(key, requestId);
-          const result = await billingRequest('checkout', { plan: plan.id, request_id: requestId });
+          const result = await billingRequest('checkout', { plan: plan.id, request_id: requestId, ...(isSetup ? { tenant } : {}) });
           const target = new URL(result.checkout_url);
           if (target.protocol !== 'https:') throw new Error('Đường dẫn thanh toán không hợp lệ.');
           sessionStorage.setItem(`${key}.order`, result.order_id);
@@ -54,7 +71,9 @@ async function loadPaymentPlans() {
           try {
             const payment = await billingRequest(`payments/${encodeURIComponent(orderId)}`);
             if (payment.status === 'paid') {
-              status.textContent = payment.service_activated
+              status.textContent = payment.setup_status
+                ? 'Đã thanh toán gói hỗ trợ cài đặt. Đội ngũ sẽ liên hệ để cấu hình cho workspace của bạn.'
+                : payment.service_activated
                 ? (payment.credited_messages ? `Đã thanh toán. Đã cộng thêm ${payment.credited_messages} câu.` : 'Đã thanh toán. Gói Pro đã được kích hoạt.')
                 : (payment.payment_verified
                   ? 'Đã xác minh thanh toán. Gói Pro đang được kích hoạt, vui lòng kiểm tra lại sau ít phút.'
