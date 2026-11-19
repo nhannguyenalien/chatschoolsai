@@ -40,8 +40,11 @@ export function createApp({ config, scheduler }) {
 
 async function main() {
   const config = loadConfig();
-  const telegram = createTelegram({ token: config.telegramToken });
   const pb = createPb({ url: config.pbUrl, email: config.pbEmail, password: config.pbPassword });
+  const telegram = createTelegram({
+    token: config.telegramToken,
+    getToken: async () => (await pb.list("system_config", { fields: "telegram_bot_token", perPage: 1, maxPages: 1 }))[0]?.telegram_bot_token,
+  });
   const jobs = [watchdogJob, backupJob, bookingDigestJob, bookingReminderJob, weeklyReportJob];
   const ctx = { config, pb, telegram, memory: new Map() };
   const scheduler = createScheduler({

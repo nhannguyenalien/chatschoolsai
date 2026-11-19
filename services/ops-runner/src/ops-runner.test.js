@@ -123,3 +123,31 @@ test("authorized so khoá đúng, từ chối thiếu/sai", () => {
   assert.equal(authorized("Bearer sai", secret), false);
   assert.equal(authorized(undefined, secret), false);
 });
+
+import { createTelegram } from "./telegram.js";
+
+test("config: TELEGRAM_BOT_TOKEN và ALERT_CHAT_ID không còn bắt buộc", () => {
+  const cfg = loadConfig({ PB_URL: "https://pb", PB_ADMIN_EMAIL: "a", PB_ADMIN_PASS: "b", RUNNER_SECRET: "x".repeat(16) });
+  assert.equal(cfg.telegramToken, "");
+  assert.equal(cfg.alertChatId, "");
+});
+
+test("telegram: token lấy từ system_config, nhớ 5 phút, không có chat id thì chỉ bỏ qua", async () => {
+  let lookups = 0, t = 0;
+  const urls = [];
+  const tg = createTelegram({
+    getToken: async () => { lookups++; return "TOKEN_PB"; },
+    fetchImpl: async (url) => { urls.push(url); return { ok: true }; },
+    now: () => t,
+  });
+  await tg.send("", "không gửi"); // không chat id -> không gọi gì
+  assert.equal(urls.length + lookups, 0);
+  await tg.send("1", "a"); await tg.send("1", "b");
+  assert.equal(lookups, 1);
+  assert.match(urls[0], /botTOKEN_PB/);
+  t += 6 * 60 * 1000;
+  await tg.send("1", "c");
+  assert.equal(lookups, 2);
+  const none = createTelegram({ fetchImpl: async () => ({ ok: true }) });
+  await assert.rejects(() => none.send("1", "x"), /Chưa có TELEGRAM_BOT_TOKEN/);
+});

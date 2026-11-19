@@ -25,8 +25,8 @@ Job lỡ giờ quá 3 tiếng (ví dụ container tắt cả buổi sáng) sẽ 
 | Biến | Bắt buộc | Ghi chú |
 |---|---|---|
 | `PB_URL`, `PB_ADMIN_EMAIL`, `PB_ADMIN_PASS` | có | Tài khoản superuser PocketBase |
-| `TELEGRAM_BOT_TOKEN` | có | Cùng bot với Worker |
-| `ALERT_CHAT_ID` | có | Chat của bạn, nhận cảnh báo hệ thống |
+| `TELEGRAM_BOT_TOKEN` | không | Trống thì tự đọc `system_config.telegram_bot_token` trong PocketBase (cùng nguồn với Worker, đổi ở system-config.html là runner theo) |
+| `ALERT_CHAT_ID` | không | Chat Telegram của quản trị nền tảng, nhận cảnh báo hệ thống (watchdog, backup lỗi). Trống thì chỉ ghi log. Chat ID của chủ từng cơ sở do khách tự nhập, lấy từ `bot_configs.owner_telegram_chat_id` |
 | `RUNNER_SECRET` | có | ≥16 ký tự, bảo vệ `/status` và `/run/:job` |
 | `RUNNER_PORT` | không | Mặc định 3000 (không dùng `PORT` vì Coolify ghi đè) |
 | `DATA_DIR` | không | Mặc định `/data` — **phải gắn volume** |
