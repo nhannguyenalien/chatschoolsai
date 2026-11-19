@@ -250,8 +250,8 @@
             <button class="btn btn-primary" id="save-btn" onclick="saveConfig()"><i class="ti ti-device-floppy me-1"></i>Lưu cấu hình</button>
             <div class="vr d-none d-md-block"></div>
             <div class="flex-fill">
-              <div class="fw-medium">Đồng bộ lại AnythingLLM (khi đổi VPS mới)</div>
-              <div class="text-secondary fs-5">Đẩy lại system_prompt + toàn bộ tài liệu RAG của MỌI tenant vào ANYTHINGLLM_URL hiện tại. Lưu cấu hình ở trên trước khi bấm.</div>
+              <div class="fw-medium">Đồng bộ lại AnythingLLM (khi đổi VPS mới hoặc đổi embedding model)</div>
+              <div class="text-secondary fs-5">Đẩy lại system_prompt + embed lại toàn bộ tài liệu RAG của MỌI tenant vào ANYTHINGLLM_URL hiện tại. Chạy lần lượt từng tenant, giữ trang mở tới khi xong. Lưu cấu hình ở trên trước khi bấm.</div>
             </div>
             <button class="btn btn-outline-danger" id="sync-btn" onclick="syncAllAnythingLLM()"><i class="ti ti-refresh me-1"></i>Đồng bộ ngay</button>
           </div>
@@ -451,17 +451,59 @@ async function syncAllAnythingLLM() {
     const btn = document.getElementById('sync-btn');
     const secret = document.getElementById('cfg-admin-secret').value.trim();
     if (!secret) { showToast('Chưa có ADMIN_SECRET — điền và Lưu cấu hình trước', 'error'); return; }
-    if (!confirm('Đồng bộ lại TOÀN BỘ tenant vào AnythingLLM hiện tại? Việc này có thể mất vài phút tuỳ số lượng tài liệu.')) return;
-    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang đồng bộ...';
+    if (!confirm('Đồng bộ lại TOÀN BỘ tenant vào AnythingLLM hiện tại? Việc này có thể mất vài phút tuỳ số lượng tài liệu. Giữ nguyên trang này cho tới khi xong.')) return;
+    const setBtn = (text) => { btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>' + text; };
+    btn.disabled = true; setBtn('Đang lấy danh sách tenant...');
+    let ok = 0, failed = 0;
+    const failedTenants = new Set();
     try {
-        const res = await fetch(`${WORKER_URL}/sync-docs`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
-            body: JSON.stringify({ tenant: 'all' })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
-        showToast(data.message || 'Đã gửi yêu cầu đồng bộ', 'success');
+        // Gom mọi tenant có tài liệu hoặc có cấu hình bot (tenant chưa có tài liệu vẫn được đồng bộ lại system prompt).
+        const tenants = new Set();
+        for (const [col, field] of [['documents', 'tenant'], ['bot_configs', 'tenant']]) {
+            try {
+                (await PBA.collection(col).getFullList({ fields: field, batch: 500 })).forEach((r) => r[field] && tenants.add(r[field]));
+            } catch (e) { console.warn('Không đọc được', col, e); }
+        }
+        const list = [...tenants].sort();
+        if (!list.length) throw new Error('Không tìm thấy tenant nào');
+        const call = async (body) => {
+            let lastErr;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    const res = await fetch(`${WORKER_URL}/sync-docs`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
+                        body: JSON.stringify(body)
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+                    return data;
+                } catch (e) { lastErr = e; }
+            }
+            throw lastErr;
+        };
+        for (let i = 0; i < list.length; i++) {
+            const tenant = list[i];
+            let offset = 0;
+            // Mỗi lượt chỉ 8 tài liệu để không vượt giới hạn gọi mạng của Worker; lặp tới khi hết.
+            for (;;) {
+                setBtn(`Tenant ${i + 1}/${list.length}: ${tenant} (đã xử lý ${offset} tài liệu)`);
+                let data;
+                try {
+                    data = await call({ tenant, limit: 8, offset });
+                } catch (e) {
+                    failed++; failedTenants.add(tenant);
+                    console.error('Sync lỗi', tenant, e);
+                    break;
+                }
+                ok += data.succeeded || 0;
+                if (data.failed) { failed += data.failed; failedTenants.add(tenant); }
+                if (data.done) break;
+                offset = data.next_offset;
+            }
+        }
+        const tail = failedTenants.size ? ` Tenant có lỗi: ${[...failedTenants].join(', ')} — bấm lại để chạy lại.` : '';
+        showToast(`Đồng bộ xong ${list.length} tenant. Thành công ${ok} tài liệu, thất bại ${failed}.${tail}`, failed ? 'error' : 'success');
     } catch (err) {
         showToast('Lỗi đồng bộ: ' + err.message, 'error');
     } finally {

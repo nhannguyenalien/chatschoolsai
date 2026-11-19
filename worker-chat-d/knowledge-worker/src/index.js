@@ -1972,11 +1972,13 @@ async function sendTelegramMessage(token, chatId, text, replyMarkup = null) {
 }
 __name(sendTelegramMessage, "sendTelegramMessage");
 async function handleSyncDocs(request, env, cors) {
-  const { tenant, secret_key } = await request.json();
+  const { tenant, secret_key, offset: rawOffset, limit: rawLimit } = await request.json();
   if (!tenant) return new Response(JSON.stringify({ error: "Thi\u1EBFu th\xF4ng tin tenant" }), { status: 400, headers: cors });
   const pbToken = await getPbToken(env);
   try {
-    let fetchUrl = `${env.PB_URL}/api/collections/documents/records?perPage=500`;
+    let fetchUrl = paged
+      ? `${env.PB_URL}/api/collections/documents/records?perPage=${limit}&page=${Math.floor(offset / limit) + 1}&sort=created,id`
+      : `${env.PB_URL}/api/collections/documents/records?perPage=500`;
     if (tenant !== "all") {
       fetchUrl += `&filter=${encodeURIComponent(`tenant='${tenant}'`)}`;
     }
@@ -1986,7 +1988,8 @@ async function handleSyncDocs(request, env, cors) {
     let successCount = 0;
     let failCount = 0;
     const items = docsData.items || [];
-    if (items.length === 0 && tenant !== "all") {
+    const fetchedCount = items.length;
+    if (items.length === 0 && tenant !== "all" && offset === 0) {
       items.push({ tenant, isDummy: true });
     }
     for (const doc of items) {
@@ -1998,6 +2001,11 @@ async function handleSyncDocs(request, env, cors) {
             headers: { "Authorization": pbToken }
           });
           const configData = await configRes.json();
+  // Ch\u1EBF \u0111\u1ED9 chia l\u00F4: g\u1EEDi `limit` (vd 8) + `offset` \u0111\u1EC3 m\u1ED7i l\u01B0\u1EE3t g\u1ECDi ch\u1EC9 x\u1EED l\u00FD v\u00E0i t\u00E0i li\u1EC7u, n\u1EB1m trong gi\u1EDBi h\u1EA1n
+  // subrequest c\u1EE7a Worker. Kh\u00F4ng g\u1EEDi `limit` th\u00EC gi\u1EEF h\u00E0nh vi c\u0169 (t\u1ED1i \u0111a 500 t\u00E0i li\u1EC7u trong m\u1ED9t l\u01B0\u1EE3t).
+  const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 0, 0), 20);
+  const paged = limit > 0;
+  const offset = paged ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
           const botConfig = configData.items?.[0];
           if (botConfig) {
             await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${currentTenant}/update`, {
@@ -2058,7 +2066,11 @@ async function handleSyncDocs(request, env, cors) {
     }
     return new Response(JSON.stringify({
       success: true,
-      message: `\u0110\xE3 sync xong! Th\xE0nh c\xF4ng: ${successCount}, Th\u1EA5t b\u1EA1i: ${failCount}`
+      message: `\u0110\xE3 sync xong! Th\xE0nh c\xF4ng: ${successCount}, Th\u1EA5t b\u1EA1i: ${failCount}`,
+      succeeded: successCount,
+      failed: failCount,
+      done: !paged || fetchedCount < limit,
+      next_offset: offset + fetchedCount
     }), { headers: cors });
   } catch (err) {
     console.error("L\u1ED7i Auto Sync:", err);
