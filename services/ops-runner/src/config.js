@@ -16,6 +16,7 @@ export function loadConfig(env = process.env) {
     dataDir: env.DATA_DIR || "/data",
     tzOffsetMin: num(env.TZ_OFFSET_MIN, 420), // mặc định giờ Việt Nam (UTC+7)
     backupKeepDays: num(env.BACKUP_KEEP_DAYS, 14),
+    reminderLeadMin: num(env.REMINDER_LEAD_MIN, 120), // nhắc khách trước giờ hẹn bao nhiêu phút
     healthUrls: (env.HEALTH_URLS || "").split(",").map((s) => s.trim()).filter(Boolean),
   };
 }

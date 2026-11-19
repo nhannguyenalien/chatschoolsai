@@ -15,6 +15,7 @@ Khi thêm job mới, giữ nguyên quy tắc này: runner chỉ *đọc/ghi Pock
 | `watchdog` | mỗi 5 phút | Gọi PocketBase `/api/health` (+ `HEALTH_URLS`), báo Telegram khi hỏng 2 lần liền và khi hồi phục. Cũng giữ HF Space không ngủ |
 | `pb-backup` | 03:00 | Tạo backup PocketBase, tải về `/data/backups`, xoá bản trên HF, giữ `BACKUP_KEEP_DAYS` ngày |
 | `booking-digest` | 07:00 | Gửi chủ từng cơ sở lịch hôm nay + ngày mai (bỏ qua nếu không có lịch) |
+| `booking-reminder` | mỗi 10 phút | Nhắc **khách** trước giờ hẹn `REMINDER_LEAD_MIN` phút (mặc định 120) qua Messenger/Instagram, đúng ngôn ngữ của cơ sở. Meta chỉ cho gửi chủ động trong 24h kể từ tin cuối của khách; ngoài cửa sổ, kênh web/khác, hoặc gửi lỗi thì báo chủ cơ sở nhắc tay (kèm SĐT). Mỗi lịch chỉ xử lý một lần (đánh dấu `extra_json.reminder`) |
 | `weekly-report` | Thứ Hai 08:00 | Tin nhắn, lịch đặt, bài đăng 7 ngày qua |
 
 Job lỡ giờ quá 3 tiếng (ví dụ container tắt cả buổi sáng) sẽ bỏ qua tới lần sau. Trạng thái lưu ở `/data/state.json` nên khởi động lại không gửi lặp.
@@ -31,6 +32,7 @@ Job lỡ giờ quá 3 tiếng (ví dụ container tắt cả buổi sáng) sẽ 
 | `DATA_DIR` | không | Mặc định `/data` — **phải gắn volume** |
 | `TZ_OFFSET_MIN` | không | Mặc định 420 (UTC+7) |
 | `BACKUP_KEEP_DAYS` | không | Mặc định 14 |
+| `REMINDER_LEAD_MIN` | không | Nhắc khách trước giờ hẹn bao nhiêu phút, mặc định 120 |
 | `HEALTH_URLS` | không | URL khác cần canh, ngăn cách bằng dấu phẩy |
 
 ## Triển khai trên Coolify

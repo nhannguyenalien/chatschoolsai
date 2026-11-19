@@ -15,6 +15,7 @@ import { backupJob } from "./jobs/backup.js";
 import { watchdogJob } from "./jobs/watchdog.js";
 import { bookingDigestJob } from "./jobs/bookingDigest.js";
 import { weeklyReportJob } from "./jobs/weeklyReport.js";
+import { bookingReminderJob } from "./jobs/bookingReminder.js";
 
 export function authorized(header, secret) {
   const a = Buffer.from(String(header || "").replace(/^Bearer\s+/i, ""));
@@ -41,7 +42,7 @@ async function main() {
   const config = loadConfig();
   const telegram = createTelegram({ token: config.telegramToken });
   const pb = createPb({ url: config.pbUrl, email: config.pbEmail, password: config.pbPassword });
-  const jobs = [watchdogJob, backupJob, bookingDigestJob, weeklyReportJob];
+  const jobs = [watchdogJob, backupJob, bookingDigestJob, bookingReminderJob, weeklyReportJob];
   const ctx = { config, pb, telegram, memory: new Map() };
   const scheduler = createScheduler({
     jobs, ctx, tzOffsetMin: config.tzOffsetMin,
