@@ -56,6 +56,7 @@
     const WIDGET_I18N = {
         vi: { minimize: 'Thu nhỏ', helloPublic: 'Chào bạn! Cần mình tư vấn không? 👋', helloClient: 'Cần hỗ trợ gì không? 👋', subtitle: 'Hỗ trợ viên', close: 'Đóng', call: 'Gọi thoại cho hỗ trợ viên', mute: 'Tắt mic', unmute: 'Bật mic', end: 'Kết thúc', incomingTitle: 'Hỗ trợ viên', incoming: 'Đang gọi đến...', decline: 'Từ chối', accept: 'Nghe', placeholder: 'Nhập tin nhắn...', send: 'Gửi', footer: 'Được bảo vệ bởi Fluid Conversations', openChat: 'Mở chat', errConn: 'Lỗi kết nối tới AI.', errNetwork: 'Đường truyền có vấn đề. Vui lòng thử lại.' },
         en: { minimize: 'Minimize', helloPublic: 'Hi there! Need any help? 👋', helloClient: 'Need a hand? 👋', subtitle: 'Support', close: 'Close', call: 'Call support', mute: 'Mute', unmute: 'Unmute', end: 'End', incomingTitle: 'Support', incoming: 'Incoming call...', decline: 'Decline', accept: 'Accept', placeholder: 'Type a message...', send: 'Send', footer: 'Protected by Fluid Conversations', openChat: 'Open chat', errConn: 'Connection error.', errNetwork: 'Connection issue. Please try again.' },
+        id: { minimize: 'Perkecil', helloPublic: 'Halo! Ada yang bisa saya bantu? 👋', helloClient: 'Butuh bantuan? 👋', subtitle: 'Dukungan', close: 'Tutup', call: 'Telepon dukungan', mute: 'Bisukan', unmute: 'Aktifkan suara', end: 'Akhiri', incomingTitle: 'Dukungan', incoming: 'Panggilan masuk...', decline: 'Tolak', accept: 'Terima', placeholder: 'Ketik pesan...', send: 'Kirim', footer: 'Dilindungi oleh Fluid Conversations', openChat: 'Buka chat', errConn: 'Kesalahan koneksi.', errNetwork: 'Masalah koneksi. Silakan coba lagi.' },
         ja: { minimize: '最小化', helloPublic: 'こんにちは！ご相談はありますか？👋', helloClient: 'お困りですか？👋', subtitle: 'サポート', close: '閉じる', call: 'サポートに電話', mute: 'ミュート', unmute: 'ミュート解除', end: '終了', incomingTitle: 'サポート', incoming: '着信中...', decline: '拒否', accept: '応答', placeholder: 'メッセージを入力...', send: '送信', footer: 'Fluid Conversations によって保護されています', openChat: 'チャットを開く', errConn: '接続エラーです。', errNetwork: '通信に問題があります。もう一度お試しください。' },
         es: { minimize: 'Minimizar', helloPublic: '¡Hola! ¿Te ayudo? 👋', helloClient: '¿Necesitas ayuda? 👋', subtitle: 'Soporte', close: 'Cerrar', call: 'Llamar a soporte', mute: 'Silenciar', unmute: 'Activar audio', end: 'Finalizar', incomingTitle: 'Soporte', incoming: 'Llamada entrante...', decline: 'Rechazar', accept: 'Aceptar', placeholder: 'Escribe un mensaje...', send: 'Enviar', footer: 'Protegido por Fluid Conversations', openChat: 'Abrir chat', errConn: 'Error de conexión.', errNetwork: 'Problema de conexión. Inténtalo de nuevo.' },
         fr: { minimize: 'Réduire', helloPublic: 'Bonjour ! Besoin d’aide ? 👋', helloClient: 'Besoin d’un coup de main ? 👋', subtitle: 'Assistance', close: 'Fermer', call: "Appeler l'assistance", mute: 'Muet', unmute: 'Activer le son', end: 'Terminer', incomingTitle: 'Assistance', incoming: 'Appel entrant...', decline: 'Refuser', accept: 'Accepter', placeholder: 'Écrivez un message...', send: 'Envoyer', footer: 'Protégé par Fluid Conversations', openChat: 'Ouvrir le chat', errConn: 'Erreur de connexion.', errNetwork: 'Problème de connexion. Veuillez réessayer.' },
@@ -73,6 +74,13 @@
         return WIDGET_I18N[code] ? code : 'vi';
     }
     const widgetLangKey = langAuto ? detectPageLang() : (WIDGET_I18N[langAttr] ? langAttr : 'vi');
+    // Ngôn ngữ trang gửi lên Worker để bot (response_language = auto) trả lời đúng ngôn ngữ trang; không biết thì không gửi.
+    function pageLangForServer() {
+        if (!langAuto) return /^[a-z]{2,3}$/i.test(langAttr || '') ? langAttr.toLowerCase() : undefined;
+        let code = (document.documentElement.lang || '').slice(0, 2).toLowerCase();
+        if (!code) { try { code = (localStorage.getItem('lang') || '').slice(0, 2).toLowerCase(); } catch (e) {} }
+        return /^[a-z]{2}$/.test(code) ? code : undefined;
+    }
     let wt = WIDGET_I18N[widgetLangKey];
 
     // 2. FONTS & CSS
@@ -966,7 +974,7 @@
             var res = await fetch(WORKER_URL + "/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tenant: tenant, session: session, question: text, level: botLevel || undefined, page_context: pageContext || undefined })
+                body: JSON.stringify({ tenant: tenant, session: session, question: text, level: botLevel || undefined, page_context: pageContext || undefined, lang: pageLangForServer() })
             });
             var data = await res.json();
 

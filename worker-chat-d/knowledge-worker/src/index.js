@@ -19,6 +19,7 @@ import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain
 import { fetchPaidSetupOrder, handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
 import { createSetupStore } from "./domain/billing/setupOrders.js";
 import { handleServiceLead, leadAlertTarget, leadAlertText } from "./domain/leads/serviceLeads.js";
+import { pageLanguageHint } from "./domain/chat/pageLanguage.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
 import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
 import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
@@ -1375,7 +1376,8 @@ async function handleChat(request, env, cors, reservedQuota = null) {
         "accept": "application/json"
       },
       body: JSON.stringify({
-        message: contextualQuestion,
+        // Language hint from the widget's page (only for bots on "auto"); per message, never in the shared workspace prompt.
+        message: languageNames[responseLanguage] ? contextualQuestion : (pageLanguageHint(body.lang) ? `${contextualQuestion}\n\n${pageLanguageHint(body.lang)}` : contextualQuestion),
         mode: "chat",
         sessionId: session
       })
