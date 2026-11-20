@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanServiceLead, handleServiceLead, leadAlertText } from '../src/domain/leads/serviceLeads.js';
+import { cleanServiceLead, handleServiceLead, leadAlertTarget, leadAlertText } from '../src/domain/leads/serviceLeads.js';
 import { handleBGate, billingCatalog } from '../src/domain/billing/bgate.js';
 
 const valid = {
@@ -108,6 +108,18 @@ test('the global AI Social Content page: gl market and social_* plans are accept
   assert.match(text, /AI Social Content/);
   assert.match(text, /30 bài\/tháng/);
   assert.doesNotMatch(text, /landing GL/);
+});
+
+test('lead alerts: a dedicated bot needs both its token and chat; otherwise the existing setup-alert pair is used', () => {
+  const old = { TELEGRAM_BOT_TOKEN: 'old-token', SETUP_ALERT_CHAT_ID: '111' };
+  assert.equal(leadAlertTarget({}), null);
+  assert.deepEqual(leadAlertTarget(old), { token: 'old-token', chatId: '111' });
+  assert.deepEqual(leadAlertTarget({ ...old, LEADS_TELEGRAM_BOT_TOKEN: 'new-token', LEADS_TELEGRAM_CHAT_ID: '222' }), { token: 'new-token', chatId: '222' });
+  // Only half of the dedicated pair: never mix the new token with the old chat (or the other way round).
+  assert.deepEqual(leadAlertTarget({ ...old, LEADS_TELEGRAM_BOT_TOKEN: 'new-token' }), { token: 'old-token', chatId: '111' });
+  assert.deepEqual(leadAlertTarget({ ...old, LEADS_TELEGRAM_CHAT_ID: '222' }), { token: 'old-token', chatId: '111' });
+  assert.deepEqual(leadAlertTarget({ LEADS_TELEGRAM_BOT_TOKEN: 'new-token', LEADS_TELEGRAM_CHAT_ID: '222' }), { token: 'new-token', chatId: '222' });
+  assert.equal(leadAlertTarget({ LEADS_TELEGRAM_BOT_TOKEN: 'new-token' }), null);
 });
 
 // ---- payment catalog: landing-page offers are tagged with a market ----

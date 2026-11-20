@@ -73,6 +73,15 @@ export async function handleServiceLead(request, cors, deps) {
   }
 }
 
+// Which Telegram bot and chat get the lead alerts. A dedicated bot (LEADS_TELEGRAM_BOT_TOKEN + LEADS_TELEGRAM_CHAT_ID,
+// both required together) wins; otherwise the platform bot and the setup-alert chat that already exist are used, so
+// adding the dedicated pair never touches the old configuration. Returns null when nothing is configured.
+export function leadAlertTarget(env) {
+  if (env.LEADS_TELEGRAM_BOT_TOKEN && env.LEADS_TELEGRAM_CHAT_ID) return { token: env.LEADS_TELEGRAM_BOT_TOKEN, chatId: env.LEADS_TELEGRAM_CHAT_ID };
+  if (env.TELEGRAM_BOT_TOKEN && env.SETUP_ALERT_CHAT_ID) return { token: env.TELEGRAM_BOT_TOKEN, chatId: env.SETUP_ALERT_CHAT_ID };
+  return null;
+}
+
 export function leadAlertText(lead) {
   const plan = { setup: 'Setup', setup_managed: 'Setup + Managed', setup_growth: 'Setup + Growth',
     social_4: 'Social Content 4 bài/tháng', social_12: 'Social Content 12 bài/tháng', social_30: 'Social Content 30 bài/tháng',

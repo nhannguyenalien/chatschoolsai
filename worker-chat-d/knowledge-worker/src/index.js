@@ -18,7 +18,7 @@ import { MEDIA_INSTRUCTION, detectMediaRequest, extractMediaFromSources } from "
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain/billing/costs.js";
 import { fetchPaidSetupOrder, handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
 import { createSetupStore } from "./domain/billing/setupOrders.js";
-import { handleServiceLead, leadAlertText } from "./domain/leads/serviceLeads.js";
+import { handleServiceLead, leadAlertTarget, leadAlertText } from "./domain/leads/serviceLeads.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
 import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
 import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
@@ -909,8 +909,9 @@ function serviceLeadDeps(env) {
       create: (collection, record) => call(`${collection}/records`, { method: "POST", body: JSON.stringify(record) })
     },
     notify: async (lead) => {
-      if (!env.SETUP_ALERT_CHAT_ID || !env.TELEGRAM_BOT_TOKEN) return;
-      await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.SETUP_ALERT_CHAT_ID, leadAlertText(lead));
+      const target = leadAlertTarget(env);
+      if (!target) return;
+      await sendTelegramMessage(target.token, target.chatId, leadAlertText(lead));
     }
   };
 }
