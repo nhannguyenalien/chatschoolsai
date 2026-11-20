@@ -244,7 +244,7 @@
     document.body.appendChild(root);
 
     // 5. CONSTANTS & DOM REFS
-    const WORKER_URL      = "https://knowledge-worker.toidayhoc.workers.dev";
+    const WORKER_URL      = "https://apic.schoolsai.work";
     const HISTORY_KEY     = 'ai_history_' + tenant + '_' + session;
     const MAX_HISTORY     = 60;
 

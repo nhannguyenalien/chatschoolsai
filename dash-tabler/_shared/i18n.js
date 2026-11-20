@@ -290,7 +290,30 @@ const I18N_DICT = {
     comp_title: "게시물 작성", comp_subtitle: "게시물을 작성하고 AI로 RSS 콘텐츠를 다시 쓰며 플랫폼에 직접 게시합니다.", comp_manage_channels: "게시 채널 관리",
     an_title: "분석", an_subtitle: "모든 플랫폼의 게시 상태를 추적합니다.", sm_title: "채널 설정", sm_subtitle: "Facebook, Instagram, WhatsApp, Zalo 및 기타 채팅 API의 페이지/계정과 토큰을 관리합니다.",
     nav_widget: "위젯 임베드", btn_copy: "복사", wg_title: "웹사이트에 챗봇 임베드하기", wg_templates_title: "템플릿", wg_customize_title: "맞춤 설정", wg_color: "강조 색상", wg_position: "채팅 버블 위치", wg_position_right: "오른쪽 하단", wg_position_left: "왼쪽 하단", wg_display_style: "표시 스타일", wg_style_bubble: "플로팅 버블", wg_style_sidebar: "고정 사이드바", wg_widget_lang: "위젯 언어", wg_snippet_title: "임베드 코드", wg_preview_title: "실시간 미리보기"
-  }
+  },
+  zh: {
+    nav_overview: "概览", nav_bot_settings: "机器人设置", nav_agent_chat: "与智能体对话", nav_knowledge: "知识库", nav_messages: "聊天记录", nav_leads: "潜在客户", nav_billing: "账单", nav_posts: "社交媒体帖子", nav_composer: "内容创作", nav_blog: "博客编辑", nav_calendar: "发布日历", nav_booking: "预约", nav_analytics: "数据分析", nav_sm_config: "渠道设置", nav_loyalty: "客户与会员", nav_social_media: "社交媒体", logout: "退出登录",
+    btn_save: "保存", btn_cancel: "取消", btn_delete: "删除", btn_add: "添加", btn_search: "搜索", btn_send: "发送", loading: "加载中...", language: "语言",
+    cfg_response_language: "回复语言", cfg_response_language_hint: "自动模式会识别客户使用的语言；选择某种语言可让机器人始终使用该语言回复。", comp_content_language: "内容语言", lang_auto_customer: "自动（客户语言）", lang_auto_interface: "自动（界面语言）",
+    idx_title: "客户 AI 中心",
+    cfg_breadcrumb: "机器人设置", cfg_title: "配置助手", cfg_subtitle: "设置聊天机器人的个性、行为和技术参数。", cfg_agentchat_banner_title: "与 AI 智能体对话", cfg_agentchat_banner_sub: "只需对话即可配置系统，无需在下方表单中查找。请打开专用页面。", cfg_card_api_title: "外部系统 API", cfg_card_agent_title: "AI 运营智能体", cfg_card_tools_title: "智能体自定义工具（外部 API）", cfg_card_persona_title: "系统角色设定",
+    ac_breadcrumb: "与 AI 智能体对话", ac_title: "与 AI 智能体对话", ac_subtitle: "像平常一样说话即可，智能体会理解并通过 API 为您配置系统，无需填写表单。", ac_warning_html: '您输入的内容（包括粘贴的令牌或 API 密钥）会发送给 AI 模型处理。仅在信任本系统所配置的 AI 代理时才粘贴令牌（参见<a href="config.html">机器人设置</a>）。', ac_input_placeholder: "输入配置请求...（按 Enter 发送）", ac_empty: "暂无消息，可以试试下方的建议，或输入您自己的请求。", ac_capabilities_title: "该智能体能做什么？", ac_capabilities_hint: "此列表直接来自后端，始终准确反映智能体的实际能力，而不是可能过时的手写文档。",
+    kb_title_top: "知识库", kb_title: "知识库", kb_subtitle: "添加并管理机器人学习的内容。粘贴文本后会自动分段并生成向量。", kb_search_placeholder: "搜索文档...",
+    msg_title_top: "聊天记录", msg_recent_sessions: "最近会话", msg_filter_all: "全部", msg_filter_needs_human: "需要处理", msg_select_session: "选择一个聊天会话", msg_select_session_hint: "点击左侧的客户即可查看消息",
+    bill_title_top: "仪表盘", bill_title: "账单与用量", bill_subtitle: "管理您的套餐、额度和交易记录。",
+    post_title: "社交媒体帖子", post_subtitle: "跟踪、审批和管理各平台的帖子（Facebook、Instagram、LinkedIn、YouTube、WordPress 等）", post_btn_refresh: "刷新",
+    comp_title: "内容创作", comp_subtitle: "撰写帖子草稿，用 AI 根据 RSS 改写，并手动发布到各平台。", comp_manage_channels: "管理发布渠道",
+    an_title: "数据分析", an_subtitle: "跟踪各平台的发布状态。",
+    sm_title: "渠道设置", sm_subtitle: "管理 Facebook、Instagram、WhatsApp、Zalo 及其他聊天 API 的主页/账号和令牌。",
+    nav_widget: "嵌入小组件", btn_copy: "复制",
+    wg_breadcrumb_parent: "机器人设置", wg_title: "在您的网站上嵌入聊天机器人", wg_subtitle: "选择模板，按客户需求自定义，实时预览，然后将一行代码复制到网站中。", wg_templates_title: "模板", wg_customize_title: "自定义选项", wg_color: "主题色", wg_position: "聊天气泡位置", wg_position_right: "右下角", wg_position_left: "左下角", wg_display_style: "显示样式", wg_style_bubble: "悬浮气泡", wg_style_sidebar: "固定侧边栏", wg_widget_lang: "小组件语言", wg_radius: "圆角程度", wg_radius_square: "直角", wg_radius_round: "圆润",
+    wg_domain: "嵌入的域名（生产环境建议填写）", wg_domain_hint: "留空则可在任意页面运行（方便测试）。交付给客户前请填写真实域名，以防其他网站嵌入。", wg_snippet_title: "嵌入代码", wg_snippet_hint: '请将此代码粘贴到网站结束标签 <code>&lt;/body&gt;</code> 之前。', wg_preview_title: "实时预览", wg_preview_hint: "这是正在运行的真实小组件，可直接在下方框内点击体验。", wg_toast_copied: "已复制嵌入代码",
+    wg_tpl_blue_name: "专业蓝", wg_tpl_blue_desc: "默认样式，适合各行各业",
+    wg_tpl_mono_name: "极简黑白", wg_tpl_mono_desc: "直角设计，低调优雅",
+    wg_tpl_orange_name: "活力橙", wg_tpl_orange_desc: "完全圆润，醒目且年轻",
+    wg_tpl_green_name: "友好绿", wg_tpl_green_desc: "置于左侧，亲切易用",
+    wg_tpl_purple_name: "优雅紫", wg_tpl_purple_desc: "非常适合美妆和时尚品牌"
+  },
 };
 
 // Nhãn sidebar (trước đây viết cứng tiếng Việt nên không đổi theo ngôn ngữ).
@@ -308,6 +331,11 @@ Object.assign(I18N_DICT.ja, {
   nav_customer_view: "顧客として表示", nav_account_section: "アカウント", nav_account_hint: "すべてのワークスペースで共通",
   nav_master_agent: "マスターエージェント(全テナント)", nav_account_info: "アカウント情報", nav_api_docs: "APIドキュメント",
   sb_workspace_current: "使用中のワークスペース", sb_add_new: "新規追加", sb_add_workspace_title: "新しいワークスペースを作成", sb_choose_tenant: "テナントを選択"
+});
+Object.assign(I18N_DICT.zh, {
+  nav_customer_view: "以客户视角查看", nav_account_section: "账户", nav_account_hint: "所有工作区共用",
+  nav_master_agent: "主智能体（所有租户）", nav_account_info: "账户信息", nav_api_docs: "API 文档",
+  sb_workspace_current: "当前工作区", sb_add_new: "新增", sb_add_workspace_title: "创建新工作区", sb_choose_tenant: "选择租户"
 });
 Object.assign(I18N_DICT.es, {
   nav_customer_view: "Ver como cliente", nav_account_section: "Cuenta", nav_account_hint: "Compartido en todos los espacios de trabajo",
@@ -363,7 +391,7 @@ Object.assign(I18N_DICT.ko, {
   wg_tpl_purple_name: "엘레강트 퍼플", wg_tpl_purple_desc: "뷰티·패션 브랜드에 적합"
 });
 
-const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko"];
+const SUPPORTED_LANGS = ["vi", "en", "ja", "es", "fr", "ko", "zh"];
 
 // Bảng này chứa toàn bộ nội dung cũ viết trực tiếp trong HTML/JavaScript.
 // Tải riêng để file từ điển chính vẫn dễ bảo trì; khi tải xong trang sẽ được dịch lại.
@@ -384,6 +412,11 @@ if (!window.I18N_CONTENT) {
         window.I18N_CONTENT[lang] = Object.assign(window.I18N_CONTENT[lang] || {}, window.I18N_EXTRA[lang]);
         delete PATTERN_CACHE[lang];
       });
+      const zhScript = document.createElement("script");
+      zhScript.src = `${I18N_BASE}i18n-zh.js?v=20261028-1`;
+      zhScript.onload = zhScript.onerror = () => { fillZhFromEnglish(); applyI18n(); };
+      document.head.appendChild(zhScript);
+      fillZhFromEnglish();
       applyI18n();
     };
     document.head.appendChild(extraScript);
@@ -404,6 +437,14 @@ if (!window.I18N_CONTENT) {
     return native.call(window, translated, ...rest);
   };
 });
+
+// Tiếng Trung chưa dịch hết bảng nội dung: chuỗi nào chưa có bản zh thì dùng bản tiếng Anh thay vì tiếng Việt.
+function fillZhFromEnglish() {
+  const c = window.I18N_CONTENT;
+  if (!c || !c.en) return;
+  c.zh = Object.assign({}, c.en, c.zh || {}, window.I18N_ZH || {});
+  delete PATTERN_CACHE.zh;
+}
 
 const ORIGINAL_TEXT = new WeakMap();
 const ORIGINAL_ATTRS = new WeakMap();
@@ -530,7 +571,7 @@ function translateLegacyContent(root = document) {
 function getLang() {
   const saved = localStorage.getItem("lang");
   if (SUPPORTED_LANGS.includes(saved)) return saved;
-  // Khách chưa chọn: theo ngôn ngữ trình duyệt (vi, en, ja, es, fr, ko), không hỗ trợ thì tiếng Anh.
+  // Khách chưa chọn: theo ngôn ngữ trình duyệt (vi, en, ja, es, fr, ko, zh), không hỗ trợ thì tiếng Anh.
   const prefs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"];
   const match = prefs.map((l) => String(l).slice(0, 2).toLowerCase()).find((l) => SUPPORTED_LANGS.includes(l));
   return match || "en";
@@ -538,7 +579,7 @@ function getLang() {
 
 function t(key) {
   const lang = getLang();
-  return (I18N_DICT[lang] && I18N_DICT[lang][key]) || (I18N_DICT.vi && I18N_DICT.vi[key]) || key;
+  return (I18N_DICT[lang] && I18N_DICT[lang][key]) || (lang === "zh" && I18N_DICT.en[key]) || (I18N_DICT.vi && I18N_DICT.vi[key]) || key;
 }
 
 function applyI18n() {

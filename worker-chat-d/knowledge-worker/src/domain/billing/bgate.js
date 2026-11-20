@@ -18,6 +18,7 @@ export function billingCatalog(env) {
     if (!/^[a-z0-9_-]+$/.test(id) || typeof plan?.product !== 'string' || !plan.product ||
         plan.provider !== 'whop' || plan.currency !== 'USD' ||
         (plan.kind === 'addon' || plan.kind === 'setup' ? plan.billing_interval !== undefined : !INTERVALS.includes(plan.billing_interval)) ||
+        (plan.market !== undefined && !['vn', 'id', 'ph'].includes(plan.market)) ||
         !Number.isFinite(plan.amount) || plan.amount <= 0 || !plan.label) return [];
     return [{ ...plan, id }];
   });
@@ -131,7 +132,11 @@ export async function handleBGate(request, env, account, cors, fetchImpl = fetch
   try { catalog = billingCatalog(env); }
   catch { return reply({ error: 'Cấu hình thanh toán chưa hợp lệ.' }, 503); }
   if (path === '/api/account/billing/plans' && request.method === 'GET') {
-    return reply({ plans: env.BGATE_API_KEY ? catalog.filter(plan => plan.kind !== 'addon' || effectivePlan(account) === 'pro').map(({ id, label, amount, currency, kind }) => ({ id, label, amount, currency, ...(kind ? { kind } : {}) })) : [] });
+    // A plan with `market` (landing-page offers such as setup_vn) is only listed when that market is
+    // asked for, so the dashboard billing page keeps showing just the general plans.
+    const market = new URL(request.url).searchParams.get('market') || '';
+    return reply({ plans: env.BGATE_API_KEY ? catalog.filter(plan => (!plan.market || plan.market === market) &&
+      (plan.kind !== 'addon' || effectivePlan(account) === 'pro')).map(({ id, label, amount, currency, kind, market: planMarket }) => ({ id, label, amount, currency, ...(kind ? { kind } : {}), ...(planMarket ? { market: planMarket } : {}) })) : [] });
   }
   if (path === '/api/account/billing/status' && request.method === 'GET') {
     if (!env.BGATE_API_KEY || !store) return reply({ error: 'Thanh toán chưa được cấu hình.' }, 503);

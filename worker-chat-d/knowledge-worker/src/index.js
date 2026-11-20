@@ -18,12 +18,14 @@ import { MEDIA_INSTRUCTION, detectMediaRequest, extractMediaFromSources } from "
 import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain/billing/costs.js";
 import { fetchPaidSetupOrder, handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
 import { createSetupStore } from "./domain/billing/setupOrders.js";
+import { handleServiceLead, leadAlertText } from "./domain/leads/serviceLeads.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
 import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
 import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
 import { createContentPlanningRepository } from "./repositories/pocketbase/contentPlanningRepository.js";
 import { createSanityHistoryAdapter } from "./adapters/sanity/history.js";
 import { createSanityBlogPublisher, isSkillgoBlogProfile } from "./adapters/sanity/blogPublisher.js";
+import { createSanityHtmlPublisher } from "./adapters/sanity/htmlPublisher.js";
 import { createOpenAiBlogWriter } from "./adapters/openai/blogWriter.js";
 import { createOpenAiSegmentTranslator } from "./adapters/openai/segmentTranslator.js";
 import { normalizePublishSchedule, serializePublishSchedule, zonedSlotISO, dayNameInZone, resolveRuleTimeZone } from "./domain/publishing/scheduleRules.js";
@@ -307,6 +309,10 @@ var index_default = {
       if (url.pathname === "/api/onboarding/register" && request.method === "POST") {
         const limited = enforceRateLimit(request, "register", 5, 60 * 60 * 1000);
         return limited || await handleAccountRegistration(request, env2, cors);
+      }
+      if (url.pathname === "/api/public/service-leads" && request.method === "POST") {
+        const limited = enforceRateLimit(request, "service-lead", 10, 60 * 60 * 1000);
+        return limited || await handleServiceLead(request, cors, serviceLeadDeps(env2));
       }
       if (url.pathname === "/api/account/set-initial-password" && request.method === "POST") {
         return await handleSetInitialPassword(request, env2, cors);
@@ -793,7 +799,7 @@ __name(addVoiceUsageToday, "addVoiceUsageToday");
 // 1 dòng tenant_memberships trỏ về account gốc. Thử match trực tiếp trước (đúng ngay cho
 // workspace đầu tiên/tài khoản cũ, không tốn thêm query), rồi mới tra qua tenant_memberships
 // để suy ra account thật — nhờ vậy quota/plan dùng chung đúng 1 pool cho mọi workspace của
-// cùng 1 tài khoản, khớp với giới hạn 3/10 workspace ở handleAccountCreateWorkspace.
+// cùng 1 tài khoản, khớp với giới hạn 3/50 workspace ở handleAccountCreateWorkspace.
 async function resolveAccountForTenant(env, pbToken, tenant) {
   const directRes = await fetchWithTimeout(
     `${env.PB_URL}/api/collections/tenants/records?perPage=1&filter=${encodeURIComponent(`tenant='${escFilterValue(tenant)}'`)}`,
@@ -881,11 +887,34 @@ function setupOrderStore(env) {
   const notify = async ({ tenant, orderId }) => {
     if (!env.SETUP_ALERT_CHAT_ID || !env.TELEGRAM_BOT_TOKEN) return;
     await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.SETUP_ALERT_CHAT_ID,
-      `Gói hỗ trợ cài đặt ($300) đã được thanh toán.\nWorkspace: ${tenant}\nĐơn: ${orderId}\nĐặt setup_status = in_progress khi bắt đầu, done khi hoàn tất (PocketBase > bot_configs).`);
+      `Gói hỗ trợ cài đặt đã được thanh toán.\nWorkspace: ${tenant}\nĐơn: ${orderId}\nĐặt setup_status = in_progress khi bắt đầu, done khi hoàn tất (PocketBase > bot_configs).`);
   };
   return createSetupStore({ pb, notify });
 }
 __name(setupOrderStore, "setupOrderStore");
+
+// Landing-page leads (collection service_leads, admin token). Alerts SETUP_ALERT_CHAT_ID on Telegram when set.
+function serviceLeadDeps(env) {
+  const call = async (path, init = {}) => {
+    const token = await getPbToken(env);
+    const response = await fetchWithTimeout(`${env.PB_URL}/api/collections/${path}`, {
+      ...init, headers: { Authorization: token, "Content-Type": "application/json" }
+    });
+    if (!response.ok) throw new Error(`PocketBase ${path} failed (${response.status})`);
+    return response.json();
+  };
+  return {
+    pb: {
+      list: async (collection, filter, perPage) => (await call(`${collection}/records?perPage=${perPage}&filter=${encodeURIComponent(filter)}`)).items || [],
+      create: (collection, record) => call(`${collection}/records`, { method: "POST", body: JSON.stringify(record) })
+    },
+    notify: async (lead) => {
+      if (!env.SETUP_ALERT_CHAT_ID || !env.TELEGRAM_BOT_TOKEN) return;
+      await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.SETUP_ALERT_CHAT_ID, leadAlertText(lead));
+    }
+  };
+}
+__name(serviceLeadDeps, "serviceLeadDeps");
 
 async function reconcileSetupOrders(env) {
   if (!env.BGATE_API_KEY) return;
@@ -1201,8 +1230,8 @@ __name(buildToolContext, "buildToolContext");
 
 // Bot tư vấn chính nền tảng (tenant riêng): cùng 1 bot, 2 cấp. Chỉ chọn 1 đoạn hướng dẫn cố định, không cấp thêm quyền/dữ liệu.
 const PLATFORM_LEVEL_NOTES = Object.freeze({
-  public: "NGỮ CẢNH: Người hỏi là khách tham quan trang chủ, chưa đăng nhập. Giới thiệu tính năng, gói giá, lợi ích, cách đăng ký/dùng thử; không giả định họ đã có tài khoản; không đưa thông tin riêng của bất kỳ workspace nào.",
-  client: "NGỮ CẢNH: Người hỏi là khách hàng đã đăng nhập dashboard. Hướng dẫn thao tác từng bước theo đúng tên menu trong dashboard, cấu hình, xử lý sự cố, hạn mức và thanh toán. Không hứa thay đổi dữ liệu thay họ; nếu cần can thiệp của nhân viên thì chuyển người."
+  public: "NGỮ CẢNH: Người hỏi là khách tham quan trang chủ, chưa đăng nhập. Giới thiệu tính năng, gói giá, lợi ích, cách đăng ký/dùng thử; không giả định họ đã có tài khoản; không đưa thông tin riêng của bất kỳ workspace nào. Khi hướng dẫn một chủ đề, nếu kho kiến thức (mục Video hướng dẫn) có tập video tương ứng thì gửi kèm đúng link, chọn bản tiếng Việt cho khách dùng tiếng Việt, bản English cho ngôn ngữ khác; không bịa link.",
+  client: "NGỮ CẢNH: Người hỏi là khách hàng đã đăng nhập dashboard. Hướng dẫn thao tác từng bước theo đúng tên menu trong dashboard, cấu hình, xử lý sự cố, hạn mức và thanh toán. Không hứa thay đổi dữ liệu thay họ; nếu cần can thiệp của nhân viên thì chuyển người. Khi hướng dẫn một chủ đề, nếu kho kiến thức (mục Video hướng dẫn) có tập video tương ứng thì gửi kèm đúng link, chọn bản tiếng Việt cho khách dùng tiếng Việt, bản English cho ngôn ngữ khác; không bịa link."
 });
 function platformLevelContext(env, tenant, body) {
   if (tenant !== (env.PLATFORM_ADVISOR_TENANT || "chatschoolai")) return "";
@@ -1213,6 +1242,29 @@ function platformLevelContext(env, tenant, body) {
 }
 __name(platformLevelContext, "platformLevelContext");
 
+// Tin ghi vào hội thoại khi AI lỗi: cron handleAiFailureRetrySweep nhận ra tin này để thử trả lời lại khi AI hoạt động bình thường.
+var AI_BUSY_REPLY = "⚠️ Hệ thống AI đang bận. Mình đã chuyển cuộc trò chuyện cho nhân viên hỗ trợ.";
+var AI_RETRY_BACKOFF_MS = [1500, 4000];
+// AnythingLLM (HF Space free) hay trả 5xx/timeout thoáng qua lúc vừa thức dậy: thử lại vài lần trước khi coi là lỗi.
+async function fetchAnythingLlmChatWithRetry(url, options) {
+  for (let attempt = 0; ; attempt++) {
+    let res = null;
+    let failure = null;
+    try {
+      res = await fetchWithTimeout(url, options);
+      if (res.status < 500 && res.status !== 429) return res;
+    } catch (err) {
+      failure = err;
+    }
+    if (attempt >= AI_RETRY_BACKOFF_MS.length) {
+      if (failure) throw failure;
+      return res;
+    }
+    console.warn(`[Chat] AnythingLLM l\u1ED7i t\u1EA1m th\u1EDDi (${failure ? failure.message : res.status}), th\u1EED l\u1EA1i l\u1EA7n ${attempt + 2}`);
+    await delay(AI_RETRY_BACKOFF_MS[attempt]);
+  }
+}
+__name(fetchAnythingLlmChatWithRetry, "fetchAnythingLlmChatWithRetry");
 async function handleChat(request, env, cors, reservedQuota = null) {
   const userAgent = request.headers.get("user-agent") || "";
   let browser = "Kh\xE1c";
@@ -1258,7 +1310,7 @@ async function handleChat(request, env, cors, reservedQuota = null) {
     const botConfig = configData.items?.[0] || {};
     botName = botConfig.bot_name || "AI Assistant";
     const responseLanguage = String(botConfig.response_language || "auto").toLowerCase();
-    const languageNames = { vi: "Vietnamese", en: "English", ja: "Japanese", es: "Spanish", fr: "French", ko: "Korean" };
+    const languageNames = { vi: "Vietnamese", en: "English", ja: "Japanese", es: "Spanish", fr: "French", ko: "Korean", zh: "Chinese" };
     const languageInstruction = languageNames[responseLanguage]
       ? `\n\nLANGUAGE: Always answer in ${languageNames[responseLanguage]}, regardless of the customer's input language.`
       : "\n\nLANGUAGE: Detect the language used by the customer and answer in that same language.";
@@ -1312,7 +1364,7 @@ async function handleChat(request, env, cors, reservedQuota = null) {
     const contextualQuestion = contextBlocks.length
       ? `${contextBlocks.join("\n\n")}\n\nCÂU HỎI HIỆN TẠI CỦA KHÁCH:\n${question}`
       : question;
-    const anythingRes = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}/chat`, {
+    const anythingRes = await fetchAnythingLlmChatWithRetry(`${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}/chat`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${env.ANYTHINGLLM_API_KEY}`,
@@ -1382,7 +1434,7 @@ Tenant: ${tenant}`;
   } catch (err) {
     if (err.code === "MONTHLY_QUOTA_EXCEEDED") return monthlyQuotaExceeded(cors, err.quota);
     console.error("L\u1ED7i h\u1EC7 th\u1ED1ng Chat:", err);
-    const reply = "⚠️ Hệ thống AI đang bận. Mình đã chuyển cuộc trò chuyện cho nhân viên hỗ trợ.";
+    const reply = AI_BUSY_REPLY;
     try {
       if (userMessageStored) await createPbRecord(env, "messages", {
         tenant, session, username: botName, text: reply, is_bot: true,
@@ -1974,6 +2026,11 @@ __name(sendTelegramMessage, "sendTelegramMessage");
 async function handleSyncDocs(request, env, cors) {
   const { tenant, secret_key, offset: rawOffset, limit: rawLimit } = await request.json();
   if (!tenant) return new Response(JSON.stringify({ error: "Thi\u1EBFu th\xF4ng tin tenant" }), { status: 400, headers: cors });
+  // Ch\u1EBF \u0111\u1ED9 chia l\u00F4: g\u1EEDi `limit` (vd 8) + `offset` \u0111\u1EC3 m\u1ED7i l\u01B0\u1EE3t g\u1ECDi ch\u1EC9 x\u1EED l\u00FD v\u00E0i t\u00E0i li\u1EC7u, n\u1EB1m trong gi\u1EDBi h\u1EA1n
+  // subrequest c\u1EE7a Worker. Kh\u00F4ng g\u1EEDi `limit` th\u00EC gi\u1EEF h\u00E0nh vi c\u0169 (t\u1ED1i \u0111a 500 t\u00E0i li\u1EC7u trong m\u1ED9t l\u01B0\u1EE3t).
+  const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 0, 0), 20);
+  const paged = limit > 0;
+  const offset = paged ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
   const pbToken = await getPbToken(env);
   try {
     let fetchUrl = paged
@@ -2001,11 +2058,6 @@ async function handleSyncDocs(request, env, cors) {
             headers: { "Authorization": pbToken }
           });
           const configData = await configRes.json();
-  // Ch\u1EBF \u0111\u1ED9 chia l\u00F4: g\u1EEDi `limit` (vd 8) + `offset` \u0111\u1EC3 m\u1ED7i l\u01B0\u1EE3t g\u1ECDi ch\u1EC9 x\u1EED l\u00FD v\u00E0i t\u00E0i li\u1EC7u, n\u1EB1m trong gi\u1EDBi h\u1EA1n
-  // subrequest c\u1EE7a Worker. Kh\u00F4ng g\u1EEDi `limit` th\u00EC gi\u1EEF h\u00E0nh vi c\u0169 (t\u1ED1i \u0111a 500 t\u00E0i li\u1EC7u trong m\u1ED9t l\u01B0\u1EE3t).
-  const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 0, 0), 20);
-  const paged = limit > 0;
-  const offset = paged ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
           const botConfig = configData.items?.[0];
           if (botConfig) {
             await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/workspace/${currentTenant}/update`, {
@@ -4790,6 +4842,62 @@ async function handleStaffTimeoutSweep(env) {
 }
 __name(handleStaffTimeoutSweep, "handleStaffTimeoutSweep");
 
+// Cron: tin Messenger/Instagram mà AI lỗi (đã chuyển nhân viên, chưa ai đáp) -> khi AI hoạt động lại thì AI trả lời bù.
+const AI_RETRY_WINDOW_MS = 3 * 60 * 60 * 1000; // trong cửa sổ 24h nhắn tin của Meta, đủ rộng cho một đợt sập ngắn
+const AI_RETRY_MAX_FAILURES = 3;
+async function handleAiFailureRetrySweep(env) {
+  const pbToken = await getPbToken(env);
+  const since = new Date(Date.now() - AI_RETRY_WINDOW_MS).toISOString().replace("T", " ");
+  const filter = `text='${escFilterValue(AI_BUSY_REPLY)}' && needs_human=true && escalation_resolved=false && created >= '${since}'`;
+  const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records?perPage=100&sort=-created&fields=tenant,session&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+  if (!res.ok) return;
+  const targets = /* @__PURE__ */ new Map();
+  for (const row of (await res.json()).items || []) {
+    if (/^(facebook|instagram):(?!comment:)/.test(row.session || "")) targets.set(`${row.tenant}\u0000${row.session}`, row);
+  }
+  if (!targets.size) return;
+  // Chỉ thử lại khi AnythingLLM đã sống lại, để không sinh thêm tin lỗi và không tính phí lượt AI vô ích.
+  try {
+    const health = await fetchWithTimeout(`${env.ANYTHINGLLM_URL}api/v1/auth`, { headers: { Authorization: `Bearer ${env.ANYTHINGLLM_API_KEY}` }, timeout: 1e4 });
+    if (!health.ok) return;
+  } catch {
+    return;
+  }
+  let handled = 0;
+  for (const { tenant, session } of targets.values()) {
+    if (++handled > 10) break;
+    try {
+      const messages = await fetchSessionMessagesDesc(env, pbToken, tenant, session);
+      const failures = [];
+      for (const m of messages) {
+        if (m.is_bot && m.text === AI_BUSY_REPLY && !m.escalation_resolved) failures.push(m);
+        else break;
+      }
+      // Đã có người/AI đáp sau lỗi, hoặc thử quá nhiều lần: bỏ qua.
+      if (!failures.length || failures.length >= AI_RETRY_MAX_FAILURES) continue;
+      const customerMsg = messages.find((m) => !m.is_bot);
+      if (!customerMsg) continue;
+      if (await isSessionAiPaused(env, pbToken, tenant, session)) continue;
+      const meta = parseMessageClientMeta(customerMsg.client_meta);
+      const platform = session.startsWith("instagram:") ? "instagram" : "facebook";
+      const page = await findPageConfigByPageId(env, pbToken, String(meta.page_id || ""), platform);
+      const senderId = String(meta.customer_id || session.split(":")[1] || "");
+      if (!page || !senderId) continue;
+      console.log(`[AI Retry] ${session}: AI hoạt động lại, trả lời bù tin khách`);
+      await replyToMetaWithAi(env, page, platform, session, senderId, customerMsg.text, meta, { skipUserStore: true, failFast: true });
+      for (const m of failures) {
+        await fetchWithTimeout(`${env.PB_URL}/api/collections/messages/records/${m.id}`, {
+          method: "PATCH", headers: { Authorization: pbToken, "Content-Type": "application/json" },
+          body: JSON.stringify({ escalation_resolved: true })
+        });
+      }
+    } catch (err) {
+      console.error(`[AI Retry] Lỗi phiên ${session}:`, err);
+    }
+  }
+}
+__name(handleAiFailureRetrySweep, "handleAiFailureRetrySweep");
+
 async function processMetaMessagingEvent(env, pbToken, platform, pageId, senderId, text, attachments = []) {
   const page = await findPageConfigByPageId(env, pbToken, pageId, platform);
   if (!page) {
@@ -4821,7 +4929,7 @@ async function processMetaMessagingEvent(env, pbToken, platform, pageId, senderI
   // Tin khách đã lưu ở trên; handleChat không được lưu thêm lần nữa (trước đây mỗi tin xuất hiện 2 lần trong Chat Logs).
   await replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta, { skipUserStore: true });
 }
-async function replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta, { skipUserStore = false } = {}) {
+async function replyToMetaWithAi(env, page, platform, session, senderId, displayText, clientMeta, { skipUserStore = false, failFast = false } = {}) {
   const chatRequest = new Request("https://internal/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -4833,9 +4941,11 @@ async function replyToMetaWithAi(env, page, platform, session, senderId, display
   try {
     const chatRes = await handleChat(chatRequest, env, { "Content-Type": "application/json" });
     const chatData = await chatRes.json().catch(() => ({}));
+    if (failFast && (!chatRes.ok || !chatData.reply)) throw new Error(`AI vẫn lỗi (${chatRes.status})`);
     if (chatData.reply) reply = chatData.reply;
     if (Array.isArray(chatData.media)) autoMedia = chatData.media;
   } catch (err) {
+    if (failFast) throw err;
     console.error("[Meta Messaging] AI không khả dụng, dùng phản hồi dự phòng:", err);
   }
   // Ảnh/link lấy từ reply gốc (còn markdown) để gửi đính kèm; chữ gửi đi thì đổi sang chữ thuần vì các kênh này không render markdown.
@@ -5134,135 +5244,9 @@ __name(publishToWordPress, "publishToWordPress");
 
 // ================= [ĐĂNG SANITY] =================
 // page.page_id = "projectId:dataset", page.access_token = Sanity API token (quyền Editor trở lên).
-// page.extra_config (JSON, tuỳ chọn) override tên document type/field cho đúng schema riêng của bạn:
-// {"docType":"post","titleField":"title","slugField":"slug","bodyField":"body","excerptField":"excerpt"}
-var SANITY_API_VERSION = "v2021-06-07";
-
-// Như stripHtml nhưng KHÔNG trim — dùng nội bộ khi ghép nhiều đoạn text lại với nhau (xem bên dưới),
-// vì trim() từng đoạn sẽ ăn mất khoảng trắng ở ranh giới giữa text thường và link, làm chữ dính liền nhau.
-function collapseWs(s) {
-  return String(s || "").replace(/<[^>]+>/g, " ").replace(/[ \t\n\r]+/g, " ");
-}
-__name(collapseWs, "collapseWs");
-
-// Chuyển 1 đoạn HTML (chỉ chứa text + <a href>) thành children/markDefs của 1 block Portable Text —
-// giữ lại link nội bộ thật (mark "link"), không chỉ hiện chữ suông.
-function textToPortableTextSpans(html) {
-  const children = [];
-  const markDefs = [];
-  const re = /<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let lastIndex = 0;
-  let m;
-  while ((m = re.exec(html))) {
-    if (m.index > lastIndex) {
-      const plain = collapseWs(html.slice(lastIndex, m.index));
-      if (plain.trim()) children.push({ _type: "span", _key: Math.random().toString(36).slice(2, 10), text: plain, marks: [] });
-    }
-    const markKey = Math.random().toString(36).slice(2, 10);
-    markDefs.push({ _type: "link", _key: markKey, href: m[1] });
-    const linkText = collapseWs(m[2]).trim();
-    if (linkText) children.push({ _type: "span", _key: Math.random().toString(36).slice(2, 10), text: linkText, marks: [markKey] });
-    lastIndex = re.lastIndex;
-  }
-  const rest = collapseWs(html.slice(lastIndex));
-  if (rest.trim()) children.push({ _type: "span", _key: Math.random().toString(36).slice(2, 10), text: rest, marks: [] });
-  // Giữ khoảng trắng NGĂN CÁCH giữa các span (quan trọng để chữ không dính liền), chỉ trim
-  // khoảng trắng thừa ở đầu span đầu tiên và cuối span cuối cùng của cả block.
-  if (children.length) {
-    children[0].text = children[0].text.replace(/^\s+/, "");
-    children[children.length - 1].text = children[children.length - 1].text.replace(/\s+$/, "");
-  }
-  return { children: children.length ? children : [{ _type: "span", _key: "s0", text: "", marks: [] }], markDefs };
-}
-__name(textToPortableTextSpans, "textToPortableTextSpans");
-
-// Tách HTML (do AI viết, chỉ dùng h2/h3/p/li) thành mảng block Portable Text — không hỗ trợ
-// bold/italic ở bản đầu này, chỉ giữ đúng cấu trúc heading/đoạn văn/link nội bộ.
-function htmlToPortableTextBlocks(html) {
-  const chunks = String(html || "").split(/(<h2[^>]*>[\s\S]*?<\/h2>|<h3[^>]*>[\s\S]*?<\/h3>|<p[^>]*>[\s\S]*?<\/p>|<li[^>]*>[\s\S]*?<\/li>)/gi).filter((c) => c && c.trim());
-  const blocks = [];
-  for (const chunk of chunks) {
-    let style = null, inner = null;
-    const h2 = chunk.match(/^<h2[^>]*>([\s\S]*?)<\/h2>$/i);
-    const h3 = chunk.match(/^<h3[^>]*>([\s\S]*?)<\/h3>$/i);
-    const p = chunk.match(/^<p[^>]*>([\s\S]*?)<\/p>$/i);
-    const li = chunk.match(/^<li[^>]*>([\s\S]*?)<\/li>$/i);
-    if (h2) { style = "h2"; inner = h2[1]; }
-    else if (h3) { style = "h3"; inner = h3[1]; }
-    else if (p) { style = "normal"; inner = p[1]; }
-    else if (li) { style = "normal"; inner = li[1]; }
-    else continue;
-    const { children, markDefs } = textToPortableTextSpans(inner);
-    if (!children.some((c) => c.text)) continue;
-    blocks.push({ _type: "block", style, _key: Math.random().toString(36).slice(2, 10), children, markDefs });
-  }
-  if (blocks.length === 0) {
-    const { children, markDefs } = textToPortableTextSpans(String(html || ""));
-    blocks.push({ _type: "block", style: "normal", _key: "k0", children, markDefs });
-  }
-  return blocks;
-}
-__name(htmlToPortableTextBlocks, "htmlToPortableTextBlocks");
-
-async function publishToSanity(page, post, media) {
-  const [projectId, dataset] = String(page.page_id || "").split(":");
-  if (!projectId || !dataset) throw new Error('page_id Sanity phải theo dạng "projectId:dataset"');
-  const token = page.access_token;
-  if (!token) throw new Error("Thiếu Sanity API token");
-
-  let extraCfg = {};
-  try { extraCfg = page.extra_config ? JSON.parse(page.extra_config) : {}; } catch {}
-  const docType = extraCfg.docType || "post";
-  const titleField = extraCfg.titleField || "title";
-  const slugField = extraCfg.slugField || "slug";
-  const bodyField = extraCfg.bodyField || "body";
-  const excerptField = extraCfg.excerptField || "excerpt";
-
-  const baseUrl = `https://${projectId}.api.sanity.io/${SANITY_API_VERSION}`;
-
-  let mainImage = null;
-  if (media && media.url) {
-    try {
-      const imgRes = await fetchWithTimeout(media.url, { timeout: 3e4 });
-      const imgBuf = await imgRes.arrayBuffer();
-      const assetRes = await fetchWithTimeout(`${baseUrl}/assets/images/${dataset}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": imgRes.headers.get("content-type") || "image/png" },
-        body: imgBuf,
-        timeout: 3e4
-      });
-      const assetData = await assetRes.json();
-      if (assetRes.ok && assetData.document?._id) {
-        mainImage = { _type: "image", asset: { _type: "reference", _ref: assetData.document._id } };
-      } else {
-        console.error("[Sanity] Upload ảnh thất bại:", assetData);
-      }
-    } catch (err) {
-      console.error("[Sanity] Lỗi upload ảnh:", err);
-    }
-  }
-
-  const doc = {
-    _type: docType,
-    [titleField]: post.title,
-    [bodyField]: htmlToPortableTextBlocks(post.content),
-    [excerptField]: post.meta_description || ""
-  };
-  if (post.slug) doc[slugField] = { _type: "slug", current: post.slug };
-  if (mainImage) doc.mainImage = mainImage;
-
-  const res = await fetchWithTimeout(`${baseUrl}/data/mutate/${dataset}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ mutations: [{ create: doc }] }),
-    timeout: 3e4
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.description || data.message || `Sanity API lỗi ${res.status}`);
-  const createdId = data.results?.[0]?.id || data.transactionId;
-  return String(createdId || "ok");
-}
-__name(publishToSanity, "publishToSanity");
+// page.extra_config (JSON, tuỳ chọn) override tên document type/field: {"docType":"post","bodyField":"body",...}
+// Logic nằm ở adapters/sanity/htmlPublisher.js (HTML -> Portable Text, createIfNotExists + patch nên sửa bài không tạo trùng).
+var publishToSanity = createSanityHtmlPublisher({ fetchImpl: (url, init) => fetchWithTimeout(url, { timeout: 3e4, ...init }) });
 
 // "Claim" target trước khi gọi API thật, để nếu 2 lần cron lỡ chồng nhau (vd 1 lần chạy quá
 // 15 phút) thì lần sau sẽ không thấy target này ở status cũ nữa -> tránh đăng trùng lên Facebook.
@@ -5838,7 +5822,7 @@ __name(resolveOwnAccountRecord, "resolveOwnAccountRecord");
 
 // ================= [WORKSPACE / TENANT TỰ PHỤC VỤ] =================
 // 1 tài khoản (record "tenants") có thể sở hữu nhiều workspace (mỗi workspace = 1 slug tenant +
-// 1 bot_configs + 1 dòng tenant_memberships role "owner"). Mặc định free 3, pro 10 — đủ cho cá
+// 1 bot_configs + 1 dòng tenant_memberships role "owner"). Mặc định free 3, pro 50 — đủ cho cá
 // nhân/agency nhỏ tự đăng ký. Với tài khoản "platform" (1 nền tảng đứng ra tạo nhiều store/agency
 // con cho khách của họ — vd 1 sàn BĐS), số lượng workspace không nên bị chặn theo gói vì chi phí
 // thật tính theo lượt tin nhắn (message_limit), không phải theo số workspace — chặn ở đây chỉ cản
@@ -5846,7 +5830,7 @@ __name(resolveOwnAccountRecord, "resolveOwnAccountRecord");
 // cho phép admin set riêng số lượng cho từng platform (qua PocketBase Admin), không cần sửa code/
 // deploy lại mỗi khi có platform mới. WORKSPACE_HARD_CEILING là trần AN TOÀN KỸ THUẬT (chống bug/
 // lạm dụng tạo tràn lan), không phải đòn bẩy kinh doanh — không nên đặt thấp.
-var WORKSPACE_LIMITS = { free: 3, pro: 10 };
+var WORKSPACE_LIMITS = { free: 3, pro: 50 };
 var WORKSPACE_HARD_CEILING = 5000;
 
 function accountPlan(account) {
@@ -7019,7 +7003,7 @@ var CONFIG_CHAT_TOOLS = [
         type: "object",
         properties: {
           template: { type: "string", enum: TEMPLATE_KEYS, description: "Mẫu ngành điền sẵn: restaurant, spa, clinic, hotel, realestate, sports, salon, homestay, dental, fitness, meeting_room, carcare" },
-          language: { type: "string", enum: ["vi", "en", "ja", "es", "fr", "ko"], description: "Ngôn ngữ chủ đang dùng; tên dịch vụ/tài nguyên của mẫu sẽ viết bằng ngôn ngữ này" },
+          language: { type: "string", enum: ["vi", "en", "ja", "es", "fr", "ko", "zh"], description: "Ngôn ngữ chủ đang dùng; tên dịch vụ/tài nguyên của mẫu sẽ viết bằng ngôn ngữ này" },
           business_type: { type: "string", description: "Loại hình, vd 'pickleball'" },
           open_time: { type: "string", description: "Giờ mở cửa HH:MM (24h)" },
           close_time: { type: "string", description: "Giờ đóng cửa HH:MM (24h)" },

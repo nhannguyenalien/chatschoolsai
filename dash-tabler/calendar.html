@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Lịch đăng bài — AI Admin</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+
+  <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <script src="_shared/auth.js"></script>
+  <script src="_shared/ui.js"></script>
+  <script src="_shared/i18n.js?v=20261021-1"></script>
+  <script src="_shared/sidebar.js?v=20261021-cal"></script>
+
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+    body { font-family: var(--tblr-font-sans-serif); }
+    #login-modal { position:fixed;inset:0;z-index:1055;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.7);backdrop-filter:blur(8px); }
+    #login-modal.hidden { display:none!important; }
+    #toast-container { position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+    .toast-item { pointer-events:auto;min-width:280px;padding:12px 16px;border-radius:8px;font-size:13.5px;font-weight:500;background:#fde8e7;color:#c92a2a;border:1px solid #f5b0af; }
+
+    .cal-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); border-top:1px solid var(--tblr-border-color); border-left:1px solid var(--tblr-border-color); }
+    .cal-head { padding:10px 6px; font-size:13px; font-weight:600; text-transform:uppercase; color:var(--tblr-secondary); text-align:center; border-right:1px solid var(--tblr-border-color); border-bottom:1px solid var(--tblr-border-color); background:var(--tblr-bg-surface-secondary); }
+    .cal-day { min-height:150px; padding:6px; border-right:1px solid var(--tblr-border-color); border-bottom:1px solid var(--tblr-border-color); cursor:pointer; overflow:hidden; }
+    .cal-day:hover { background:var(--tblr-bg-surface-secondary); }
+    .cal-day.other { background:var(--tblr-bg-surface-secondary); opacity:.55; }
+    .cal-day.selected { outline:2px solid var(--tblr-primary); outline-offset:-2px; }
+    .cal-num { font-size:14px; margin-bottom:4px; font-weight:600; color:var(--tblr-secondary); margin-bottom:2px; display:flex; justify-content:space-between; }
+    .cal-day.today .cal-num span:first-child { background:var(--tblr-primary); color:#fff; border-radius:10px; padding:0 7px; }
+    .chip { display:flex; align-items:center; gap:5px; font-size:13px; line-height:1.4; padding:3px 6px; margin-bottom:3px; border-radius:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-left:3px solid; cursor:pointer; }
+    .chip.published { background:#d1f0e0; border-color:#2fb344; color:#1c5c33; }
+    .chip.scheduled, .chip.approved, .chip.publishing, .chip.pending, .chip.draft { background:#eef0f3; border-color:#9aa4b2; color:#475467; }
+    .chip.error { background:#fde8e7; border-color:#d63939; color:#9b1c1c; }
+    .chip .t { font-weight:600; }
+    .chip .ttl { overflow:hidden; text-overflow:ellipsis; }
+    .more { font-size:12.5px; font-weight:500; cursor:pointer; color:var(--tblr-secondary); padding-left:4px; }
+    .legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; }
+    @media (max-width:768px) { .cal-day { min-height:70px; padding:3px; } .chip .ttl { display:none; } }
+  </style>
+    <!-- consent + gtm -->
+    <script src="/_shared/consent.js"></script>
+</head>
+<body class="layout-fluid">
+
+<div id="login-modal" class="hidden">
+  <div class="card shadow-lg" style="width:100%;max-width:400px;border-radius:1rem;">
+    <div class="card-body text-center py-5">
+      <h2 class="h2 mb-3">AI Admin</h2>
+      <div class="mb-3 text-start"><label class="form-label">Email</label><input type="text" id="login-email" class="form-control"/></div>
+      <div class="mb-4 text-start"><label class="form-label">Mật khẩu</label><input type="password" id="login-password" class="form-control"/></div>
+      <div id="login-error" class="alert alert-danger d-none text-start p-2 mb-3"></div>
+      <button class="btn btn-primary w-100" onclick="doLogin()">Đăng nhập</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<div class="page">
+  <div id="sidebar-placeholder"></div>
+  <div class="page-wrapper">
+    <div class="page-body mt-3">
+      <div class="container-xl">
+
+        <div class="row align-items-center mb-3">
+          <div class="col">
+            <h2 class="page-title">Lịch đăng bài</h2>
+            <div class="text-secondary mt-1">Xem bài đã đăng và sắp đăng trên mạng xã hội và blog theo ngày, giờ</div>
+          </div>
+          <div class="col-auto ms-auto d-flex gap-2 align-items-center">
+            <button class="btn btn-icon btn-outline-secondary" onclick="shiftMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+            <div class="fw-bold text-center" style="min-width:150px" id="month-label"></div>
+            <button class="btn btn-icon btn-outline-secondary" onclick="shiftMonth(1)"><i class="ti ti-chevron-right"></i></button>
+            <button class="btn btn-outline-secondary" onclick="goToday()">Hôm nay</button>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <div id="platform-filters" class="d-flex flex-wrap gap-1"></div>
+          <div class="ms-auto small text-secondary">
+            <span class="legend-dot" style="background:#2fb344"></span>Đã đăng
+            <span class="legend-dot ms-2" style="background:#9aa4b2"></span>Chưa đăng (nháp / chờ duyệt / đã hẹn giờ)
+            <span class="legend-dot ms-2" style="background:#d63939"></span>Lỗi
+          </div>
+        </div>
+
+        <div class="card mb-3"><div class="card-body p-2">
+          <div class="cal-grid" id="cal-grid"></div>
+        </div></div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Chưa có giờ đăng <span class="badge bg-secondary-lt ms-1" id="loose-count">0</span></h3></div>
+          <div class="list-group list-group-flush" id="loose-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal modal-blur fade" id="ev-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="ev-modal-title"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="ev-modal-body"></div>
+    <div class="modal-footer" id="ev-modal-foot"></div>
+  </div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+const PLATFORMS = {
+  facebook: { label: 'Facebook', icon: 'ti-brand-facebook' }, instagram: { label: 'Instagram', icon: 'ti-brand-instagram' },
+  linkedin: { label: 'LinkedIn', icon: 'ti-brand-linkedin' }, youtube: { label: 'YouTube', icon: 'ti-brand-youtube' },
+  wordpress: { label: 'WordPress', icon: 'ti-brand-wordpress' }, sanity: { label: 'Blog (Sanity)', icon: 'ti-article' }
+};
+const STATUS_LABEL = { pending: 'Chờ duyệt', approved: 'Đã duyệt, chờ đăng', scheduled: 'Đã hẹn giờ, chưa đăng', publishing: 'Đang đăng', published: 'Đã đăng', error: 'Lỗi', draft: 'Nháp, chưa chọn kênh' };
+
+let events = [], loose = [], view = new Date(), hidden = new Set();
+view.setDate(1);
+
+(async () => {
+  await requireAuth();
+  const user = window.AUTH_USER;
+  if (!user || !window.TENANT) return;
+  document.getElementById('login-modal').classList.add('hidden');
+  renderSidebar(user);
+  await load();
+  render();
+})();
+
+async function doLogin() {
+  try {
+    await PB.collection('tenants').authWithPassword(document.getElementById('login-email').value.trim(), document.getElementById('login-password').value);
+    location.reload();
+  } catch (e) { const b = document.getElementById('login-error'); b.textContent = e.message || 'Sai tài khoản hoặc mật khẩu'; b.classList.remove('d-none'); }
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function toast(msg) { const el = document.createElement('div'); el.className = 'toast-item'; el.textContent = msg; document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), 6000); }
+const pbDate = (v) => { if (!v) return null; const d = new Date(String(v).replace(' ', 'T')); return isNaN(d) ? null : d; };
+const pad = (n) => String(n).padStart(2, '0');
+const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const timeOf = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const lang = () => localStorage.getItem('lang') || 'vi';
+
+async function load() {
+  try {
+    const res = await fetch(`${WORKER_URL}/api/account/data/posts?tenant=${encodeURIComponent(window.TENANT)}&expand=post_targets_via_post_id&sort=-created`, { headers: { Authorization: PB.authStore.token }, cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    events = []; loose = [];
+    for (const post of data.items || []) {
+      const title = post.title || '(không tiêu đề)';
+      const targets = post.expand?.post_targets_via_post_id || [];
+      if (!targets.length) { loose.push({ id: post.id, platform: '', status: 'draft', title, postId: post.id, url: '', error: '' }); continue; }
+      for (const t of targets) {
+        const base = { id: t.id, platform: t.platform, status: t.status, title, postId: post.id, url: t.published_url || '', error: t.error_log || '' };
+        // Đã đăng: giờ hẹn (hoặc lúc cập nhật nếu đăng ngay). Chưa đăng: chỉ lên lịch khi có giờ hẹn, còn lại vào danh sách "chưa có giờ đăng".
+        const when = t.status === 'published' ? (pbDate(t.scheduled_at) || pbDate(t.updated)) : pbDate(t.scheduled_at);
+        if (when) events.push({ ...base, when }); else loose.push(base);
+      }
+    }
+    events.sort((x, y) => x.when - y.when);
+  } catch (e) { toast('Lỗi tải lịch: ' + e.message); events = []; loose = []; }
+  renderFilters();
+}
+
+function renderFilters() {
+  const present = [...new Set(events.map((e) => e.platform))];
+  document.getElementById('platform-filters').innerHTML = present.map((p) => {
+    const meta = PLATFORMS[p] || { label: p, icon: 'ti-share' };
+    const on = !hidden.has(p);
+    return `<button class="btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}" onclick="toggleFilter('${esc(p)}')"><i class="ti ${meta.icon} me-1"></i>${esc(meta.label)}</button>`;
+  }).join('');
+}
+function toggleFilter(p) { hidden.has(p) ? hidden.delete(p) : hidden.add(p); renderFilters(); render(); }
+function shiftMonth(n) { view = new Date(view.getFullYear(), view.getMonth() + n, 1); render(); }
+function goToday() { view = new Date(); view.setDate(1); render(); }
+
+const byId = () => new Map([...events, ...loose].map((e) => [e.id, e]));
+function chipHtml(e) {
+  const meta = PLATFORMS[e.platform] || { label: e.platform, icon: 'ti-share' };
+  return `<div class="chip ${esc(e.status)}" title="${esc(e.title)}" onclick="event.stopPropagation();showEvent('${esc(e.id)}')"><i class="ti ${meta.icon}"></i><span class="t">${timeOf(e.when)}</span><span class="ttl">${esc(e.title)}</span></div>`;
+}
+
+function render() {
+  const year = view.getFullYear(), month = view.getMonth();
+  document.getElementById('month-label').textContent = new Intl.DateTimeFormat(lang(), { month: 'long', year: 'numeric' }).format(view);
+  const byDay = new Map();
+  for (const e of events) { if (hidden.has(e.platform)) continue; const k = dayKey(e.when); (byDay.get(k) || byDay.set(k, []).get(k)).push(e); }
+  window._byDay = byDay;
+  const lead = (new Date(year, month, 1).getDay() + 6) % 7; // tuần bắt đầu thứ Hai
+  const start = new Date(year, month, 1 - lead);
+  const weeks = Math.ceil((lead + new Date(year, month + 1, 0).getDate()) / 7);
+  const weekdayFmt = new Intl.DateTimeFormat(lang(), { weekday: 'short' });
+  let html = '';
+  for (let i = 0; i < 7; i++) html += `<div class="cal-head">${esc(weekdayFmt.format(new Date(2024, 0, 1 + i)))}</div>`;
+  const todayKey = dayKey(new Date());
+  const SHOW = 4;
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = dayKey(d);
+    const list = byDay.get(k) || [];
+    const cls = ['cal-day', d.getMonth() !== month ? 'other' : '', k === todayKey ? 'today' : ''].join(' ');
+    html += `<div class="${cls}" onclick="showDay('${k}')"><div class="cal-num"><span>${d.getDate()}</span>${list.length ? `<span class="badge bg-secondary-lt">${list.length}</span>` : ''}</div>${list.slice(0, SHOW).map(chipHtml).join('')}${list.length > SHOW ? `<div class="more">+${list.length - SHOW} bài nữa</div>` : ''}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+  renderLoose();
+}
+
+function openUrl(e) { return e.platform === 'sanity' || e.platform === 'wordpress' || !e.platform ? `blog.html?post=${encodeURIComponent(e.postId)}` : `composer.html?post=${encodeURIComponent(e.postId)}`; }
+function renderLoose() {
+  const list = loose.filter((e) => !e.platform || !hidden.has(e.platform));
+  document.getElementById('loose-count').textContent = list.length;
+  document.getElementById('loose-list').innerHTML = list.length ? list.slice(0, 50).map((e) => {
+    const meta = PLATFORMS[e.platform] || { label: 'Chưa chọn kênh', icon: 'ti-file-text' };
+    return `<a class="list-group-item list-group-item-action" href="#" onclick="showEvent('${esc(e.id)}');return false"><div class="d-flex align-items-center gap-2"><i class="ti ${meta.icon}"></i><span class="small text-secondary">${esc(meta.label)}</span><span class="badge ms-auto chip ${esc(e.status)}" style="margin:0;border:0">${esc(STATUS_LABEL[e.status] || e.status)}</span></div><div class="mt-1">${esc(e.title)}</div></a>`;
+  }).join('') : '<div class="list-group-item text-secondary">Không có.</div>';
+}
+
+let modal;
+function openModal(title, body, foot) {
+  modal = modal || new bootstrap.Modal(document.getElementById('ev-modal'));
+  document.getElementById('ev-modal-title').textContent = title;
+  document.getElementById('ev-modal-body').innerHTML = body;
+  document.getElementById('ev-modal-foot').innerHTML = foot;
+  modal.show();
+}
+const fullDate = (d) => new Intl.DateTimeFormat(lang(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
+
+// Popup chi tiết 1 bài đăng.
+function showEvent(id) {
+  const e = byId().get(id); if (!e) return;
+  const meta = PLATFORMS[e.platform] || { label: 'Chưa chọn kênh', icon: 'ti-file-text' };
+  const row = (k, v) => `<div class="row mb-2"><div class="col-4 text-secondary">${k}</div><div class="col-8">${v}</div></div>`;
+  const link = e.url && /^https:\/\//.test(e.url) ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.url)}</a>` : '';
+  const body = `<h3 class="mb-3">${esc(e.title)}</h3>`
+    + row('Kênh', `<i class="ti ${meta.icon} me-1"></i>${esc(meta.label)}`)
+    + row('Trạng thái', `<span class="badge chip ${esc(e.status)}" style="margin:0;border:0;display:inline-flex">${esc(STATUS_LABEL[e.status] || e.status)}</span>`)
+    + row(e.status === 'published' ? 'Đã đăng lúc' : 'Hẹn đăng lúc', e.when ? esc(fullDate(e.when)) : '<span class="text-secondary">Chưa có giờ đăng</span>')
+    + (link ? row('Link bài', link) : '')
+    + (e.status === 'error' && e.error ? row('Lỗi', `<span class="text-danger">${esc(e.error)}</span>`) : '');
+  const foot = `${link ? `<a class="btn btn-outline-primary me-auto" href="${esc(e.url)}" target="_blank" rel="noopener"><i class="ti ti-external-link me-1"></i>Xem bài đã đăng</a>` : ''}<button class="btn btn-link link-secondary" data-bs-dismiss="modal">Đóng</button><a class="btn btn-primary" href="${openUrl(e)}"><i class="ti ti-edit me-1"></i>Mở bài</a>`;
+  openModal(e.when ? `${timeOf(e.when)} · ${meta.label}` : meta.label, body, foot);
+}
+
+// Popup danh sách bài trong 1 ngày.
+function showDay(k) {
+  const list = (window._byDay.get(k) || []);
+  const [y, m, d] = k.split('-').map(Number);
+  const title = new Intl.DateTimeFormat(lang(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(y, m - 1, d));
+  if (!list.length) { openModal(title, '<div class="text-secondary">Không có bài nào trong ngày này.</div>', '<button class="btn btn-link link-secondary" data-bs-dismiss="modal">Đóng</button>'); return; }
+  const body = '<div class="list-group list-group-flush">' + list.map((e) => {
+    const meta = PLATFORMS[e.platform] || { label: e.platform, icon: 'ti-share' };
+    return `<a class="list-group-item list-group-item-action px-0" href="#" onclick="showEvent('${esc(e.id)}');return false"><div class="d-flex align-items-center gap-2"><span class="fw-bold">${timeOf(e.when)}</span><i class="ti ${meta.icon}"></i><span class="small text-secondary">${esc(meta.label)}</span><span class="badge ms-auto chip ${esc(e.status)}" style="margin:0;border:0">${esc(STATUS_LABEL[e.status] || e.status)}</span></div><div class="mt-1">${esc(e.title)}</div></a>`;
+  }).join('') + '</div>';
+  openModal(`${title} (${list.length})`, body, '<button class="btn btn-link link-secondary" data-bs-dismiss="modal">Đóng</button>');
+}
+</script>
+</body>
+</html>

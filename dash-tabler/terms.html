@@ -19,7 +19,7 @@ a{color:var(--accent)}.muted{color:var(--muted)}.lang{display:flex;gap:12px;font
 </head>
 <body>
 <main>
-<p class="lang" style="flex-wrap:wrap"><a href="#en" data-l="en">English</a> · <a href="#vi" data-l="vi">Tiếng Việt</a> · <a href="#ja" data-l="ja">日本語</a> · <a href="#es" data-l="es">Español</a> · <a href="#fr" data-l="fr">Français</a> · <a href="#ko" data-l="ko">한국어</a> · <a href="landing">← Home</a> · <a href="privacy">Privacy Policy</a></p>
+<p class="lang" style="flex-wrap:wrap"><a href="#en" data-l="en">English</a> · <a href="#vi" data-l="vi">Tiếng Việt</a> · <a href="#ja" data-l="ja">日本語</a> · <a href="#es" data-l="es">Español</a> · <a href="#fr" data-l="fr">Français</a> · <a href="#ko" data-l="ko">한국어</a> · <a href="#zh" data-l="zh">中文</a> · <a href="landing">← Home</a> · <a href="privacy">Privacy Policy</a></p>
 <section id="en" class="ls" lang="en">
 <h1>Terms of Service</h1>
 <p class="muted">Schools AI · Last updated: 16 October 2026 · Contact: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
@@ -205,10 +205,41 @@ a{color:var(--accent)}.muted{color:var(--muted)}.lang{display:flex;gap:12px;font
 <p>질문: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>.</p>
 </section>
 
+<section id="zh" class="ls" lang="zh">
+<h1>服务条款</h1>
+<p class="muted">Schools AI · 最后更新：2026 年 10 月 16 日 · 联系方式：<a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
+
+<h2>1. 服务内容</h2>
+<p>Schools AI 提供一个 AI 工作区，可在您连接的渠道（例如 Facebook、Instagram、WordPress 和 YouTube）上回复您的客户并发布内容。创建账户或连接渠道即表示您同意这些条款。</p>
+
+<h2>2. 您的责任</h2>
+<ul>
+<li>您必须拥有或被授权使用您所连接或发布的每一个渠道、账户和内容，并对这些内容以及您的 AI 智能体代您发送的回复负责。</li>
+<li>您必须遵守各已连接平台的规则，包括 <a href="https://www.youtube.com/t/terms">YouTube 服务条款</a>、<a href="https://developers.google.com/youtube/terms/api-services-terms-of-service">YouTube API 服务条款</a>、<a href="https://policies.google.com/privacy">Google 隐私权政策</a>以及适用法律。</li>
+<li>您需自行提供并负责自己的 Google Cloud 项目和 OAuth 凭据，请妥善保密。</li>
+<li>您不得将本服务用于垃圾信息，或非法、欺骗性、侵权的内容。</li>
+</ul>
+
+<h2>3. AI 生成的回复</h2>
+<p>回复由系统根据您的知识库和指示自动生成，可能存在错误。您可以随时在仪表盘中关闭自动回复。您有责任检查您的智能体的行为。</p>
+
+<h2>4. 访问您的 Google 账户</h2>
+<p>您可以随时在 <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> 撤销我们的访问权限。我们仅按<a href="privacy">隐私政策</a>所述使用您授予的访问权限。</p>
+
+<h2>5. 可用性、变更与终止</h2>
+<p>本服务按“现状”提供。第三方平台（例如 YouTube）可能限制、延迟或拒绝请求（例如 API 配额或内容审核），我们不对其决定负责。我们可能更改或暂停部分功能，您也可以随时停止使用本服务并删除您的工作区。</p>
+
+<h2>6. 责任</h2>
+<p>在法律允许的范围内，对于间接或后果性损失，或因第三方平台、您发布的内容或代您发送的回复所造成的损失，我们不承担责任。</p>
+
+<h2>7. 联系方式</h2>
+<p>如有疑问：<a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>。</p>
+</section>
+
 </main>
 <script>
 // Hiển thị đúng ngôn ngữ: #hash > ngôn ngữ đã chọn trong dashboard > English. Không có JS thì hiện tất cả các bản.
-(function(){var L=['en','vi','ja','es','fr','ko'];
+(function(){var L=['en','vi','ja','es','fr','ko','zh'];
 function pick(){var h=(location.hash||'').slice(1);if(L.indexOf(h)>-1)return h;try{var s=localStorage.getItem('lang');if(L.indexOf(s)>-1)return s}catch(e){}return 'en'}
 function show(){var c=pick();document.querySelectorAll('.ls').forEach(function(s){s.hidden=s.id!==c});
 document.querySelectorAll('.lang a[data-l]').forEach(function(a){a.classList.toggle('on',a.getAttribute('data-l')===c)});document.documentElement.lang=c}

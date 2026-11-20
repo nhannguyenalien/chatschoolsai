@@ -16,17 +16,18 @@
       { "system": false, "id": "cldcloudname01", "name": "cloudinary_cloud_name", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldapikey01", "name": "cloudinary_api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldapisecret01", "name": "cloudinary_api_secret", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "pixverseapikey1", "name": "pixverse_api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogourl01", "name": "brand_logo_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogopid01", "name": "brand_logo_public_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogocache01", "name": "brand_logo_cached_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "apikeyfld01", "name": "api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "",
-    "viewRule": "",
-    "createRule": "",
-    "updateRule": "",
-    "deleteRule": "",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -44,11 +45,11 @@
       { "system": false, "id": "prompts_lang_01", "name": "content_language", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "^(auto:(vi|en|ja|es|fr|ko)|vi|en|ja|es|fr|ko)$" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   }
 ]

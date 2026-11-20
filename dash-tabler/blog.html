@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Viết Blog — AI Admin</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"/>
+
+  <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <script src="_shared/auth.js"></script>
+  <script src="_shared/ui.js"></script>
+  <script src="_shared/i18n.js?v=20261021-1"></script>
+  <script src="_shared/sidebar.js?v=20261021-cal"></script>
+
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+    body { font-family: var(--tblr-font-sans-serif); }
+    #login-modal { position:fixed;inset:0;z-index:1055;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.7);backdrop-filter:blur(8px); }
+    #login-modal.hidden { display:none!important; }
+    #toast-container { position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+    .toast-item { pointer-events:auto;min-width:280px;max-width:360px;padding:12px 16px;border-radius:8px;font-size:13.5px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.12); }
+    .toast-item.success { background:#d1f0e0;color:#206b45;border:1px solid #a3dfc0; }
+    .toast-item.error   { background:#fde8e7;color:#c92a2a;border:1px solid #f5b0af; }
+    .toast-item.info    { background:#dbeafe;color:#1e40af;border:1px solid #93c5fd; }
+    #editor-wrap .ql-editor { min-height:420px; font-size:16px; line-height:1.7; }
+    #editor-wrap .ql-editor h1, #editor-wrap .ql-editor h2, #editor-wrap .ql-editor h3 { margin:1em 0 .4em; }
+    #editor-wrap .ql-editor img { max-width:100%; height:auto; }
+    .cover-preview { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:8px; border:1px solid var(--tblr-border-color); }
+    .cover-empty { width:100%; aspect-ratio:16/9; border-radius:8px; border:1px dashed var(--tblr-border-color); display:flex; align-items:center; justify-content:center; color:var(--tblr-secondary); }
+    .list-row { cursor:pointer; }
+  </style>
+    <!-- consent + gtm -->
+    <script src="/_shared/consent.js"></script>
+</head>
+<body class="layout-fluid">
+
+<div id="login-modal" class="hidden">
+  <div class="card shadow-lg" style="width:100%;max-width:400px;border-radius:1rem;">
+    <div class="card-body text-center py-5">
+      <div class="avatar avatar-lg bg-primary-lt rounded-circle mb-3"><i class="ti ti-robot fs-2"></i></div>
+      <h2 class="h2 mb-1">AI Admin</h2>
+      <p class="text-secondary mb-4">Đăng nhập tài khoản</p>
+      <div class="mb-3 text-start"><label class="form-label">Email</label><input type="text" id="login-email" class="form-control"/></div>
+      <div class="mb-4 text-start"><label class="form-label">Mật khẩu</label><input type="password" id="login-password" class="form-control"/></div>
+      <div id="login-error" class="alert alert-danger d-none text-start p-2 fs-4 mb-3"></div>
+      <button class="btn btn-primary w-100" id="login-btn" onclick="doLogin()">Đăng nhập</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<div class="page">
+  <div id="sidebar-placeholder"></div>
+  <div class="page-wrapper">
+    <div class="page-body mt-3">
+      <div class="container-xl">
+
+        <ul class="nav nav-tabs mb-3" id="main-tabs">
+          <li class="nav-item"><a href="#" class="nav-link active" data-tab="posts" onclick="showTab('posts');return false"><i class="ti ti-writing me-1"></i>Viết bài</a></li>
+          <li class="nav-item"><a href="#" class="nav-link" data-tab="seo" onclick="showTab('seo');return false"><i class="ti ti-target-arrow me-1"></i>Kế hoạch SEO</a></li>
+        </ul>
+
+        <!-- LIST VIEW -->
+        <div id="list-view">
+          <div class="row align-items-center mb-4">
+            <div class="col">
+              <h2 class="page-title">Viết Blog</h2>
+              <div class="text-secondary mt-1">Soạn bài một lần, đăng lên Sanity / WordPress và các kênh blog khác</div>
+            </div>
+            <div class="col-auto ms-auto d-flex gap-2">
+              <button class="btn btn-outline-secondary" onclick="loadList()"><i class="ti ti-refresh me-1"></i>Làm mới</button>
+              <button class="btn btn-primary" onclick="openEditor('')"><i class="ti ti-plus me-1"></i>Bài mới</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table table-vcenter table-hover card-table">
+                <thead><tr><th>Tiêu đề</th><th class="d-none d-md-table-cell" style="width:90px">Ngôn ngữ</th><th style="width:260px">Kênh blog</th><th class="d-none d-md-table-cell" style="width:150px">Cập nhật</th></tr></thead>
+                <tbody id="list-body"><tr><td colspan="4" class="text-secondary py-4 text-center">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- EDITOR VIEW -->
+        <div id="editor-view" class="d-none">
+          <div class="row align-items-center mb-3">
+            <div class="col">
+              <a href="#" class="text-secondary" onclick="closeEditor();return false"><i class="ti ti-arrow-left me-1"></i>Danh sách bài</a>
+              <h2 class="page-title mt-1" id="editor-heading">Bài mới</h2>
+            </div>
+            <div class="col-auto ms-auto d-flex gap-2">
+              <button class="btn btn-outline-danger d-none" id="delete-btn" onclick="deletePost()"><i class="ti ti-trash"></i></button>
+              <button class="btn btn-outline-secondary" id="save-btn" onclick="savePost()"><i class="ti ti-device-floppy me-1"></i>Lưu nháp</button>
+            </div>
+          </div>
+
+          <div class="row row-cards">
+            <div class="col-lg-8">
+              <div class="card mb-3"><div class="card-body">
+                <input type="text" id="f-title" class="form-control form-control-lg fw-bold mb-3" placeholder="Tiêu đề bài viết" oninput="onTitleInput()"/>
+                <div id="editor-wrap"><div id="quill"></div></div>
+              </div></div>
+            </div>
+
+            <div class="col-lg-4">
+              <div class="card mb-3"><div class="card-body">
+                <h4 class="card-title">Đăng bài</h4>
+                <div id="targets-box" class="mb-3"><div class="text-secondary small">Đang tải kênh...</div></div>
+                <div class="mb-3">
+                  <label class="form-label">Hẹn giờ đăng <span class="text-secondary">(bỏ trống = đăng ngay)</span></label>
+                  <input type="datetime-local" id="f-schedule" class="form-control"/>
+                </div>
+                <button class="btn btn-primary w-100" id="publish-btn" onclick="publishPost()"><i class="ti ti-send me-1"></i>Lưu & đăng</button>
+                <div class="form-hint mt-2">Đăng lại bài đã có trên Sanity sẽ <b>cập nhật</b> đúng bài đó, không tạo trùng.</div>
+              </div></div>
+
+              <div class="card mb-3"><div class="card-body">
+                <h4 class="card-title">Ảnh bìa</h4>
+                <div id="cover-slot" class="mb-2"><div class="cover-empty">Chưa có ảnh</div></div>
+                <input type="file" id="cover-file" accept="image/*" class="d-none" onchange="uploadCover(this)"/>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('cover-file').click()"><i class="ti ti-upload me-1"></i>Tải ảnh lên</button>
+                  <button class="btn btn-sm btn-ghost-danger" onclick="setCover('')">Bỏ ảnh</button>
+                </div>
+                <input type="text" id="f-alt" class="form-control form-control-sm mt-2" placeholder="Alt text ảnh bìa (SEO)"/>
+              </div></div>
+
+              <div class="card mb-3"><div class="card-body">
+                <h4 class="card-title">Thông tin & SEO</h4>
+                <div class="mb-3">
+                  <label class="form-label">Ngôn ngữ</label>
+                  <select id="f-language" class="form-select">
+                    <option value="en">English</option><option value="vi">Tiếng Việt</option><option value="fr">Français</option>
+                    <option value="ja">日本語</option><option value="es">Español</option><option value="ko">한국어</option><option value="zh">中文</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Slug (URL)</label>
+                  <input type="text" id="f-slug" class="form-control" oninput="slugTouched=true"/>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label d-flex justify-content-between">Tóm tắt / meta description <span class="text-secondary" id="desc-count">0/160</span></label>
+                  <textarea id="f-desc" class="form-control" rows="3" oninput="updateDescCount()"></textarea>
+                </div>
+                <div class="mb-0">
+                  <label class="form-label">SEO title <span class="text-secondary">(bỏ trống = dùng tiêu đề)</span></label>
+                  <input type="text" id="f-meta-title" class="form-control"/>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEO PLANS VIEW -->
+        <div id="seo-view" class="d-none">
+          <div class="row row-cards">
+            <div class="col-lg-4">
+              <div class="card">
+                <div class="card-header"><h3 class="card-title">Kế hoạch SEO</h3>
+                  <div class="card-actions"><button class="btn btn-sm btn-primary" onclick="newPlan()"><i class="ti ti-plus me-1"></i>Plan mới</button></div></div>
+                <div class="list-group list-group-flush" id="plan-list"><div class="list-group-item text-secondary">Đang tải...</div></div>
+              </div>
+            </div>
+            <div class="col-lg-8">
+              <div class="card"><div class="card-body">
+                <input type="text" id="plan-title" class="form-control form-control-lg fw-bold mb-3" placeholder="Tên plan, vd: [SEO] Blog schoolsai – Q4 2026 – vi"/>
+                <textarea id="plan-content" class="form-control font-monospace" rows="22" placeholder="Dán hoặc viết plan SEO (Markdown) ở đây: mục tiêu, từ khoá, danh sách bài, quy tắc..."></textarea>
+                <div class="d-flex gap-2 mt-3">
+                  <button class="btn btn-primary" id="plan-save" onclick="savePlan()"><i class="ti ti-device-floppy me-1"></i>Lưu plan</button>
+                  <button class="btn btn-outline-danger d-none" id="plan-delete" onclick="deletePlan()"><i class="ti ti-trash me-1"></i>Xóa</button>
+                  <span class="text-secondary small ms-auto align-self-center" id="plan-count"></span>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script>
+const BLOG_PLATFORMS = ['sanity', 'wordpress'];
+const PLATFORM_LABEL = { sanity: 'Sanity', wordpress: 'WordPress' };
+const STATUS_LABEL = { pending: 'Nháp', approved: 'Chờ đăng', scheduled: 'Đã hẹn giờ', publishing: 'Đang đăng...', published: 'Đã đăng', error: 'Lỗi' };
+
+let quill, channels = [], posts = [], current = null, slugTouched = false, coverUrl = '', coverMediaId = '';
+
+// ── BOOT ──
+(async () => {
+  await requireAuth();
+  const user = window.AUTH_USER;
+  if (!user || !window.TENANT) return;
+  document.getElementById('login-modal').classList.add('hidden');
+  renderSidebar(user);
+  initQuill();
+  await Promise.all([loadChannels(), loadList()]);
+  const wanted = new URLSearchParams(location.search).get('post');
+  if (wanted) openEditor(wanted);
+})();
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim(), pass = document.getElementById('login-password').value;
+  try {
+    await PB.collection('tenants').authWithPassword(email, pass);
+    location.reload();
+  } catch (e) {
+    const box = document.getElementById('login-error'); box.textContent = e.message || 'Sai tài khoản hoặc mật khẩu'; box.classList.remove('d-none');
+  }
+}
+
+// ── API (qua Worker: hoạt động cả với workspace phụ) ──
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function api(path, method = 'GET', body, query = {}) {
+  const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v)).toString();
+  const res = await fetch(`${WORKER_URL}${path}${qs ? `?${qs}` : ''}`, {
+    method, cache: 'no-store',
+    headers: { Authorization: PB.authStore.token, ...(body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
+  return data;
+}
+const TC = (name) => ({
+  list: async (o = {}) => (await api(`/api/account/data/${name}`, 'GET', null, { tenant: window.TENANT, sort: o.sort, expand: o.expand })).items,
+  create: (data) => api(`/api/account/data/${name}`, 'POST', { ...data, tenant: window.TENANT }),
+  update: (id, data) => api(`/api/account/data/${name}/${id}`, 'PATCH', data),
+  remove: (id) => api(`/api/account/data/${name}/${id}`, 'DELETE')
+});
+function toast(msg, type = 'info') {
+  const el = document.createElement('div'); el.className = `toast-item ${type}`; el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), type === 'error' ? 7000 : 3500);
+}
+const mediaFileUrl = (m) => (m.file ? PB.files.getUrl(m, m.file) : (m.url || ''));
+const slugify = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+
+// ── EDITOR ──
+function initQuill() {
+  quill = new Quill('#quill', {
+    theme: 'snow', placeholder: 'Viết nội dung bài ở đây...',
+    modules: { toolbar: { container: [[{ header: [2, 3, false] }], ['bold', 'italic', 'code'], ['link', 'blockquote'], [{ list: 'ordered' }, { list: 'bullet' }], ['image'], ['clean']],
+      handlers: { image: pickInlineImage } } }
+  });
+}
+function pickInlineImage() {
+  const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+  input.onchange = async () => {
+    if (!input.files[0]) return;
+    try {
+      const url = await uploadFile(input.files[0]);
+      const at = quill.getSelection(true).index;
+      quill.insertEmbed(at, 'image', url, 'user'); quill.setSelection(at + 1);
+    } catch (e) { toast('Lỗi tải ảnh: ' + e.message, 'error'); }
+  };
+  input.click();
+}
+async function uploadFile(file) {
+  const form = new FormData();
+  form.append('tenant', window.TENANT); form.append('label', file.name); form.append('source', 'upload');
+  form.append('type', 'image'); form.append('status', 'ready'); form.append('file', file);
+  const data = await api('/api/account/media', 'POST', form);
+  return mediaFileUrl(data.media);
+}
+async function uploadCover(input) {
+  if (!input.files[0]) return;
+  try { setCover(await uploadFile(input.files[0])); } catch (e) { toast('Lỗi tải ảnh: ' + e.message, 'error'); }
+  input.value = '';
+}
+function setCover(url) {
+  coverUrl = url || '';
+  document.getElementById('cover-slot').innerHTML = coverUrl ? `<img class="cover-preview" src="${esc(coverUrl)}" alt=""/>` : '<div class="cover-empty">Chưa có ảnh</div>';
+}
+function onTitleInput() { if (!slugTouched) document.getElementById('f-slug').value = slugify(document.getElementById('f-title').value); }
+function updateDescCount() { const n = document.getElementById('f-desc').value.length; const el = document.getElementById('desc-count'); el.textContent = `${n}/160`; el.className = n > 160 ? 'text-danger' : 'text-secondary'; }
+
+// ── LIST ──
+async function loadChannels() {
+  try {
+    const all = (await api('/api/account/pages-config', 'GET', null, { tenant: window.TENANT })).items || [];
+    channels = all.filter((c) => BLOG_PLATFORMS.includes(c.platform) && c.is_active !== false);
+  } catch { channels = []; }
+  renderTargetsBox();
+}
+async function loadList() {
+  try {
+    posts = await TC('posts').list({ sort: '-updated', expand: 'post_targets_via_post_id,media_via_post_id' });
+    posts = posts.filter((p) => {
+      const t = p.expand?.post_targets_via_post_id || [];
+      return t.some((x) => BLOG_PLATFORMS.includes(x.platform)) || t.length === 0 && (p.slug || p.meta_title);
+    });
+  } catch (e) { toast('Lỗi tải danh sách: ' + e.message, 'error'); posts = []; }
+  const body = document.getElementById('list-body');
+  if (!posts.length) { body.innerHTML = '<tr><td colspan="4" class="text-secondary py-4 text-center">Chưa có bài blog nào. Bấm "Bài mới" để bắt đầu.</td></tr>'; return; }
+  body.innerHTML = posts.map((p) => {
+    const t = (p.expand?.post_targets_via_post_id || []).filter((x) => BLOG_PLATFORMS.includes(x.platform));
+    const badges = t.map((x) => `<span class="badge ${x.status === 'published' ? 'bg-success-lt' : x.status === 'error' ? 'bg-danger-lt' : 'bg-azure-lt'} me-1">${esc(PLATFORM_LABEL[x.platform])}: ${esc(STATUS_LABEL[x.status] || x.status)}</span>`).join('') || '<span class="text-secondary">Bản nháp</span>';
+    return `<tr class="list-row" onclick="openEditor('${esc(p.id)}')"><td><div class="fw-medium">${esc(p.title) || '(chưa có tiêu đề)'}</div><div class="text-secondary small">/${esc(p.slug || '')}</div></td><td class="d-none d-md-table-cell">${esc(p.language || '—')}</td><td>${badges}</td><td class="d-none d-md-table-cell text-secondary">${esc(String(p.updated || '').slice(0, 10))}</td></tr>`;
+  }).join('');
+}
+
+function coverMedia(post) { return [...(post?.expand?.media_via_post_id || [])].filter((m) => m.type !== 'video').sort((a, b) => (a.order || 0) - (b.order || 0)); }
+function targetsOf(post) { return (post?.expand?.post_targets_via_post_id || []).filter((t) => BLOG_PLATFORMS.includes(t.platform)); }
+function renderTargetsBox() {
+  const box = document.getElementById('targets-box');
+  if (!channels.length) { box.innerHTML = '<div class="alert alert-warning mb-0 small">Chưa có kênh Sanity / WordPress. Thêm ở <a href="sm-config.html">Cấu hình kênh</a>.</div>'; return; }
+  const existing = targetsOf(current);
+  box.innerHTML = channels.map((c) => {
+    const t = existing.find((x) => x.platform === c.platform && x.page_id === c.page_id);
+    const locked = t && t.status === 'published' && c.platform !== 'sanity';
+    const info = t ? `<span class="badge bg-azure-lt ms-auto">${esc(STATUS_LABEL[t.status] || t.status)}</span>` : '';
+    const link = t && t.published_url ? ` <a href="${esc(t.published_url)}" target="_blank" rel="noopener"><i class="ti ti-external-link"></i></a>` : '';
+    return `<label class="form-check d-flex align-items-center gap-2 mb-2"><input type="checkbox" class="form-check-input mt-0 target-check" value="${esc(c.id)}" ${t ? 'checked' : ''} ${locked ? 'disabled' : ''}/><span>${esc(c.label || PLATFORM_LABEL[c.platform])} <span class="text-secondary small">(${esc(PLATFORM_LABEL[c.platform])})</span>${link}</span>${info}</label>${t && t.error_log && t.status === 'error' ? `<div class="text-danger small mb-2">${esc(t.error_log)}</div>` : ''}${locked ? '<div class="text-secondary small mb-2">WordPress: bài đã đăng, chưa hỗ trợ cập nhật tự động.</div>' : ''}`;
+  }).join('');
+}
+
+// ── OPEN / CLOSE ──
+async function openEditor(id) {
+  current = id ? posts.find((p) => p.id === id) || null : null;
+  if (id && !current) { await loadList(); current = posts.find((p) => p.id === id) || null; }
+  slugTouched = !!current?.slug;
+  document.getElementById('editor-heading').textContent = current ? 'Sửa bài' : 'Bài mới';
+  document.getElementById('f-title').value = current?.title || '';
+  document.getElementById('f-slug').value = current?.slug || '';
+  document.getElementById('f-desc').value = current?.meta_description || '';
+  document.getElementById('f-meta-title').value = current?.meta_title || '';
+  document.getElementById('f-language').value = current?.language || 'en';
+  document.getElementById('f-alt').value = current?.alt_img || '';
+  document.getElementById('f-schedule').value = '';
+  quill.setContents(quill.clipboard.convert({ html: current?.content || '' }), 'silent');
+  const media = coverMedia(current);
+  coverMediaId = media[0]?.id || '';
+  setCover(media[0] ? mediaFileUrl(media[0]) : '');
+  updateDescCount(); renderTargetsBox();
+  document.getElementById('delete-btn').classList.toggle('d-none', !current);
+  editing = true; showTab('posts');
+  window.scrollTo(0, 0);
+}
+function closeEditor() {
+  current = null;
+  editing = false; showTab('posts');
+  history.replaceState(null, '', location.pathname);
+  loadList();
+}
+
+// ── SAVE ──
+function collectFields() {
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) throw new Error('Nhập tiêu đề bài viết');
+  const html = quill.getSemanticHTML().replace(/&nbsp;/g, ' ');
+  if (!quill.getText().trim() && !html.includes('<img')) throw new Error('Bài chưa có nội dung');
+  return {
+    title, content: html,
+    slug: document.getElementById('f-slug').value.trim() || slugify(title),
+    meta_description: document.getElementById('f-desc').value.trim(),
+    meta_title: document.getElementById('f-meta-title').value.trim(),
+    language: document.getElementById('f-language').value,
+    alt_img: document.getElementById('f-alt').value.trim()
+  };
+}
+async function persistPost() {
+  const fields = collectFields();
+  const record = current ? await TC('posts').update(current.id, fields) : await TC('posts').create(fields);
+  const id = record.id;
+  // Ảnh bìa: 1 bản ghi media gắn với bài (publisher lấy ảnh đầu tiên theo order).
+  if (coverUrl) {
+    const data = { post_id: id, url: coverUrl, type: 'image', order: 0 };
+    if (coverMediaId) await TC('media').update(coverMediaId, { url: coverUrl });
+    else coverMediaId = (await TC('media').create(data)).id;
+  } else if (coverMediaId) {
+    await TC('media').remove(coverMediaId); coverMediaId = '';
+  }
+  await loadList();
+  current = posts.find((p) => p.id === id) || { ...record, expand: {} };
+  document.getElementById('editor-heading').textContent = 'Sửa bài';
+  document.getElementById('delete-btn').classList.remove('d-none');
+  history.replaceState(null, '', `?post=${encodeURIComponent(id)}`);
+  return current;
+}
+async function savePost() {
+  const btn = document.getElementById('save-btn'); btn.disabled = true;
+  try { await persistPost(); renderTargetsBox(); toast('Đã lưu nháp ✓', 'success'); }
+  catch (e) { toast(e.message, 'error'); }
+  btn.disabled = false;
+}
+async function deletePost() {
+  if (!current || !confirm('Xóa bài này? Bài đã đăng trên Sanity/WordPress sẽ không bị xóa ở đó.')) return;
+  try {
+    for (const t of targetsOf(current)) await TC('post_targets').remove(t.id);
+    for (const m of current.expand?.media_via_post_id || []) await TC('media').remove(m.id);
+    await TC('posts').remove(current.id);
+    toast('Đã xóa', 'success'); closeEditor();
+  } catch (e) { toast('Lỗi xóa: ' + e.message, 'error'); }
+}
+
+// ── PUBLISH ──
+async function publishPost() {
+  const picked = [...document.querySelectorAll('.target-check:checked')].map((el) => channels.find((c) => c.id === el.value)).filter(Boolean);
+  if (!picked.length) { toast('Chọn ít nhất 1 kênh để đăng', 'error'); return; }
+  const when = document.getElementById('f-schedule').value;
+  const scheduledAt = when ? new Date(when).toISOString() : '';
+  if (scheduledAt && new Date(scheduledAt) <= new Date()) { toast('Giờ hẹn phải ở tương lai', 'error'); return; }
+  const btn = document.getElementById('publish-btn'); btn.disabled = true;
+  try {
+    const post = await persistPost();
+    const existing = targetsOf(post);
+    const results = [];
+    for (const channel of picked) {
+      let target = existing.find((x) => x.platform === channel.platform && x.page_id === channel.page_id);
+      if (target && target.status === 'publishing') { results.push(`${channel.label}: đang đăng, thử lại sau`); continue; }
+      if (target && target.status === 'published' && channel.platform !== 'sanity') continue;
+      const patch = { status: scheduledAt ? 'scheduled' : 'approved', scheduled_at: scheduledAt, error_log: '' };
+      if (target) target = await TC('post_targets').update(target.id, patch);
+      else target = await TC('post_targets').create({ post_id: post.id, platform: channel.platform, page_id: channel.page_id, ...patch, attempts: 0 });
+      if (scheduledAt) { results.push(`${channel.label}: đã hẹn giờ`); continue; }
+      const res = await api('/api/account/publish-now', 'POST', { tenant: window.TENANT, target_id: target.id }).catch((e) => ({ success: false, error_log: e.message }));
+      results.push(res.success ? `${channel.label}: đã đăng ✓` : `${channel.label}: lỗi — ${res.error_log || res.status}`);
+    }
+    await loadList();
+    current = posts.find((p) => p.id === post.id) || current;
+    renderTargetsBox();
+    toast(results.join(' · ') || 'Không có gì để đăng', results.some((r) => r.includes('lỗi')) ? 'error' : 'success');
+  } catch (e) { toast(e.message, 'error'); }
+  btn.disabled = false;
+}
+// ── KẾ HOẠCH SEO (lưu chữ thuần, dùng bảng ai_prompts với category "seo_plan") ──
+const PLAN_CATEGORY = 'seo_plan';
+let plans = [], currentPlan = null, editing = false;
+
+function showTab(name) {
+  document.querySelectorAll('#main-tabs .nav-link').forEach((a) => a.classList.toggle('active', a.dataset.tab === name));
+  document.getElementById('seo-view').classList.toggle('d-none', name !== 'seo');
+  document.getElementById('list-view').classList.toggle('d-none', name !== 'posts' || editing);
+  document.getElementById('editor-view').classList.toggle('d-none', name !== 'posts' || !editing);
+  if (name === 'seo') loadPlans();
+}
+async function loadPlans() {
+  try {
+    plans = (await TC('ai_prompts').list({ sort: '-updated' })).filter((p) => p.category === PLAN_CATEGORY);
+  } catch (e) { toast('Lỗi tải plan: ' + e.message, 'error'); plans = []; }
+  const box = document.getElementById('plan-list');
+  box.innerHTML = plans.length ? plans.map((p) => `<a href="#" class="list-group-item list-group-item-action ${currentPlan?.id === p.id ? 'active' : ''}" onclick="openPlan('${esc(p.id)}');return false"><div class="fw-medium">${esc(p.label) || '(chưa đặt tên)'}</div><div class="small opacity-75">${esc(String(p.updated || '').slice(0, 10))}</div></a>`).join('') : '<div class="list-group-item text-secondary">Chưa có plan nào.</div>';
+  if (!currentPlan && !document.getElementById('plan-title').value) newPlan();
+}
+function openPlan(id) {
+  currentPlan = plans.find((p) => p.id === id) || null;
+  document.getElementById('plan-title').value = currentPlan?.label || '';
+  document.getElementById('plan-content').value = currentPlan?.system_prompt || '';
+  document.getElementById('plan-delete').classList.toggle('d-none', !currentPlan);
+  updatePlanCount(); loadPlans();
+}
+function newPlan() {
+  currentPlan = null;
+  document.getElementById('plan-title').value = '';
+  document.getElementById('plan-content').value = '';
+  document.getElementById('plan-delete').classList.add('d-none');
+  updatePlanCount();
+}
+function updatePlanCount() { document.getElementById('plan-count').textContent = `${document.getElementById('plan-content').value.length} ký tự`; }
+document.addEventListener('input', (e) => { if (e.target.id === 'plan-content') updatePlanCount(); });
+async function savePlan() {
+  const label = document.getElementById('plan-title').value.trim();
+  const system_prompt = document.getElementById('plan-content').value;
+  if (!label) { toast('Nhập tên plan', 'error'); return; }
+  const btn = document.getElementById('plan-save'); btn.disabled = true;
+  try {
+    const saved = currentPlan
+      ? await TC('ai_prompts').update(currentPlan.id, { label, system_prompt })
+      : await TC('ai_prompts').create({ label, system_prompt, category: PLAN_CATEGORY, model: '', is_active: false });
+    currentPlan = { ...saved };
+    document.getElementById('plan-delete').classList.remove('d-none');
+    toast('Đã lưu plan ✓', 'success');
+    await loadPlans();
+  } catch (e) { toast('Lỗi lưu plan: ' + e.message, 'error'); }
+  btn.disabled = false;
+}
+async function deletePlan() {
+  if (!currentPlan || !confirm('Xóa plan này?')) return;
+  try { await TC('ai_prompts').remove(currentPlan.id); toast('Đã xóa', 'success'); newPlan(); await loadPlans(); }
+  catch (e) { toast('Lỗi xóa: ' + e.message, 'error'); }
+}
+</script>
+</body>
+</html>

@@ -215,9 +215,10 @@ function renderUserInfo(user) {
 
 function redirectToLogin() {
   // Đổi index.html thành landing.html để nếu chưa login, hệ thống tự sút ra Landing
-  if (!window.location.pathname.endsWith("landing.html") &&
-      !window.location.pathname.endsWith("/")) {
-    window.location.href = "landing.html";
+  // Chú ý: "/" chính là index.html (dashboard) nên KHÔNG được loại trừ — nếu không, vào
+  // thẳng domain gốc khi chưa đăng nhập sẽ ở lại dashboard thay vì về landing.
+  if (!/\/landing(\.html)?$/.test(window.location.pathname)) {
+    window.location.replace("landing.html");
   }
 }
 

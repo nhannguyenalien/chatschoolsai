@@ -15,6 +15,18 @@ export const CONTENT_PLANNING_COLLECTION_EXTENSIONS = {
 
 export const CONTENT_PLANNING_COLLECTIONS = [
   {
+    name: "analytics_connections", type: "base", ...privateRules,
+    schema: [
+      text("tenant", true), text("site_id", true), select("provider", ["google"], true),
+      select("status", ["configured", "connected", "error", "revoked"], true), text("oauth_client_encrypted"), text("credentials_encrypted"),
+      text("scopes_json"), text("ga4_property"), text("gsc_site"), date("last_synced_at"), text("last_error"),
+    ],
+    indexes: [
+      "CREATE UNIQUE INDEX `idx_analytics_connection_identity` ON `analytics_connections` (`tenant`, `site_id`, `provider`)",
+      "CREATE INDEX `idx_analytics_connection_site` ON `analytics_connections` (`tenant`, `site_id`, `status`)",
+    ],
+  },
+  {
     name: "content_performance_snapshots", type: "base", ...privateRules,
     schema: [
       text("tenant", true), text("site_id", true), text("post_id"), select("source", ["gsc", "ga4"], true),

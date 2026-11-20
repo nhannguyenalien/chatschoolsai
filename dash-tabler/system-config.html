@@ -10,7 +10,7 @@
 
     <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
     <script src="_shared/config.js"></script>
-    <script src="_shared/i18n.js?v=20261019-7"></script>
+    <script src="_shared/i18n.js?v=20261021-1"></script>
 
     <style>
         @import url('https://rsms.me/inter/inter.css');
@@ -24,6 +24,11 @@
         .toast-msg.show { transform: translateY(0); opacity: 1; }
         .toast-msg.success { border-left: 4px solid #2fb344; color: #2fb344; }
         .toast-msg.error { border-left: 4px solid #d63939; color: #d63939; }
+        .sys-menu .list-group-item { color:#1e293b; border-color:#eef0f3; }
+        .sys-menu .list-group-item:hover { background:#f4f6fa; color:#206bc4; }
+        .sys-menu .list-group-header { background:#f8fafc; color:#6b7a90 !important; margin:0 !important; padding:8px 16px; }
+        .sys-menu .list-group-item.active { background: rgba(32,107,196,.12); color:#206bc4; font-weight:600; border-radius:6px; }
+        .kpi-num { font-size: 1.9rem; font-weight: 700; line-height:1.1; }
         .danger-header { background: linear-gradient(135deg, #26374d, #0b1c30); }
     </style>
     <!-- consent + gtm -->
@@ -77,7 +82,40 @@
 
     <div class="page-body">
       <div class="container-xl">
+       <div class="row g-4">
+        <div class="col-lg-2">
+          <div class="card position-sticky" style="top:16px"><div class="list-group list-group-flush sys-menu">
+            <a href="#overview" class="list-group-item list-group-item-action" data-view="overview"><i class="ti ti-layout-dashboard me-2"></i>Tổng quan</a>
+            <a href="#accounts" class="list-group-item list-group-item-action" data-view="accounts"><i class="ti ti-user-plus me-2"></i>Tài khoản mới</a>
+            <a href="#tenants" class="list-group-item list-group-item-action" data-view="tenants"><i class="ti ti-building-store me-2"></i>Tenant &amp; gói</a>
+            <a href="#content" class="list-group-item list-group-item-action" data-view="content"><i class="ti ti-send me-2"></i>Bài đăng</a>
+            <a href="#chat" class="list-group-item list-group-item-action" data-view="chat"><i class="ti ti-message-chatbot me-2"></i>Chatbot &amp; dữ liệu</a>
+            <a href="#config" class="list-group-item list-group-item-action" data-view="config"><i class="ti ti-settings me-2"></i>Cấu hình hệ thống</a>
+            <div class="list-group-header fs-6 text-uppercase fw-bold">Trang quản trị khác</div>
+            <a href="/config" class="list-group-item list-group-item-action"><i class="ti ti-adjustments me-2"></i>Cấu hình bot</a>
+            <a href="/sm-config" class="list-group-item list-group-item-action"><i class="ti ti-brand-facebook me-2"></i>Cấu hình MXH</a>
+            <a href="/widget" class="list-group-item list-group-item-action"><i class="ti ti-message-chatbot me-2"></i>Widget chat</a>
+            <a href="/master-agent" class="list-group-item list-group-item-action"><i class="ti ti-robot me-2"></i>Master agent</a>
+            <a href="/knowledge" class="list-group-item list-group-item-action"><i class="ti ti-books me-2"></i>Kiến thức</a>
+            <a href="/billing" class="list-group-item list-group-item-action"><i class="ti ti-credit-card me-2"></i>Thanh toán</a>
+            <a href="/loyalty" class="list-group-item list-group-item-action"><i class="ti ti-gift me-2"></i>Loyalty</a>
+            <a href="/reward-world-admin" class="list-group-item list-group-item-action"><i class="ti ti-trophy me-2"></i>Reward World</a>
+            <a href="/analytics" class="list-group-item list-group-item-action"><i class="ti ti-chart-bar me-2"></i>Analytics</a>
+            <a href="/account" class="list-group-item list-group-item-action"><i class="ti ti-user-circle me-2"></i>Tài khoản</a>
+          </div>
+          </div>
+        </div>
+        <div class="col-lg-10">
 
+        <div id="view-dash">
+          <div class="d-flex align-items-center mb-3">
+            <h2 class="page-title m-0 text-white" id="dash-title">Tổng quan</h2>
+            <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="loadDash()"><i class="ti ti-refresh me-1"></i>Làm mới</button>
+          </div>
+          <div id="dash-body"></div>
+        </div>
+
+        <div id="view-config">
         <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
           <i class="ti ti-alert-triangle fs-2"></i>
           <div>Các giá trị dưới đây áp dụng cho <strong>toàn bộ hệ thống, mọi tenant</strong>. Sửa sai có thể làm gián đoạn chatbot/đăng bài của tất cả khách hàng.</div>
@@ -261,13 +299,16 @@
           <i class="ti ti-info-circle me-1"></i>
           <code>PB_URL</code>, <code>PB_ADMIN_EMAIL</code>, <code>PB_ADMIN_PASS</code> KHÔNG quản lý ở đây — đó là thứ worker cần để tự kết nối vào PocketBase, đưa vào đây sẽ thành vòng lặp con gà quả trứng. Vẫn phải set qua <code>wrangler secret put</code>.
         </div>
+        </div><!-- /view-config -->
 
+        </div></div>
       </div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 /* =========================================================
    SCHEMA CẦN TẠO MỚI TRONG POCKETBASE (collection "system_config"):
@@ -328,6 +369,317 @@ function showMain() {
     document.getElementById('login-screen').classList.add('d-none');
     document.getElementById('main-screen').classList.remove('d-none');
     loadConfig();
+    route();
+}
+
+const VIEW_TITLES = { overview: 'Tổng quan nền tảng', accounts: 'Tài khoản mới & biểu đồ đăng ký', tenants: 'Tenant & gói dịch vụ', content: 'Bài đăng & kênh', chat: 'Chatbot & dữ liệu' };
+window.addEventListener('hashchange', route);
+function route() {
+    const v = (location.hash || '#overview').slice(1);
+    const view = (v === 'config' || VIEW_TITLES[v]) ? v : 'overview';
+    document.querySelectorAll('.sys-menu [data-view]').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+    document.getElementById('view-config').classList.toggle('d-none', view !== 'config');
+    document.getElementById('view-dash').classList.toggle('d-none', view === 'config');
+    if (view !== 'config') { window.currentDash = view; document.getElementById('dash-title').textContent = VIEW_TITLES[view]; loadDash(); }
+}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = n => n == null ? '—' : Number(n).toLocaleString('vi-VN');
+async function cnt(col, filter) {
+    try { return (await PBA.collection(col).getList(1, 1, { filter: filter || '', fields: 'id', skipTotal: false })).totalItems; }
+    catch { return null; }
+}
+function kpi(label, val, icon, color, sub) {
+    return `<div class="col-6 col-md-4 col-xl-3"><div class="card card-sm"><div class="card-body"><div class="d-flex align-items-center">
+      <span class="avatar bg-${color}-lt text-${color} me-3"><i class="ti ti-${icon} fs-2"></i></span>
+      <div><div class="kpi-num">${fmt(val)}</div><div class="text-secondary">${label}</div>${sub ? `<div class="text-secondary fs-6">${sub}</div>` : ''}</div></div></div></div></div>`;
+}
+function barList(title, rows) {
+    const max = Math.max(1, ...rows.map(r => r[1] || 0));
+    return `<div class="card h-100"><div class="card-header"><h3 class="card-title">${title}</h3></div><div class="card-body">` +
+      rows.map(([l, v, c]) => `<div class="mb-3"><div class="d-flex justify-content-between mb-1"><span>${esc(l)}</span><strong>${fmt(v)}</strong></div>
+        <div class="progress progress-sm"><div class="progress-bar bg-${c || 'blue'}" style="width:${((v || 0) / max) * 100}%"></div></div></div>`).join('') + `</div></div>`;
+}
+function recentTable(title, cols, items) {
+    return `<div class="card"><div class="card-header"><h3 class="card-title">${title}</h3></div><div class="table-responsive"><table class="table card-table table-vcenter">
+      <thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>` +
+      (items.length ? items.map(it => `<tr>${cols.map(c => `<td>${c[1](it)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" class="text-secondary text-center">Chưa có dữ liệu</td></tr>`) +
+      `</tbody></table></div></div>`;
+}
+const dt = v => v ? new Date(v.replace(' ', 'T')).toLocaleString('vi-VN') : '';
+async function recent(col, n, sort) {
+    try { return (await PBA.collection(col).getList(1, n, { sort: sort || '-created' })).items; } catch { return []; }
+}
+function dayAgo(d) { return new Date(Date.now() - d * 864e5).toISOString().replace('T', ' ').slice(0, 19); }
+
+async function loadDash() {
+    const view = window.currentDash || 'overview';
+    const el = document.getElementById('dash-body');
+    el.innerHTML = '<div class="text-center text-secondary py-5"><span class="spinner-border spinner-border-sm me-2"></span>Đang tải số liệu...</div>';
+    try {
+        el.innerHTML = await ({ overview: dashOverview, accounts: dashAccounts, tenants: dashTenants, content: dashContent, chat: dashChat }[view])();
+        if (window.afterDash) { const f = window.afterDash; window.afterDash = null; f(); }
+    } catch (e) { el.innerHTML = `<div class="alert alert-danger">Lỗi tải số liệu: ${esc(e.message)}</div>`; }
+}
+
+async function dashOverview() {
+    const w = dayAgo(7), m = dayAgo(30);
+    const [tenants, tenantsNew, posts, postsWeek, published, failed, msgs, msgsWeek, docs, bots, pages, loyal, calls] = await Promise.all([
+        cnt('tenants'), cnt('tenants', `created>="${w}"`), cnt('posts'), cnt('posts', `created>="${w}"`),
+        cnt('post_targets', 'status="published"'), cnt('post_targets', 'status="failed"'),
+        cnt('messages'), cnt('messages', `created>="${w}"`), cnt('documents'), cnt('bot_configs'),
+        cnt('pages_config'), cnt('loyalty_customers'), cnt('calls')]);
+    return `<div class="row row-cards mb-4">
+      ${kpi('Tenant', tenants, 'building-store', 'blue', `+${fmt(tenantsNew)} trong 7 ngày`)}
+      ${kpi('Bot đã cấu hình', bots, 'robot', 'purple')}
+      ${kpi('Kênh/trang kết nối', pages, 'plug-connected', 'cyan')}
+      ${kpi('Bài viết', posts, 'article', 'green', `+${fmt(postsWeek)} trong 7 ngày`)}
+      ${kpi('Đăng thành công', published, 'circle-check', 'teal')}
+      ${kpi('Đăng lỗi', failed, 'alert-triangle', 'red')}
+      ${kpi('Tin nhắn', msgs, 'messages', 'orange', `+${fmt(msgsWeek)} trong 7 ngày`)}
+      ${kpi('Tài liệu RAG', docs, 'file-text', 'indigo')}
+      ${kpi('Khách loyalty', loyal, 'gift', 'pink')}
+      ${kpi('Cuộc gọi', calls, 'phone', 'azure')}
+    </div>` + await dashTenantsTable(8);
+}
+
+async function dashTenantsTable(n) {
+    const items = await recent('tenants', n);
+    return recentTable('Tenant mới nhất', [
+        ['Tên', t => `<strong>${esc(t.name || t.slug || t.id)}</strong>`],
+        ['Gói', t => `<span class="badge bg-${t.plan_id === 'pro' ? 'green' : 'secondary'}-lt">${esc(t.plan_id || 'free')}</span>`],
+        ['Tạo lúc', t => esc(dt(t.created))]], items);
+}
+
+async function dashTenants() {
+    const [all, pro, week, month, members] = await Promise.all([
+        cnt('tenants'), cnt('tenants', 'plan_id="pro"'), cnt('tenants', `created>="${dayAgo(7)}"`),
+        cnt('tenants', `created>="${dayAgo(30)}"`), cnt('tenant_memberships')]);
+    const free = all == null || pro == null ? null : all - pro;
+    return `<div class="row row-cards mb-4">
+      ${kpi('Tổng tenant', all, 'building-store', 'blue')}
+      ${kpi('Gói Pro', pro, 'crown', 'green', all ? Math.round((pro || 0) / all * 100) + '% tổng tenant' : '')}
+      ${kpi('Gói Free', free, 'user', 'secondary')}
+      ${kpi('Thành viên (memberships)', members, 'users', 'purple')}
+      ${kpi('Mới 7 ngày', week, 'trending-up', 'teal')}
+      ${kpi('Mới 30 ngày', month, 'calendar-stats', 'cyan')}
+    </div>
+    <div class="row row-cards mb-4"><div class="col-md-6">${barList('Phân bổ gói', [['Pro', pro, 'green'], ['Free', free, 'secondary']])}</div></div>
+    ${await dashTenantsTable(20)}`;
+}
+
+async function dashContent() {
+    const sts = [['published', 'Đã đăng', 'green'], ['scheduled', 'Đã hẹn giờ', 'blue'], ['pending', 'Chờ đăng', 'yellow'], ['failed', 'Lỗi', 'red']];
+    const plats = [['facebook', 'Facebook', 'azure'], ['youtube', 'YouTube', 'red'], ['instagram', 'Instagram', 'pink'], ['tiktok', 'TikTok', 'dark'], ['telegram', 'Telegram', 'cyan'], ['wordpress', 'WordPress', 'indigo']];
+    const [posts, week, sch, ...rest] = await Promise.all([cnt('posts'), cnt('posts', `created>="${dayAgo(7)}"`), cnt('publish_schedules'),
+        ...sts.map(x => cnt('post_targets', `status="${x[0]}"`)), ...plats.map(x => cnt('post_targets', `platform="${x[0]}"`)), cnt('media_library')]);
+    const sv = rest.slice(0, sts.length), pv = rest.slice(sts.length, sts.length + plats.length), media = rest[rest.length - 1];
+    const targets = await recent('post_targets', 10);
+    return `<div class="row row-cards mb-4">
+      ${kpi('Tổng bài viết', posts, 'article', 'green')}${kpi('Bài mới 7 ngày', week, 'trending-up', 'teal')}
+      ${kpi('Lịch đăng', sch, 'calendar-time', 'blue')}${kpi('Thư viện media', media, 'photo', 'purple')}
+    </div>
+    <div class="row row-cards mb-4">
+      <div class="col-md-6">${barList('Trạng thái đăng', sts.map((x, i) => [x[1], sv[i], x[2]]))}</div>
+      <div class="col-md-6">${barList('Theo nền tảng', plats.map((x, i) => [x[1], pv[i], x[2]]))}</div>
+    </div>` + recentTable('Lượt đăng gần nhất', [
+        ['Nền tảng', t => esc(t.platform || '')],
+        ['Trạng thái', t => `<span class="badge bg-${t.status === 'published' ? 'green' : t.status === 'failed' ? 'red' : 'yellow'}-lt">${esc(t.status || '')}</span>`],
+        ['Lỗi', t => `<span class="text-danger fs-6">${esc((t.error_log || '').slice(0, 80))}</span>`],
+        ['Tạo lúc', t => esc(dt(t.created))]], targets);
+}
+
+async function dashChat() {
+    const w = dayAgo(7), d = dayAgo(1);
+    const [msgs, msgs7, msgs1, sess, docs, bots, calls, lessons, loyal, ledger, tools, proposals] = await Promise.all([
+        cnt('messages'), cnt('messages', `created>="${w}"`), cnt('messages', `created>="${d}"`), cnt('session_summaries'),
+        cnt('documents'), cnt('bot_configs'), cnt('calls'), cnt('lessons'), cnt('loyalty_customers'), cnt('loyalty_ledger'),
+        cnt('agent_tools'), cnt('agent_tool_proposals')]);
+    return `<div class="row row-cards mb-4">
+      ${kpi('Tổng tin nhắn', msgs, 'messages', 'orange')}${kpi('Tin nhắn 7 ngày', msgs7, 'message-2', 'yellow')}${kpi('Tin nhắn 24h', msgs1, 'message-circle', 'red')}
+      ${kpi('Phiên chat (tóm tắt)', sess, 'history', 'blue')}${kpi('Bot', bots, 'robot', 'purple')}${kpi('Tài liệu RAG', docs, 'file-text', 'indigo')}
+      ${kpi('Cuộc gọi', calls, 'phone', 'azure')}${kpi('Bài học (lessons)', lessons, 'school', 'teal')}
+      ${kpi('Khách loyalty', loyal, 'gift', 'pink')}${kpi('Giao dịch điểm', ledger, 'coins', 'green')}
+      ${kpi('Agent tools', tools, 'tool', 'cyan')}${kpi('Đề xuất tool chờ duyệt', proposals, 'hourglass', 'orange')}
+    </div>` + recentTable('Tin nhắn gần nhất', [
+        ['Vai trò', m => esc(m.role || m.sender || '')],
+        ['Nội dung', m => esc(String(m.content || m.text || '').slice(0, 100))],
+        ['Lúc', m => esc(dt(m.created))]], await recent('messages', 10));
+}
+
+/* ===================== TAB TÀI KHOẢN MỚI ===================== */
+const acc = { all: [], bots: new Set(), members: {}, days: 30, q: '', plan: '', ver: '', sort: '-created', page: 1, charts: {} };
+const pbDate = v => v ? new Date(String(v).replace(' ', 'T').replace(/Z?$/, 'Z')) : null;
+const dkey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const ago = d => { if (!d) return '—'; const m = Math.floor((Date.now() - d) / 6e4); return m < 1 ? 'vừa xong' : m < 60 ? m + ' phút trước' : m < 1440 ? Math.floor(m / 60) + ' giờ trước' : Math.floor(m / 1440) + ' ngày trước'; };
+
+async function fetchAll(col, fields, sort) {
+    const out = []; let page = 1;
+    for (;;) {
+        const r = await PBA.collection(col).getList(page, 500, { fields, sort: sort || '-created', skipTotal: false });
+        out.push(...r.items);
+        if (page >= r.totalPages || out.length >= 20000) break;
+        page++;
+    }
+    return out;
+}
+
+async function dashAccounts() {
+    const [all, bots, mem] = await Promise.all([
+        fetchAll('tenants', 'id,email,name,tenant,plan_id,verified,created,updated'),
+        fetchAll('bot_configs', 'tenant').catch(() => []),
+        fetchAll('tenant_memberships', 'account,tenant,role,status').catch(() => [])]);
+    acc.all = all.map(a => ({ ...a, _c: pbDate(a.created), _u: pbDate(a.updated) }));
+    acc.bots = new Set(bots.map(b => b.tenant));
+    acc.members = {};
+    mem.forEach(m => { (acc.members[m.account] = acc.members[m.account] || []).push(m); });
+    acc.page = 1;
+    const now = new Date(), startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const since = d => acc.all.filter(a => a._c && a._c.getTime() >= startToday - (d - 1) * 864e5).length;
+    const total = acc.all.length, today = since(1), d7 = since(7), d30 = since(30);
+    const prev7 = acc.all.filter(a => a._c && a._c.getTime() >= startToday - 13 * 864e5 && a._c.getTime() < startToday - 6 * 864e5).length;
+    const growth = prev7 ? Math.round((d7 - prev7) / prev7 * 100) : null;
+    const pro = acc.all.filter(a => a.plan_id === 'pro').length;
+    const verified = acc.all.filter(a => a.verified).length;
+    const withBot = acc.all.filter(a => acc.bots.has(a.tenant)).length;
+    const active7 = acc.all.filter(a => a._u && a._u.getTime() >= Date.now() - 7 * 864e5).length;
+    window.afterDash = renderAccountCharts;
+    return `<div class="row row-cards mb-4">
+      ${kpi('Tổng tài khoản', total, 'users', 'blue')}
+      ${kpi('Hôm nay', today, 'sun', 'green', 'tài khoản mới')}
+      ${kpi('7 ngày qua', d7, 'trending-up', 'teal', growth == null ? 'tuần trước: ' + fmt(prev7) : (growth >= 0 ? '▲ +' : '▼ ') + growth + '% so với tuần trước (' + fmt(prev7) + ')')}
+      ${kpi('30 ngày qua', d30, 'calendar-stats', 'cyan', total ? Math.round(d30 / total * 100) + '% tổng số' : '')}
+      ${kpi('Gói Pro', pro, 'crown', 'yellow', total ? Math.round(pro / total * 100) + '% chuyển đổi' : '')}
+      ${kpi('Đã xác thực email', verified, 'mail-check', 'purple', total ? Math.round(verified / total * 100) + '%' : '')}
+      ${kpi('Đã tạo bot', withBot, 'robot', 'indigo', total ? Math.round(withBot / total * 100) + '% đã onboard' : '')}
+      ${kpi('Hoạt động 7 ngày', active7, 'activity', 'orange', 'có cập nhật hồ sơ')}
+    </div>
+    <div class="card mb-4"><div class="card-header"><h3 class="card-title">Tài khoản đăng ký theo ngày</h3>
+      <div class="card-actions btn-group btn-group-sm">
+        ${[14, 30, 90, 180].map(d => `<button class="btn btn-outline-secondary acc-range ${d === acc.days ? 'active' : ''}" onclick="setAccRange(${d})">${d} ngày</button>`).join('')}
+      </div></div><div class="card-body"><div style="height:280px"><canvas id="ch-daily"></canvas></div></div></div>
+    <div class="row row-cards mb-4">
+      <div class="col-lg-7"><div class="card h-100"><div class="card-header"><h3 class="card-title">Tổng tài khoản tích luỹ</h3></div><div class="card-body"><div style="height:240px"><canvas id="ch-cum"></canvas></div></div></div></div>
+      <div class="col-lg-5"><div class="card h-100"><div class="card-header"><h3 class="card-title">Theo tháng</h3></div><div class="card-body"><div style="height:240px"><canvas id="ch-month"></canvas></div></div></div></div>
+    </div>
+    <div class="row row-cards mb-4">
+      <div class="col-md-6 col-lg-3"><div class="card h-100"><div class="card-header"><h3 class="card-title">Gói dịch vụ</h3></div><div class="card-body"><div style="height:200px"><canvas id="ch-plan"></canvas></div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card h-100"><div class="card-header"><h3 class="card-title">Phễu kích hoạt</h3></div><div class="card-body"><div style="height:200px"><canvas id="ch-funnel"></canvas></div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card h-100"><div class="card-header"><h3 class="card-title">Giờ đăng ký (giờ máy bạn)</h3></div><div class="card-body"><div style="height:200px"><canvas id="ch-hour"></canvas></div></div></div></div>
+      <div class="col-md-6 col-lg-3"><div class="card h-100"><div class="card-header"><h3 class="card-title">Thứ trong tuần</h3></div><div class="card-body"><div style="height:200px"><canvas id="ch-dow"></canvas></div></div></div></div>
+    </div>
+    <div class="card mb-4"><div class="card-header"><h3 class="card-title">Danh sách tài khoản</h3>
+      <div class="card-actions"><button class="btn btn-outline-secondary btn-sm" onclick="exportAccountsCsv()"><i class="ti ti-download me-1"></i>Xuất CSV</button></div></div>
+      <div class="card-body border-bottom"><div class="row g-2">
+        <div class="col-md-5"><input id="acc-q" class="form-control" placeholder="Tìm theo email, tên, tenant..." oninput="accFilter()"></div>
+        <div class="col-6 col-md-2"><select id="acc-plan" class="form-select" onchange="accFilter()"><option value="">Mọi gói</option><option value="pro">Pro</option><option value="free">Free</option></select></div>
+        <div class="col-6 col-md-2"><select id="acc-ver" class="form-select" onchange="accFilter()"><option value="">Xác thực: tất cả</option><option value="1">Đã xác thực</option><option value="0">Chưa xác thực</option></select></div>
+        <div class="col-md-3"><select id="acc-sort" class="form-select" onchange="accFilter()"><option value="-created">Mới nhất trước</option><option value="created">Cũ nhất trước</option><option value="-updated">Hoạt động gần nhất</option><option value="email">Email A→Z</option></select></div>
+      </div></div>
+      <div id="acc-table"></div></div>`;
+}
+
+function accRows() {
+    const q = acc.q.toLowerCase();
+    let rows = acc.all.filter(a => {
+        if (q && !`${a.email || ''} ${a.name || ''} ${a.tenant || ''}`.toLowerCase().includes(q)) return false;
+        const pl = a.plan_id === 'pro' ? 'pro' : 'free';
+        if (acc.plan && pl !== acc.plan) return false;
+        if (acc.ver && (a.verified ? '1' : '0') !== acc.ver) return false;
+        return true;
+    });
+    const k = acc.sort.replace('-', ''), dir = acc.sort.startsWith('-') ? -1 : 1;
+    const val = a => k === 'created' ? (a._c || 0) : k === 'updated' ? (a._u || 0) : String(a[k] || '').toLowerCase();
+    rows.sort((x, y) => (val(x) > val(y) ? 1 : val(x) < val(y) ? -1 : 0) * dir);
+    return rows;
+}
+function accFilter() {
+    acc.q = document.getElementById('acc-q').value.trim(); acc.plan = document.getElementById('acc-plan').value;
+    acc.ver = document.getElementById('acc-ver').value; acc.sort = document.getElementById('acc-sort').value; acc.page = 1;
+    renderAccTable();
+}
+function accPage(p) { acc.page = p; renderAccTable(); }
+function renderAccTable() {
+    const el = document.getElementById('acc-table'); if (!el) return;
+    const rows = accRows(), per = 25, pages = Math.max(1, Math.ceil(rows.length / per));
+    acc.page = Math.min(acc.page, pages);
+    const slice = rows.slice((acc.page - 1) * per, acc.page * per);
+    el.innerHTML = `<div class="table-responsive"><table class="table card-table table-vcenter table-hover">
+      <thead><tr><th>#</th><th>Tài khoản</th><th>Tenant</th><th>Gói</th><th>Xác thực</th><th>Bot</th><th>Vai trò / workspace</th><th>Đăng ký</th><th>Cập nhật gần nhất</th></tr></thead><tbody>` +
+      (slice.length ? slice.map((a, i) => {
+        const ms = acc.members[a.id] || [];
+        return `<tr><td class="text-secondary">${(acc.page - 1) * per + i + 1}</td>
+          <td><div class="fw-medium">${esc(a.name || '—')}</div><div class="text-secondary fs-6">${esc(a.email || '')}</div></td>
+          <td><code>${esc(a.tenant || '')}</code></td>
+          <td><span class="badge bg-${a.plan_id === 'pro' ? 'green' : 'secondary'}-lt">${esc(a.plan_id || 'free')}</span></td>
+          <td>${a.verified ? '<span class="badge bg-green-lt">Đã xác thực</span>' : '<span class="badge bg-yellow-lt">Chưa</span>'}</td>
+          <td>${acc.bots.has(a.tenant) ? '<i class="ti ti-circle-check text-success"></i>' : '<i class="ti ti-circle-dashed text-secondary"></i>'}</td>
+          <td class="fs-6">${ms.length ? ms.map(m => `${esc(m.role)}${m.status !== 'active' ? ' (' + esc(m.status) + ')' : ''}`).join(', ') : '<span class="text-secondary">—</span>'}</td>
+          <td><div>${a._c ? esc(a._c.toLocaleString('vi-VN')) : ''}</div><div class="text-secondary fs-6">${ago(a._c)}</div></td>
+          <td class="text-secondary">${ago(a._u)}</td></tr>`;
+      }).join('') : '<tr><td colspan="9" class="text-center text-secondary">Không có tài khoản phù hợp</td></tr>') +
+      `</tbody></table></div><div class="card-footer d-flex align-items-center">
+      <div class="text-secondary">${fmt(rows.length)} / ${fmt(acc.all.length)} tài khoản</div>
+      <div class="ms-auto btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${acc.page <= 1 ? 'disabled' : ''} onclick="accPage(${acc.page - 1})">‹</button>
+      <button class="btn btn-outline-secondary" disabled>Trang ${acc.page}/${pages}</button>
+      <button class="btn btn-outline-secondary" ${acc.page >= pages ? 'disabled' : ''} onclick="accPage(${acc.page + 1})">›</button></div></div>`;
+}
+function exportAccountsCsv() {
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = [['email', 'name', 'tenant', 'plan', 'verified', 'has_bot', 'created', 'updated'].join(',')].concat(accRows().map(a =>
+        [a.email, a.name, a.tenant, a.plan_id || 'free', a.verified ? 1 : 0, acc.bots.has(a.tenant) ? 1 : 0, a.created, a.updated].map(q).join(',')));
+    const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    const l = document.createElement('a'); l.href = url; l.download = 'accounts-' + dkey(new Date()) + '.csv'; l.click(); URL.revokeObjectURL(url);
+}
+function setAccRange(d) {
+    acc.days = d;
+    document.querySelectorAll('.acc-range').forEach(b => b.classList.toggle('active', b.textContent.trim() === d + ' ngày'));
+    drawDaily();
+}
+function mkChart(id, cfg) {
+    const c = document.getElementById(id); if (!c || !window.Chart) return;
+    if (acc.charts[id]) acc.charts[id].destroy();
+    acc.charts[id] = new Chart(c, cfg);
+}
+const chOpts = (extra) => Object.assign({ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }, extra || {});
+function drawDaily() {
+    const days = acc.days, today = new Date(); today.setHours(0, 0, 0, 0);
+    const keys = [], counts = {}, pro = {};
+    for (let i = days - 1; i >= 0; i--) { const d = new Date(today.getTime() - i * 864e5); keys.push(dkey(d)); counts[dkey(d)] = 0; pro[dkey(d)] = 0; }
+    acc.all.forEach(a => { if (!a._c) return; const k = dkey(a._c); if (k in counts) { counts[k]++; if (a.plan_id === 'pro') pro[k]++; } });
+    const avg = keys.reduce((s, k) => s + counts[k], 0) / days;
+    mkChart('ch-daily', { type: 'bar', data: { labels: keys.map(k => k.slice(5)), datasets: [
+        { label: 'Đăng ký mới', data: keys.map(k => counts[k]), backgroundColor: '#206bc4', borderRadius: 3 },
+        { label: 'Trong đó Pro', data: keys.map(k => pro[k]), backgroundColor: '#2fb344', borderRadius: 3 },
+        { type: 'line', label: 'Trung bình ' + avg.toFixed(1) + '/ngày', data: keys.map(() => avg), borderColor: '#f59f00', borderDash: [6, 4], pointRadius: 0, borderWidth: 2 }] },
+        options: chOpts({ plugins: { legend: { display: true } } }) });
+}
+function renderAccountCharts() {
+    const all = acc.all;
+    drawDaily();
+    // tích luỹ 90 ngày gần nhất
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const keys = []; for (let i = 89; i >= 0; i--) keys.push(dkey(new Date(today.getTime() - i * 864e5)));
+    const before = all.filter(a => a._c && a._c < new Date(today.getTime() - 89 * 864e5)).length;
+    const per = {}; all.forEach(a => { if (a._c) per[dkey(a._c)] = (per[dkey(a._c)] || 0) + 1; });
+    let run = before; const cum = keys.map(k => (run += per[k] || 0));
+    mkChart('ch-cum', { type: 'line', data: { labels: keys.map(k => k.slice(5)), datasets: [{ label: 'Tổng tài khoản', data: cum, borderColor: '#206bc4', backgroundColor: 'rgba(32,107,196,.15)', fill: true, pointRadius: 0, tension: .3 }] }, options: chOpts() });
+    // theo tháng (12 tháng)
+    const mk = []; const n = new Date(); for (let i = 11; i >= 0; i--) { const d = new Date(n.getFullYear(), n.getMonth() - i, 1); mk.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+    const mc = Object.fromEntries(mk.map(k => [k, 0])); all.forEach(a => { if (!a._c) return; const k = `${a._c.getFullYear()}-${String(a._c.getMonth() + 1).padStart(2, '0')}`; if (k in mc) mc[k]++; });
+    mkChart('ch-month', { type: 'bar', data: { labels: mk.map(k => k.slice(2)), datasets: [{ data: mk.map(k => mc[k]), backgroundColor: '#4299e1', borderRadius: 3 }] }, options: chOpts() });
+    // gói
+    const pro = all.filter(a => a.plan_id === 'pro').length;
+    mkChart('ch-plan', { type: 'doughnut', data: { labels: ['Pro', 'Free'], datasets: [{ data: [pro, all.length - pro], backgroundColor: ['#2fb344', '#adb5bd'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+    // phễu
+    const ver = all.filter(a => a.verified).length, bot = all.filter(a => acc.bots.has(a.tenant)).length;
+    mkChart('ch-funnel', { type: 'bar', data: { labels: ['Đăng ký', 'Xác thực', 'Tạo bot', 'Gói Pro'], datasets: [{ data: [all.length, ver, bot, pro], backgroundColor: ['#206bc4', '#ae3ec9', '#4263eb', '#2fb344'], borderRadius: 3 }] }, options: chOpts({ indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }) });
+    // giờ + thứ
+    const hr = Array(24).fill(0), dw = Array(7).fill(0);
+    all.forEach(a => { if (a._c) { hr[a._c.getHours()]++; dw[a._c.getDay()]++; } });
+    mkChart('ch-hour', { type: 'bar', data: { labels: hr.map((_, i) => i + 'h'), datasets: [{ data: hr, backgroundColor: '#f76707', borderRadius: 2 }] }, options: chOpts() });
+    mkChart('ch-dow', { type: 'bar', data: { labels: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'], datasets: [{ data: dw, backgroundColor: '#0ca678', borderRadius: 3 }] }, options: chOpts() });
+    renderAccTable();
 }
 
 async function doAdminLogin() {

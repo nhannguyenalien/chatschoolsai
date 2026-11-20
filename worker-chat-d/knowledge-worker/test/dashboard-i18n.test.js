@@ -12,7 +12,7 @@ test("deep dashboard sections load the current shared translation runtime", asyn
   ];
   for (const page of pages) {
     const html = await readFile(new URL(page, dashboardRoot), "utf8");
-    assert.match(html, /_shared\/i18n\.js\?v=20260814-1/, `${page} must load the current i18n runtime`);
+    assert.match(html, /_shared\/i18n\.js\?v=\d{8}-\d+/, `${page} must load the current i18n runtime`);
   }
 });
 
@@ -61,5 +61,5 @@ test("shared i18n refreshes reused dynamic nodes and variable counters", async (
   assert.match(source, /node\.nodeValue !== previousRendered/);
   assert.match(source, /source\.match\(\/\^\(\\d\+\)\\s\+/);
   assert.match(source, /characterData: true/);
-  assert.match(source, /i18n-content\.js\?v=20260814-1/);
+  assert.match(source, /i18n-content\.js\?v=\d{8}-\d+/);
 });

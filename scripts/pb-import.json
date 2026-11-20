@@ -15,11 +15,11 @@
       ,{ "system": false, "id": "pages_lang_01", "name": "default_language", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -34,22 +34,24 @@
       { "system": false, "id": "gjux5bhp", "name": "color", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "qwr1hloc", "name": "webhook", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "nromzino", "name": "system_prompt", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "greetingfld01", "name": "greeting", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "resplanguage01", "name": "response_language", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "owntgchat01", "name": "owner_telegram_chat_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldcloudname01", "name": "cloudinary_cloud_name", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldapikey01", "name": "cloudinary_api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "cldapisecret01", "name": "cloudinary_api_secret", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "pixverseapikey1", "name": "pixverse_api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogourl01", "name": "brand_logo_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogopid01", "name": "brand_logo_public_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "brandlogocache01", "name": "brand_logo_cached_url", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "apikeyfld01", "name": "api_key", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "",
-    "viewRule": "",
-    "createRule": "",
-    "updateRule": "",
-    "deleteRule": "",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -65,17 +67,18 @@
       { "system": false, "id": "shonbptv", "name": "session", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "snsdi8ao", "name": "tenant", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "svnqk46q", "name": "client_meta", "type": "json", "required": false, "presentable": false, "unique": false, "options": { "maxSize": 2000000 } },
+      { "system": false, "id": "viavoice001", "name": "via_voice", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} },
       { "system": false, "id": "needshuman01", "name": "needs_human", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} },
       { "system": false, "id": "escresolved01", "name": "escalation_resolved", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} }
     ],
     "indexes": [
       "CREATE INDEX `idx_YQyob3U` ON `messages` (\n  `tenant`,\n  `session`,\n  `created`\n)"
     ],
-    "listRule": "",
-    "viewRule": "",
-    "createRule": "",
-    "updateRule": "",
-    "deleteRule": "",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -92,11 +95,11 @@
       { "system": false, "id": "ss_date01", "name": "date", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "",
-    "viewRule": "",
-    "createRule": "",
-    "updateRule": "",
-    "deleteRule": "",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -123,11 +126,11 @@
       { "system": false, "id": "post_tag_01", "name": "tag", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -142,15 +145,16 @@
       { "system": false, "id": "target_time", "name": "scheduled_at", "type": "date", "required": false, "presentable": false, "unique": false, "options": { "min": "", "max": "" } },
       { "system": false, "id": "target_page_id", "name": "page_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "target_error", "name": "error_log", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "target_attempts", "name": "attempts", "type": "number", "required": false, "presentable": false, "unique": false, "options": { "min": 0, "max": null, "noDecimal": true } },
       { "system": false, "id": "target_pub_id", "name": "published_post_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "target_tenant_01", "name": "tenant", "type": "text", "required": true, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -189,11 +193,11 @@
       { "system": false, "id": "al_tool_result", "name": "tool_result", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -210,14 +214,15 @@
       { "system": false, "id": "at_url", "name": "url_template", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "at_headers", "name": "headers_template", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "at_resultpath", "name": "result_path", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
-      { "system": false, "id": "at_active", "name": "is_active", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} }
+      { "system": false, "id": "at_active", "name": "is_active", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} },
+      { "system": false, "id": "at_confirm", "name": "requires_confirmation", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -231,11 +236,11 @@
       { "system": false, "id": "acm_content", "name": "content", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {
@@ -248,14 +253,16 @@
       { "system": false, "id": "ps_contenttype", "name": "content_type", "type": "select", "required": true, "presentable": false, "unique": false, "options": { "maxSelect": 1, "values": ["blog", "social"] } },
       { "system": false, "id": "ps_days", "name": "days", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
       { "system": false, "id": "ps_times", "name": "times", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
-      { "system": false, "id": "ps_active", "name": "is_active", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} }
+      { "system": false, "id": "ps_active", "name": "is_active", "type": "bool", "required": false, "presentable": false, "unique": false, "options": {} },
+      { "system": false, "id": "ps_pageid", "name": "page_id", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } },
+      { "system": false, "id": "ps_timezone", "name": "timezone", "type": "text", "required": false, "presentable": false, "unique": false, "options": { "min": null, "max": null, "pattern": "" } }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "@request.auth.id != \"\"",
-    "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
+    "listRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "viewRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
+    "createRule": "@request.auth.id != \"\" && @request.body.tenant = @request.auth.tenant",
+    "updateRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant && @request.body.tenant:changed = false",
+    "deleteRule": "@request.auth.id != \"\" && tenant = @request.auth.tenant",
     "options": {}
   },
   {

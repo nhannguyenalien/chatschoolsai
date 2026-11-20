@@ -24,7 +24,7 @@ Giao diện hỗ trợ 6 ngôn ngữ: Tiếng Việt, English, 日本語, Españ
 | **Tài khoản (account)** | Đăng nhập bằng email + mật khẩu hoặc Google. Gói (Free/Pro), hạn mức tin nhắn và dung lượng lưu trữ tính theo tài khoản, dùng chung mọi workspace. |
 | **Workspace / tenant** | Một bot riêng với cấu hình, kiến thức, kênh kết nối, khách hàng và điểm thưởng tách biệt. Mỗi workspace có mã (slug) 3–40 ký tự gồm chữ thường, số, `-`, `_`; **không đổi được sau khi tạo**. |
 | **Gói Free** | Tối đa 3 workspace, 100 tin nhắn/tháng, 100 MB lưu trữ ảnh/video. |
-| **Gói Pro** | Tối đa 10 workspace, 1.000 tin nhắn/tháng, 2 GB lưu trữ. Có thể mua thêm gói tin nhắn bổ sung. |
+| **Gói Pro** | Tối đa 50 workspace, 1.000 tin nhắn/tháng, 2 GB lưu trữ. Có thể mua thêm gói tin nhắn bổ sung. |
 
 Mỗi lần bot trả lời 1 tin nhắn = 1 đơn vị. Các thao tác khác tốn nhiều đơn vị hơn: viết bài 2, ảnh AI 8, hội thoại giọng nói 4/phút, nạp tài liệu `ceil(token/5000)` (tối thiểu 1, tối đa 20/tài liệu). Hạn mức reset theo tháng UTC. Hết hạn mức bot ngừng trả lời (HTTP 429) cho đến khi nâng gói/mua thêm.
 
@@ -153,3 +153,24 @@ Không đưa API key vào mã chạy trên trình duyệt công khai. Đổi m�
 - **Khách dùng ngôn ngữ khác thì sao?** Để "tự nhận ngôn ngữ" hoặc cố định ngôn ngữ trả lời trong Cài Đặt Bot.
 - **Dùng bot trên nhiều kênh cùng lúc được không?** Được: website, Messenger, Instagram, WhatsApp, Telegram dùng chung kiến thức của workspace.
 - **Hỗ trợ ở đâu?** Hỏi ngay bot tư vấn Schools AI (bong bóng chat ở trang chủ và trong dashboard).
+
+## 12. Video hướng dẫn / Tutorial videos
+
+Loạt 8 tập hướng dẫn từng bước, mỗi tập 4–6 phút, có bản tiếng Việt và bản tiếng Anh (Facebook). / An 8-episode step-by-step series (4–6 min each) in Vietnamese and English.
+
+- Kênh tiếng Việt: https://www.facebook.com/profile.php?id=100095588349870&sk=videos
+- English channel: https://www.facebook.com/profile.php?id=100083665893533&sk=videos
+
+| Tập / Ep. | Nội dung / Topic | Tiếng Việt | English |
+|---|---|---|---|
+| 1 | Đăng nhập, tạo workspace, làm quen dashboard, lộ trình 10 phút / Sign in, create a workspace, tour the dashboard, 10-minute path | https://www.facebook.com/100095588349870/videos/948662401335015 | https://www.facebook.com/100083665893533/videos/1113548624593961 |
+| 2 | Cài Đặt Bot, System Instructions, Temperature, nạp Kiến Thức / Configure the bot, System Instructions, Temperature, Knowledge | https://www.facebook.com/100095588349870/videos/2170971143806004 | https://www.facebook.com/100083665893533/videos/1923883201645614 |
+| 3 | Nhúng widget, các kênh chat, thử như khách hàng thật / Embed the widget, chat channels, test as a real customer | https://www.facebook.com/100095588349870/videos/1114604911497156 | https://www.facebook.com/100083665893533/videos/2195740564713125 |
+| 4 | Meta App, thêm kênh Facebook, 3 loại token, token Page không hết hạn / Meta App, Facebook channel, three token types, never-expiring Page token | https://www.facebook.com/100095588349870/videos/1119729147095237 | https://www.facebook.com/100083665893533/videos/1793267861952292 |
+| 5 | Webhook, Instagram, chế độ Development và App Review, lỗi thường gặp / Webhook, Instagram, Development vs App Review, common errors | https://www.facebook.com/100095588349870/videos/1395246592596325 | https://www.facebook.com/100083665893533/videos/989269620915962 |
+| 6 | Nhật Ký Chat, trả lời thay bot, cảnh báo Telegram, Agent vận hành, gọi thoại / Chat Logs, reply for the bot, Telegram alerts, operations agent, voice calls | https://www.facebook.com/100095588349870/videos/1442859227191849 | https://www.facebook.com/100083665893533/videos/1768127217625376 |
+| 7 | Soạn bài, kế hoạch nội dung tuần, lịch đăng, Analytics / Compose posts, weekly plan, schedule, Analytics | https://www.facebook.com/100095588349870/videos/1639226280994481 | https://www.facebook.com/100083665893533/videos/1030580150065508 |
+| 8 | Tài khoản, gói và hạn mức, agent tổng, API, app client, xử lý sự cố / Account, plans and quota, master agent, API, client apps, troubleshooting | https://www.facebook.com/100095588349870/videos/1646351987141535 | https://www.facebook.com/100083665893533/videos/2276295692932223 |
+| Tóm tắt 25 giây / 25-sec short | Đăng nhập → tạo workspace → nạp kiến thức → nhúng widget / Sign in → workspace → Knowledge → embed | https://www.facebook.com/100095588349870/videos/1152445350801863 | https://www.facebook.com/100083665893533/videos/1571731091389361 |
+
+**Gợi ý cho bot tư vấn:** khi hướng dẫn một chủ đề, gửi kèm link tập tương ứng theo ngôn ngữ khách đang dùng (khách viết tiếng Việt → cột Tiếng Việt; ngôn ngữ khác → cột English). Chủ đề → tập: bắt đầu/đăng ký/workspace = 1; cài đặt bot, System Instructions, kiến thức = 2; widget/kênh/thử bot = 3; kênh Facebook, token = 4; webhook, Instagram, App Review, lỗi = 5; Nhật Ký Chat, Telegram, Agent vận hành, gọi thoại = 6; soạn bài, lịch đăng, Analytics = 7; tài khoản, gói, hạn mức, API, app client, sự cố = 8.

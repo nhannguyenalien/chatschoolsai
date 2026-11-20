@@ -25,7 +25,8 @@ test("dashboard supports manual loyalty setup, sale and account lookup", async (
   assert.match(html, /loyaltyApiKeyPromise/);
 
   const sidebar = await readFile(sidebarUrl, "utf8");
-  assert.match(sidebar, /href: 'loyalty\.html'/);
+  // Loyalty được chủ động tắt khỏi menu dashboard (xem ghi chú trong sidebar.js).
+  assert.doesNotMatch(sidebar, /href: 'loyalty\.html'/);
 
   const worker = await readFile(workerUrl, "utf8");
   assert.match(worker, /"GET, POST, PUT, PATCH, DELETE, OPTIONS"/);

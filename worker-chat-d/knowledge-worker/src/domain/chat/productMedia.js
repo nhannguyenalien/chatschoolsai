@@ -16,7 +16,9 @@ function normalize(text) {
 export function detectMediaRequest(question) {
   // "hình thức", "hình dáng"... không phải xin xem ảnh
   const text = ` ${normalize(question).replace(/\bhinh (thuc|dang|nhu|phat|su)\b/g, " ")} `;
-  const image = /\b(hinh|anh|hinh anh|picture|photo|image|pic|pics)\b/.test(text);
+  // "mẫu hóa đơn / hóa đơn mẫu" cũng là xin xem ảnh mẫu chứng từ
+  const image = /\b(hinh|anh|hinh anh|picture|photo|image|pic|pics)\b/.test(text)
+    || /\b(mau hoa don|hoa don mau)\b/.test(text);
   const video = /\b(video|clip|phim|vid)\b/.test(text);
   return { image, video, any: image || video };
 }

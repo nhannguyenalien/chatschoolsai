@@ -108,4 +108,35 @@ export const LOYALTY_COLLECTIONS = [
       "CREATE INDEX `idx_reward_claim_customer` ON `reward_claims` (`tenant`, `customer_ref`, `claimed_at`)",
     ],
   },
+  {
+    name: "reward_catalog_items", type: "base", ...privateRules,
+    schema: [
+      select("source_type", ["internal", "external_api"], true),
+      select("provider", ["self", "reloadly"], true), text("external_ref", true), text("name", true),
+      select("stock_management", ["self_tracked", "provider_managed"], true),
+      number("cost_to_platform"), number("face_value"), text("currency"), text("country_code"),
+      text("image_url"), select("status", ["active", "inactive"], true), number("available_stock", false, true),
+      text("source_config_json"), date("synced_at"),
+    ],
+    indexes: [
+      "CREATE UNIQUE INDEX `idx_reward_catalog_external` ON `reward_catalog_items` (`provider`, `external_ref`)",
+      "CREATE INDEX `idx_reward_catalog_status` ON `reward_catalog_items` (`provider`, `status`, `name`)",
+    ],
+  },
+  {
+    name: "reward_fulfillments", type: "base", ...privateRules,
+    schema: [
+      text("tenant", true), text("campaign_id", true), text("result_id", true), text("claim_id", true),
+      text("catalog_item_id", true), select("source_type", ["internal", "external_api"], true),
+      select("provider", ["self", "reloadly"], true),
+      select("status", ["processing", "fulfilled", "manual_review", "failed"], true),
+      text("provider_ref"), text("delivery_json"), text("error_message"), number("attempts", true, true),
+      date("requested_at"), date("fulfilled_at"),
+    ],
+    indexes: [
+      "CREATE UNIQUE INDEX `idx_reward_fulfillment_claim` ON `reward_fulfillments` (`claim_id`)",
+      "CREATE INDEX `idx_reward_fulfillment_tenant` ON `reward_fulfillments` (`tenant`, `status`, `requested_at`)",
+      "CREATE INDEX `idx_reward_fulfillment_provider_ref` ON `reward_fulfillments` (`provider`, `provider_ref`)",
+    ],
+  },
 ];

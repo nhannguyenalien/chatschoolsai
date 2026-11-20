@@ -37,6 +37,8 @@ const SIDEBAR_NAV = [
     items: [
       { href: 'post.html',      icon: 'ti-article',        labelKey: 'nav_posts' },
       { href: 'composer.html',  icon: 'ti-edit',           labelKey: 'nav_composer' },
+      { href: 'blog.html',      icon: 'ti-writing',        labelKey: 'nav_blog' },
+      { href: 'calendar.html',  icon: 'ti-calendar-event', labelKey: 'nav_calendar' },
       { href: 'analytics.html', icon: 'ti-chart-bar',      labelKey: 'nav_analytics' },
       { href: 'sm-config.html', icon: 'ti-brand-facebook', labelKey: 'nav_sm_config' },
     ]
@@ -187,6 +189,7 @@ function renderSidebar(user) {
                 <option value="es" ${currentLang === 'es' ? 'selected' : ''}>🇪🇸 Español</option>
                 <option value="fr" ${currentLang === 'fr' ? 'selected' : ''}>🇫🇷 Français</option>
                 <option value="ko" ${currentLang === 'ko' ? 'selected' : ''}>🇰🇷 한국어</option>
+                <option value="zh" ${currentLang === 'zh' ? 'selected' : ''}>🇨🇳 中文</option>
               </select>
             </div>
             <div class="d-flex align-items-center gap-2 px-2 py-2">

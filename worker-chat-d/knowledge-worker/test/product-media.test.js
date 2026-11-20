@@ -9,6 +9,7 @@ test("detectMediaRequest nhận câu xin hình/video, có dấu hoặc không d�
   assert.equal(detectMediaRequest("Clip review có không?").video, true);
   assert.equal(detectMediaRequest("giá bao nhiêu vậy").any, false);
   assert.equal(detectMediaRequest("hình thức thanh toán").any, false);
+  assert.equal(detectMediaRequest("Cho mình xin mẫu hóa đơn VAT đi gia công").image, true);
   assert.equal(detectMediaRequest("xem hình thức thanh toán và hình sản phẩm").image, true);
 });
 

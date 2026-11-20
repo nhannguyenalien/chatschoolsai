@@ -133,7 +133,8 @@ test('entitlement lookup failure or foreign record fails closed without writing'
 
 test('verified payment activates pro through the entitlement and reports the expiry', async () => {
   const store = memoryStore({ id: 'owner', plan_id: 'free' });
-  const expires = NOW + 30 * DAY;
+  // handleBGate reads the real clock, so the expiry must be relative to it (a fixed date goes stale).
+  const expires = Date.now() + 30 * DAY;
   const fetchImpl = async (url, options) => url.includes('/payments/')
     ? Response.json({ ...order, status: 'paid' }) : entitlement({ active: true, expires_at: expires })(url, options);
   const data = await (await handleBGate(paymentRequest(), env, { id: 'owner' }, {}, fetchImpl, store)).json();

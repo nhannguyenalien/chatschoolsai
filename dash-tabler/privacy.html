@@ -20,7 +20,7 @@ a{color:var(--accent)}p,li{color:var(--fg)}.muted{color:var(--muted)}
 </head>
 <body>
 <main>
-<p class="lang" style="flex-wrap:wrap"><a href="#en" data-l="en">English</a> · <a href="#vi" data-l="vi">Tiếng Việt</a> · <a href="#ja" data-l="ja">日本語</a> · <a href="#es" data-l="es">Español</a> · <a href="#fr" data-l="fr">Français</a> · <a href="#ko" data-l="ko">한국어</a> · <a href="landing">← Home</a></p>
+<p class="lang" style="flex-wrap:wrap"><a href="#en" data-l="en">English</a> · <a href="#vi" data-l="vi">Tiếng Việt</a> · <a href="#ja" data-l="ja">日本語</a> · <a href="#es" data-l="es">Español</a> · <a href="#fr" data-l="fr">Français</a> · <a href="#ko" data-l="ko">한국어</a> · <a href="#zh" data-l="zh">中文</a> · <a href="landing">← Home</a></p>
 
 <section id="en" class="ls" lang="en">
 <h1>Privacy Policy</h1>
@@ -283,10 +283,60 @@ a{color:var(--accent)}p,li{color:var(--fg)}.muted{color:var(--muted)}
 <p>이 방침은 업데이트될 수 있으며, 그 경우 위의 날짜를 변경합니다. 질문이나 요청: <a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>. <a href="terms">서비스 약관</a>도 참고하세요.</p>
 </section>
 
+<section id="zh" class="ls" lang="zh">
+<h1>隐私政策</h1>
+<p class="muted">Schools AI（以下简称“我们”）· 最后更新：2026 年 10 月 16 日 · 联系方式：<a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a></p>
+<p>Schools AI（<a href="https://chat.schoolsai.work/landing">chat.schoolsai.work</a>）是一个 AI 客户服务与内容工作区。企业可连接自己的渠道（例如 Facebook、Instagram、WordPress 和 YouTube），由 AI 智能体代为回复客户并发布内容。本政策说明我们收集哪些信息以及如何使用这些信息。</p>
+
+<h2>1. 我们收集的信息</h2>
+<ul>
+<li><b>账户数据</b>：您注册时提供的电子邮箱地址和工作区设置。</li>
+<li><b>渠道连接信息</b>：您所连接渠道的标识符和访问令牌（例如 YouTube 频道 ID、频道名称和 OAuth 刷新令牌），以及您为自己的 Google Cloud 项目输入的 OAuth 客户端凭据。</li>
+<li><b>内容</b>：帖子、您要求我们发布的视频、您上传的知识库文档，以及您的客户发送到您渠道的消息和评论及生成的回复。</li>
+<li><b>技术数据</b>：用于安全和防止滥用的基础日志（IP 地址、浏览器类型）。</li>
+</ul>
+
+<h2>2. Google 和 YouTube API 服务</h2>
+<div class="box">
+<p><b>Schools AI 对从 Google API 获得的信息的使用，以及向任何其他应用的转让，将遵守 <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API 服务用户数据政策</a>，包括有限使用（Limited Use）要求。</b></p>
+</div>
+<p>当您点击 <i>连接 YouTube</i> 时，您将使用 Google 登录并授予以下权限，我们仅针对您自己的频道请求这些权限：</p>
+<ul>
+<li><code>youtube.upload</code> — 按<i>您</i>选择的标题、说明和可见范围，上传<i>您</i>提交发布的视频。</li>
+<li><code>youtube.readonly</code> — 读取您频道的基本信息（ID 和名称），以便显示已连接的是哪个频道。</li>
+<li><code>youtube.force-ssl</code> — 在您保持开启“机器人回复评论”选项时，读取您频道视频下的评论，并以您的频道身份发布回复。</li>
+</ul>
+<p><b>我们如何使用 YouTube 数据。</b>通过这些权限获得的数据仅用于向您提供上述功能：发布您的视频，以及读取并回复您频道的评论。我们不将其用于广告，不出售，也不用于建立用户画像或评估信用状况。人工访问这些数据仅限于安全、您所请求的支持或遵守法律所必需的范围。</p>
+<p><b>AI 处理。</b>为撰写回复，您频道上评论的文本（以及您自己的知识库内容）会被发送给为您的工作区提供支持的 AI 模型提供商。这些内容仅用于生成该回复。我们不允许将 Google 用户数据用于开发、改进或训练通用的人工智能或机器学习模型。</p>
+<p><b>YouTube 条款。</b>使用 YouTube 功能即表示您同意受 <a href="https://www.youtube.com/t/terms">YouTube 服务条款</a>约束。Google 对您数据的处理方式详见 <a href="https://policies.google.com/privacy">Google 隐私权政策</a>。</p>
+
+<h2>3. 我们如何使用信息</h2>
+<p>用于运营服务（回复客户、发布内容、定时安排）、保障服务安全、提供支持以及履行法律义务。我们不出售个人信息。</p>
+
+<h2>4. 共享</h2>
+<p>我们仅与运行产品所需的服务提供商（托管和数据库、AI 模型提供商、您连接的消息平台）按其各自条款共享数据，或在法律要求时共享。我们不会将来自 Google API 的数据用于广告而共享。</p>
+
+<h2>5. 存储、安全和保留</h2>
+<p>数据存储在我们的数据库和文件存储中，访问仅限于您的工作区以及运行服务的系统。与我们服务的连接使用 HTTPS。在您断开渠道或删除工作区之前，我们会保留渠道令牌。客户对话会被保留以便您查看，直到您或我们将其删除。</p>
+
+<h2>6. 您的选择：撤销访问权限和删除数据</h2>
+<ul>
+<li><b>可随时撤销 Google 访问权限</b>，网址：<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>（这也会停止上传和评论回复）。</li>
+<li>在仪表盘的<i>渠道设置</i>中<b>断开</b>渠道，或在同一页面关闭评论回复。</li>
+<li><b>删除您的数据</b>：给我们发送邮件，我们将在 30 天内删除您的工作区数据，包括已存储的令牌。</li>
+</ul>
+
+<h2>7. 儿童</h2>
+<p>本服务不面向 13 岁以下儿童，我们也不会故意收集其个人信息。</p>
+
+<h2>8. 变更与联系</h2>
+<p>我们可能会更新本政策，并同时修改上方日期。如有问题或请求：<a href="mailto:nhantin41@gmail.com">nhantin41@gmail.com</a>。另请参阅我们的<a href="terms">服务条款</a>。</p>
+</section>
+
 </main>
 <script>
 // Hiển thị đúng ngôn ngữ: #hash > ngôn ngữ đã chọn trong dashboard > English. Không có JS thì hiện tất cả các bản.
-(function(){var L=['en','vi','ja','es','fr','ko'];
+(function(){var L=['en','vi','ja','es','fr','ko','zh'];
 function pick(){var h=(location.hash||'').slice(1);if(L.indexOf(h)>-1)return h;try{var s=localStorage.getItem('lang');if(L.indexOf(s)>-1)return s}catch(e){}return 'en'}
 function show(){var c=pick();document.querySelectorAll('.ls').forEach(function(s){s.hidden=s.id!==c});
 document.querySelectorAll('.lang a[data-l]').forEach(function(a){a.classList.toggle('on',a.getAttribute('data-l')===c)});document.documentElement.lang=c}

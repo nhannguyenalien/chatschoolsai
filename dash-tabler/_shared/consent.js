@@ -38,7 +38,8 @@
     en: ['We use cookies to measure traffic and show relevant ads. You can decline.', 'Accept', 'Decline', 'Privacy'],
     vi: ['Chúng tôi dùng cookie để đo lường truy cập và hiển thị quảng cáo phù hợp. Bạn có thể từ chối.', 'Đồng ý', 'Từ chối', 'Quyền riêng tư'],
     fr: ['Nous utilisons des cookies pour mesurer l’audience et afficher des publicités pertinentes. Vous pouvez refuser.', 'Accepter', 'Refuser', 'Confidentialité'],
-    ja: ['アクセス解析と関連性の高い広告表示のためにCookieを使用します。拒否することもできます。', '同意する', '拒否', 'プライバシー']
+    ja: ['アクセス解析と関連性の高い広告表示のためにCookieを使用します。拒否することもできます。', '同意する', '拒否', 'プライバシー'],
+    zh: ['我们使用 Cookie 来统计访问量并展示相关广告。您可以拒绝。', '同意', '拒绝', '隐私']
   };
 
   function show() {
