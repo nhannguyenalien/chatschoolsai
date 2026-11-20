@@ -490,7 +490,7 @@ var index_default = {
 var HANDOFF_MARKER = "[NEED_HUMAN]";
 var HANDOFF_INSTRUCTION = `
 
-QUAN TRỌNG: Nếu bạn kh\xF4ng chắc chắn hoặc kh\xF4ng c\xF3 đủ th\xF4ng tin để trả lời ch\xEDnh x\xE1c c\xE2u hỏi của kh\xE1ch, h\xE3y trả lời phần bạn biết (nếu c\xF3), sau đ\xF3 kết th\xFAc CH\xCDNH X\xC1C bằng chuỗi: ${HANDOFF_MARKER} (kh\xF4ng th\xEAm k\xFD tự n\xE0o sau chuỗi n\xE0y). Chỉ d\xF9ng chuỗi n\xE0y khi thực sự kh\xF4ng chắc, kh\xF4ng lạm dụng.`;
+IMPORTANT: If you are not sure, or you do not have enough information to answer the customer's question accurately, answer the part you know (if any), then end your reply EXACTLY with the string: ${HANDOFF_MARKER} (no characters after it). Use this string only when you are really unsure; do not overuse it. This instruction is written in English but does not change the language of your reply: always write the whole reply in the language the customer used.`;
 var delay = /* @__PURE__ */ __name((ms) => new Promise((res) => setTimeout(res, ms)), "delay");
 // HF Space free tier tự ngủ khi rảnh — ping nhẹ mỗi 30 phút để giữ AnythingLLM và PocketBase luôn sẵn sàng.
 var ANYLLM_KEEPALIVE_URL = "https://nhannguyen123-anyllm.hf.space/";

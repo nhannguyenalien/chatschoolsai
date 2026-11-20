@@ -37,9 +37,14 @@ Built by `scripts/build-social-landings.mjs` (all copy lives in that file; trans
 speaker review them before paid ads). The homepage section links to the page in the visitor's language
 (`landing.js`, `#social-link`). The page embeds the bot of tenant `schoolsai-social` (knowledge: plans, terms, FAQ,
 "not yet defined" list; prompt replies in the visitor's language, never writes URLs, never states a delivery time).
-Known weakness: when the bot has "no confirmed information" (e.g. refunds) it sometimes answers in Vietnamese or
-Indonesian to an English visitor, because the platform's handoff instruction (`HANDOFF_INSTRUCTION` in
-`src/index.js`) is written in Vietnamese and is appended to every bot's prompt. No wrong facts, wrong language only.
+Known weakness (open): when the social bot has "no confirmed information" (e.g. refunds, delivery time) it often
+answers an English or Indonesian visitor in Vietnamese or Indonesian (sometimes mixed). No wrong facts, wrong language
+only. `HANDOFF_INSTRUCTION` in `src/index.js` (appended to every bot's prompt) used to be written in Vietnamese; it is
+now English and language-neutral (deployed 2026-11-20, all bots). The VN/ID/PH bots stayed correct afterwards, but the
+social bot did not improve, and rewording its prompt (sentence lists, positive-only wording, no mention of Vietnamese)
+did not fix it. Price and plan questions are answered in the right language. Likely real fix, not done: have the widget
+send the page language (`data-lang`) in the chat request and let the Worker add "answer in X" to the instruction when
+the bot's `response_language` is `auto`; the page of each language already knows its language.
 
 ## AI Social Content (global, English): `landing-social.html`
 
