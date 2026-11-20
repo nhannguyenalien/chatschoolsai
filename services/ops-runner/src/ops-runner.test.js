@@ -151,3 +151,16 @@ test("telegram: token lấy từ system_config, nhớ 5 phút, không có chat i
   const none = createTelegram({ fetchImpl: async () => ({ ok: true }) });
   await assert.rejects(() => none.send("1", "x"), /Chưa có TELEGRAM_BOT_TOKEN/);
 });
+
+import { heartbeatJob } from "./jobs/heartbeat.js";
+
+test("heartbeat: bỏ qua khi chưa đặt URL, ping khi có, nuốt lỗi mạng", async () => {
+  assert.deepEqual(await heartbeatJob.run({ config: { heartbeatUrl: "" } }), { skipped: "chưa đặt HEARTBEAT_URL" });
+  const calls = [];
+  const ok = await heartbeatJob.run({ config: { heartbeatUrl: "https://hc.example/ping/abc" }, fetchImpl: async (u) => { calls.push(u); return { ok: true, status: 200 }; } });
+  assert.deepEqual(ok, { ok: true, status: 200 });
+  assert.deepEqual(calls, ["https://hc.example/ping/abc"]);
+  const down = await heartbeatJob.run({ config: { heartbeatUrl: "https://hc.example/ping/abc" }, fetchImpl: async () => { throw new Error("offline"); } });
+  assert.equal(down.ok, false);
+  assert.equal(loadConfig({ PB_URL: "https://pb", PB_ADMIN_EMAIL: "a", PB_ADMIN_PASS: "b", RUNNER_SECRET: "x".repeat(16), HEARTBEAT_URL: " https://hc.example/p " }).heartbeatUrl, "https://hc.example/p");
+});

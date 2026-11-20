@@ -17,6 +17,7 @@ export function loadConfig(env = process.env) {
     tzOffsetMin: num(env.TZ_OFFSET_MIN, 420), // mặc định giờ Việt Nam (UTC+7)
     backupKeepDays: num(env.BACKUP_KEEP_DAYS, 14),
     reminderLeadMin: num(env.REMINDER_LEAD_MIN, 120), // nhắc khách trước giờ hẹn bao nhiêu phút
+    heartbeatUrl: (env.HEARTBEAT_URL || "").trim(), // link ping của dịch vụ giám sát ngoài (tuỳ chọn)
     healthUrls: (env.HEALTH_URLS || "").split(",").map((s) => s.trim()).filter(Boolean),
   };
 }

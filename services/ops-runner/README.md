@@ -12,6 +12,7 @@ Khi thêm job mới, giữ nguyên quy tắc này: runner chỉ *đọc/ghi Pock
 
 | Job | Lịch (giờ VN) | Việc |
 |---|---|---|
+| `heartbeat` | mỗi 5 phút | Gọi `HEARTBEAT_URL` (ping ra ngoài). Dịch vụ giám sát bên ngoài báo bạn khi runner im lặng, kể cả khi cả Coolify/máy sập. Không cần tên miền công khai |
 | `watchdog` | mỗi 5 phút | Gọi PocketBase `/api/health` (+ `HEALTH_URLS`), báo Telegram khi hỏng 2 lần liền và khi hồi phục. Cũng giữ HF Space không ngủ |
 | `pb-backup` | 03:00 | Tạo backup PocketBase, tải về `/data/backups`, xoá bản trên HF, giữ `BACKUP_KEEP_DAYS` ngày |
 | `booking-digest` | 07:00 | Gửi chủ từng cơ sở lịch hôm nay + ngày mai (bỏ qua nếu không có lịch) |
@@ -33,6 +34,7 @@ Job lỡ giờ quá 3 tiếng (ví dụ container tắt cả buổi sáng) sẽ 
 | `TZ_OFFSET_MIN` | không | Mặc định 420 (UTC+7) |
 | `BACKUP_KEEP_DAYS` | không | Mặc định 14 |
 | `REMINDER_LEAD_MIN` | không | Nhắc khách trước giờ hẹn bao nhiêu phút, mặc định 120 |
+| `HEARTBEAT_URL` | không | Link ping của dịch vụ giám sát ngoài (healthchecks.io...). Trống thì bỏ qua |
 | `HEALTH_URLS` | không | URL khác cần canh, ngăn cách bằng dấu phẩy |
 
 ## Triển khai trên Coolify
@@ -46,7 +48,7 @@ Job lỡ giờ quá 3 tiếng (ví dụ container tắt cả buổi sáng) sẽ 
    curl -H "Authorization: Bearer $RUNNER_SECRET" https://<domain>/status
    curl -X POST -H "Authorization: Bearer $RUNNER_SECRET" https://<domain>/run/pb-backup
    ```
-5. Canh chính runner từ bên ngoài: tạo monitor miễn phí (UptimeRobot/BetterStack) vào `https://<domain>/health`, vì khi Coolify sập thì watchdog trong nó cũng im lặng.
+5. Canh chính runner từ bên ngoài: tạo một check miễn phí (healthchecks.io, chu kỳ 5 phút, grace 10 phút), chép link ping vào `HEARTBEAT_URL`. Runner tự ping ra ngoài nên **không cần tên miền công khai**; khi runner hoặc cả máy sập, dịch vụ đó báo bạn.
 6. Backup đang nằm cùng máy Dell. Nên đồng bộ thêm `/data/backups` ra ngoài (R2/Google Drive) ở bước sau.
 
 ## Phát triển
