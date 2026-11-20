@@ -5,6 +5,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:e2e": "node --test e2e/real-pocketbase.test.js"
   }
 }

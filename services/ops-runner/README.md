@@ -54,5 +54,13 @@ Job lỡ giờ quá 3 tiếng (ví dụ container tắt cả buổi sáng) sẽ 
 ## Phát triển
 
 ```bash
-npm test
+npm test            # test đơn vị + tích hợp (PocketBase giả), chạy nhanh
 ```
+
+Test end-to-end với **PocketBase thật** (tuỳ chọn): tải binary chính thức từ https://github.com/pocketbase/pocketbase/releases (đối chiếu `checksums.txt`), rồi
+
+```bash
+POCKETBASE_BIN=/đường/dẫn/pocketbase npm run test:e2e
+```
+
+Test tự khởi động một PocketBase trống trong thư mục tạm, tạo collection, nạp dữ liệu (kèm bản ghi "mồi" để kiểm tra bộ lọc) và chạy các job thật; Telegram/Meta bị chặn nên không gửi gì ra ngoài. Đã kiểm với PocketBase 0.40.6; bản trên HF Space có thể khác phiên bản.
