@@ -24,6 +24,23 @@ Whop; staff match them to the lead by e-mail (the pages ask buyers to use the sa
 service by hand. Nothing is activated automatically. The links live in `scripts/build-service-landings.mjs` (`WHOP`);
 change prices in Whop, and the USD text in `USD` / `PAYCOPY`, then rebuild the pages.
 
+## Telegram alerts
+
+Lead alerts and "setup paid" alerts go to one bot: `@schoolsai_leads_alert_bot` (Worker secrets
+`LEADS_TELEGRAM_BOT_TOKEN` + `LEADS_TELEGRAM_CHAT_ID`, both required together; otherwise the older
+`TELEGRAM_BOT_TOKEN` + `SETUP_ALERT_CHAT_ID` pair is used). Orders paid through Whop links do not alert anyone:
+check the Whop dashboard.
+
+## AI Social Content, 8 languages: `landing-social.html` (en) and `landing-social-{vi,id,es,fr,ja,ko,zh}.html`
+
+Built by `scripts/build-social-landings.mjs` (all copy lives in that file; translations are AI-made, have a native
+speaker review them before paid ads). The homepage section links to the page in the visitor's language
+(`landing.js`, `#social-link`). The page embeds the bot of tenant `schoolsai-social` (knowledge: plans, terms, FAQ,
+"not yet defined" list; prompt replies in the visitor's language, never writes URLs, never states a delivery time).
+Known weakness: when the bot has "no confirmed information" (e.g. refunds) it sometimes answers in Vietnamese or
+Indonesian to an English visitor, because the platform's handoff instruction (`HANDOFF_INSTRUCTION` in
+`src/index.js`) is written in Vietnamese and is appended to every bot's prompt. No wrong facts, wrong language only.
+
 ## AI Social Content (global, English): `landing-social.html`
 
 One service: the buyer picks posts per month. Manual-first: orders land in Whop, the team makes and publishes the

@@ -3,6 +3,7 @@
 // structure, form and payment flow stay identical; only the copy differs per market.
 //   node scripts/build-service-landings.mjs
 // Output: dash-tabler/landing-vn.html, landing-id.html, landing-ph.html (committed, static).
+// The AI Social Content pages (8 languages) are built by scripts/build-social-landings.mjs.
 // Prices and promises must match the bot knowledge (docs/service-training/README.md).
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -265,7 +266,7 @@ ${Object.entries(MARKETS).map(([k, v]) => `<link rel="alternate" hreflang="${v.h
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="_shared/landing.css?v=20260925-6lang">
-<link rel="stylesheet" href="_shared/service-landing.css?v=20261120-2">
+<link rel="stylesheet" href="_shared/service-landing.css?v=20261120-4">
 <script src="/_shared/consent.js"></script>
 </head>
 <body class="svc">
@@ -372,173 +373,7 @@ ${Object.entries(MARKETS).map(([k, v]) => `<link rel="alternate" hreflang="${v.h
 `;
 };
 
-// ---- AI Social Content (global, English): one service, the buyer only chooses posts per month ----
-// Manual-first: orders land in Whop, the team makes and publishes the posts. Nothing here promises video or
-// automatic credit metering (neither exists yet). Prices must match the Whop products (USD, monthly).
-const SOCIAL = {
-  file: "landing-social.html",
-  title: "Schools AI Social Content - Facebook posts for your business, from $3.99/month",
-  description: "Choose how many Facebook posts you need each month. Our team uses AI to create images and captions and publishes them to your Page. From $3.99 for 4 posts. Cancel anytime.",
-  plans: [
-    { id: "social_4", posts: 4, price: "$3.99", pace: "About 1 post a week", tag: "Get started", whop: "https://whop.com/schoolsai/schools-ai-social-content-4-posts-per-month/" },
-    { id: "social_12", posts: 12, price: "$11.99", pace: "About 3 posts a week", tag: "Popular", whop: "https://whop.com/schoolsai/schools-ai-social-content-12-posts-per-month/" },
-    { id: "social_30", posts: 30, price: "$29.99", pace: "About 1 post a day", tag: "Daily posting", whop: "https://whop.com/schoolsai/schools-ai-social-content-30-posts-per-month/" },
-    { id: "social_90", posts: 90, price: "$89.99", pace: "About 3 posts a day", tag: "High volume", whop: "https://whop.com/schoolsai/schools-ai-social-content-90-posts-per-month/" }
-  ],
-  items: ["AI-assisted images and captions", "Scheduled and published to one Facebook Page", "Simple caption edits included", "30-day cycle, cancel anytime"],
-  steps: [
-    ["Choose your plan", "Pick how many posts you need each month and pay securely through Whop (USD)."],
-    ["Tell us about your business", "Share your business, tone and Facebook Page in the form below. We tell you how to give us access to your Page."],
-    ["We create the posts", "Our team uses AI to create images and captions, and checks them before publishing."],
-    ["Posts go live", "Your posts are scheduled and published to your Page. A new 30-day cycle starts each month."]
-  ],
-  faq: [
-    ["What counts as a post?", "One image post with a caption, published to your Facebook Page. If something fails on our side, it is not counted."],
-    ["Are videos included?", "Not yet. Plans cover image posts with captions. We will announce video when it is ready."],
-    ["Can I try before paying?", "Yes. Ask for a free sample post in the form below and we will contact you."],
-    ["What do I need?", "A Facebook Page you manage. We tell you how to give us access after you sign up."],
-    ["Do unused posts carry over?", "No. Posts are renewed every 30 days and do not roll over to the next cycle."],
-    ["Can I cancel?", "Yes, anytime. It takes effect at the end of the billing period."],
-    ["Can I change my plan?", "Yes. Tell us which plan you want and we will switch you."]
-  ]
-};
-SOCIAL.msg = {
-  required: "Please fill in all required fields.", invalid_email: "That email does not look right.", short_password: "Password must be at least 8 characters.",
-  sending: "Sending…", creating: "", logging: "", checking: "", email_exists: "", tenant_taken: "",
-  lead_failed: "We could not send your details, please try again in a few minutes.", rate_limited: "Too many attempts, please try again later.",
-  network: "Could not reach the server, please try again.", pay_not_ready: "", pay_title: "", pay_text: "", pay_button: "", redirecting: "", pay_error: "",
-  success_title: "Details received", success_body: "Thank you. Our team will contact you by email soon.", account_done: "", go_dashboard: "", go_billing: ""
-};
-
-const socialPage = () => {
-  const s = SOCIAL;
-  const cfg = { market: "gl", lang: "en", msg: s.msg };
-  const card = (p) => `
-        <article class="svc-card${p.id === "social_12" ? " featured" : ""}">
-          <p class="svc-note">${esc(p.tag)}</p>
-          <h3>${p.posts} posts</h3>
-          <p class="svc-price"><strong>${esc(p.price)}</strong> <span>per month</span></p>
-          <p class="svc-pace">${esc(p.pace)}</p>
-          <ul>${s.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>
-          <a class="button ${p.id === "social_12" ? "primary" : ""} svc-pay" href="${p.whop}" target="_blank" rel="noopener noreferrer" data-plan="${p.id}">Pay ${esc(p.price)}/month via Whop</a>
-        </article>`;
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(s.title)}</title>
-<meta name="description" content="${esc(s.description)}">
-<link rel="canonical" href="${SITE}/${s.file}">
-<meta property="og:title" content="${esc(s.title)}">
-<meta property="og:description" content="${esc(s.description)}">
-<meta property="og:type" content="website">
-<meta property="og:url" content="${SITE}/${s.file}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="_shared/landing.css?v=20260925-6lang">
-<link rel="stylesheet" href="_shared/service-landing.css?v=20261120-3">
-<script src="/_shared/consent.js"></script>
-</head>
-<body class="svc">
-<a class="skip" href="#register">Sign up</a>
-<header>
-  <div class="container nav">
-    <a class="brand" href="landing.html"><span class="brand-mark" aria-hidden="true">✳</span>schools<span class="brand-ai">ai</span><span class="brand-dot">.</span></a>
-    <nav aria-label="Main">
-      <a href="#plans">Plans</a>
-      <a href="#process">How it works</a>
-      <a href="#faq">FAQ</a>
-      <a href="#register">Sign up</a>
-    </nav>
-    <div class="nav-actions">
-      <a class="button small" href="landing.html">Home</a>
-    </div>
-  </div>
-</header>
-<main id="main">
-  <section class="container svc-hero">
-    <p class="eyebrow">AI SOCIAL CONTENT</p>
-    <h1><span>Facebook posts for your business.</span> <span class="highlight">Created for you, every month.</span></h1>
-    <p class="intro">Choose how many posts you need each month. Our team uses AI to create images and captions, then publishes them to your Facebook Page. No design skills needed.</p>
-    <div class="hero-actions">
-      <a class="button primary" href="#plans">See plans</a>
-      <a class="text-link" href="#register">Get a free sample post ↓</a>
-    </div>
-    <p class="fine">One service, simple monthly pricing. Cancel anytime.</p>
-    <ul class="svc-trust"><li><strong>From $3.99</strong><span>per month for 4 posts</span></li><li><strong>1 Facebook Page</strong><span>included in every plan</span></li><li><strong>Cancel anytime</strong><span>No long-term contract</span></li></ul>
-  </section>
-
-  <section class="container svc-section" id="plans">
-    <p class="eyebrow">PLANS</p>
-    <h2>How many posts do you need each month?</h2>
-    <p class="svc-lead">Same service in every plan: you only choose the number of posts. Prices in US dollars.</p>
-    <div class="svc-cards svc-cards-4">${s.plans.map(card).join("")}
-    </div>
-    <p class="svc-foot">Videos are not included yet: plans cover image posts with captions. Unused posts do not carry over to the next 30-day cycle. A post that fails on our side is not counted. Custom design work is not included.</p>
-    <p class="svc-foot">Payment is through Whop, in USD. Please use the same email as the form below so we can match your order.</p>
-  </section>
-
-  <section class="container svc-section" id="process">
-    <p class="eyebrow">HOW IT WORKS</p>
-    <h2>From sign-up to your first posts</h2>
-    <ol class="svc-steps svc-steps-4">${s.steps.map(([t, d]) => `<li><strong>${esc(t)}</strong><span>${esc(d)}</span></li>`).join("")}</ol>
-  </section>
-
-  <section class="container svc-section" id="faq">
-    <p class="eyebrow">FAQ</p>
-    <h2>Frequently asked questions</h2>
-    <div class="svc-faq">${s.faq.map(([q, a]) => `
-      <details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}
-    </div>
-  </section>
-
-  <section class="container svc-section svc-register" id="register">
-    <div>
-      <p class="eyebrow">SIGN UP</p>
-      <h2>Tell us about your business</h2>
-      <p class="svc-lead">Leave your details and we will contact you by email. Not sure yet? Ask for a free sample post first. Ready to start? Pay for your plan in the Plans section above.</p>
-    </div>
-    <form id="lead-form" class="svc-form" novalidate>
-      <input type="hidden" name="mode" value="consult">
-      <div class="svc-grid">
-        <label>Full name *<input name="name" autocomplete="name" required maxlength="80"></label>
-        <label>Email *<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
-        <label>Phone / WhatsApp (optional)<input name="phone" type="tel" autocomplete="tel" maxlength="20"></label>
-        <label>Business or Page name *<input name="business_name" autocomplete="organization" required maxlength="80"></label>
-        <label>Type of business *<select name="business_type" required><option value="">Choose…</option>${["Restaurant / cafe", "Beauty / spa / salon", "Retail / online shop", "Health / clinic", "Education / training", "Real estate", "Other"].map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}</select></label>
-        <label>Country *<input name="city" autocomplete="country-name" required maxlength="80"></label>
-        <label class="wide">Facebook Page link (optional)<input name="page_url" type="url" maxlength="200" placeholder="https://facebook.com/yourpage"></label>
-        <label class="wide">Plan you are interested in<select name="plan_interest">${[["social_4", "4 posts / month ($3.99)"], ["social_12", "12 posts / month ($11.99)"], ["social_30", "30 posts / month ($29.99)"], ["social_90", "90 posts / month ($89.99)"], ["unsure", "Not sure, I want a free sample first"]].map(([v, t]) => `<option value="${v}"${v === "unsure" ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
-        <label class="wide">Notes (optional)<textarea name="message" rows="3" maxlength="800"></textarea></label>
-      </div>
-      <input class="svc-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <label class="svc-consent"><input type="checkbox" name="consent" required> <span>I agree that Schools AI stores these details and contacts me about this. See the <a href="privacy" target="_blank" rel="noopener">Privacy Policy</a>. *</span></label>
-      <button class="button primary" type="submit" id="lead-submit" data-consult="Send details" data-pay="Send details">Send details</button>
-      <p id="lead-status" class="svc-status" role="status" aria-live="polite" tabindex="-1"></p>
-      <div id="pay-confirm" class="svc-confirm" hidden></div>
-    </form>
-  </section>
-</main>
-<footer class="container">
-  <a class="brand" href="landing.html">schools<span class="brand-ai">ai</span>.</a>
-  <p>© 2026 Schools AI.</p>
-  <a href="privacy">Privacy Policy</a>
-  <a href="terms">Terms of Service</a>
-</footer>
-<script>window.SERVICE_PAGE = ${JSON.stringify(cfg).replace(/</g, "\\u003c")};</script>
-<script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
-<script src="_shared/config.js"></script>
-<script src="_shared/service-landing.js?v=20261120-3"></script>
-</body>
-</html>
-`;
-};
-
 for (const key of Object.keys(MARKETS)) {
   writeFileSync(join(OUT, MARKETS[key].file), page(key));
   console.log("wrote", MARKETS[key].file);
 }
-writeFileSync(join(OUT, SOCIAL.file), socialPage());
-console.log("wrote", SOCIAL.file);

@@ -943,6 +943,150 @@ const LANDING_COPY = {
     "fr": "Impossible de lire cette vidéo. Réessayez plus tard.",
     "ko": "영상을 재생할 수 없습니다. 나중에 다시 시도하세요.",
     "zh": "无法播放此视频，请稍后重试。"
+  },
+  "nav_service": {
+      "vi": "Cài đặt chatbot hộ",
+      "en": "Chatbot setup",
+      "ja": "チャットボット導入代行",
+      "es": "Configuración de chatbot",
+      "fr": "Installation de chatbot",
+      "ko": "챗봇 설치 대행",
+      "zh": "聊天机器人代搭建"
+  },
+  "nav_social": {
+      "vi": "Nội dung mạng xã hội AI",
+      "en": "AI Social Content",
+      "ja": "AIソーシャル投稿",
+      "es": "Contenido social con IA",
+      "fr": "Contenu social par IA",
+      "ko": "AI 소셜 콘텐츠",
+      "zh": "AI 社交内容"
+  },
+  "svc_eyebrow": {
+      "vi": "CÀI ĐẶT HỘ CHATBOT",
+      "en": "DONE-FOR-YOU CHATBOT SETUP",
+      "ja": "チャットボット導入代行",
+      "es": "CHATBOT LISTO PARA USAR",
+      "fr": "CHATBOT CLÉ EN MAIN",
+      "ko": "챗봇 설치 대행",
+      "zh": "聊天机器人代搭建"
+  },
+  "svc_heading": {
+      "vi": "Chúng tôi cài đặt và vận hành chatbot AI cho bạn",
+      "en": "We set up and run your AI chatbot for you",
+      "ja": "AIチャットボットの導入と運用をお任せください",
+      "es": "Configuramos y gestionamos tu chatbot de IA por ti",
+      "fr": "Nous installons et gérons votre chatbot IA pour vous",
+      "ko": "AI 챗봇 설치와 운영을 대신해 드립니다",
+      "zh": "我们为您搭建并运营 AI 聊天机器人"
+  },
+  "svc_intro": {
+      "vi": "Chọn quốc gia của bạn để xem gói và đăng ký.",
+      "en": "Choose your country to see the packages and sign up.",
+      "ja": "国を選んでプランを確認し、お申し込みください。",
+      "es": "Elige tu país para ver los paquetes y registrarte.",
+      "fr": "Choisissez votre pays pour voir les offres et vous inscrire.",
+      "ko": "국가를 선택해 요금제를 확인하고 가입하세요.",
+      "zh": "选择您所在的国家，查看套餐并注册。"
+  },
+  "c_vn": {
+      "vi": "Việt Nam",
+      "en": "Vietnam",
+      "ja": "ベトナム",
+      "es": "Vietnam",
+      "fr": "Vietnam",
+      "ko": "베트남",
+      "zh": "越南"
+  },
+  "c_id": {
+      "vi": "Indonesia",
+      "en": "Indonesia",
+      "ja": "インドネシア",
+      "es": "Indonesia",
+      "fr": "Indonésie",
+      "ko": "인도네시아",
+      "zh": "印度尼西亚"
+  },
+  "c_ph": {
+      "vi": "Philippines",
+      "en": "Philippines",
+      "ja": "フィリピン",
+      "es": "Filipinas",
+      "fr": "Philippines",
+      "ko": "필리핀",
+      "zh": "菲律宾"
+  },
+  "svc_vn_desc": {
+      "vi": "Cài đặt và vận hành hộ chatbot AI cho spa, clinic, salon, cửa hàng. Gói Setup từ 2.500.000đ.",
+      "en": "We set up and run an AI chatbot for spas, clinics, salons and shops. Setup from 2,500,000 VND.",
+      "ja": "スパ、クリニック、サロン、店舗向けにAIチャットボットを導入・運用します。セットアップは2,500,000ドンから。",
+      "es": "Configuramos y gestionamos un chatbot de IA para spas, clínicas, salones y tiendas. Setup desde 2.500.000 VND.",
+      "fr": "Nous installons et gérons un chatbot IA pour spas, cliniques, salons et boutiques. Setup à partir de 2 500 000 VND.",
+      "ko": "스파, 클리닉, 살롱, 매장을 위한 AI 챗봇을 설치하고 운영합니다. 세팅은 2,500,000동부터.",
+      "zh": "为美容院、诊所、沙龙和商店搭建并运营 AI 聊天机器人。Setup 起价 2,500,000 越南盾。"
+  },
+  "svc_id_desc": {
+      "vi": "Chúng tôi cài đặt và vận hành chatbot AI cho doanh nghiệp nhỏ tại Indonesia. Gói Setup từ Rp1.650.000.",
+      "en": "We set up and run an AI chatbot for small businesses in Indonesia. Setup from Rp1,650,000.",
+      "ja": "インドネシアの小規模事業向けにAIチャットボットを導入・運用します。セットアップはRp1,650,000から。",
+      "es": "Configuramos y gestionamos un chatbot de IA para pequeños negocios en Indonesia. Setup desde Rp1.650.000.",
+      "fr": "Nous installons et gérons un chatbot IA pour les petites entreprises en Indonésie. Setup à partir de Rp1.650.000.",
+      "ko": "인도네시아 소규모 비즈니스를 위한 AI 챗봇을 설치하고 운영합니다. 세팅은 Rp1,650,000부터.",
+      "zh": "为印度尼西亚的小型企业搭建并运营 AI 聊天机器人。Setup 起价 Rp1,650,000。"
+  },
+  "svc_ph_desc": {
+      "vi": "Chúng tôi cài đặt và vận hành chatbot AI cho doanh nghiệp nhỏ tại Philippines. Gói Setup từ 5.800 peso.",
+      "en": "We set up and run an AI chatbot for small businesses in the Philippines. Setup from 5,800 pesos.",
+      "ja": "フィリピンの小規模事業向けにAIチャットボットを導入・運用します。セットアップは5,800ペソから。",
+      "es": "Configuramos y gestionamos un chatbot de IA para pequeños negocios en Filipinas. Setup desde 5.800 pesos.",
+      "fr": "Nous installons et gérons un chatbot IA pour les petites entreprises aux Philippines. Setup à partir de 5 800 pesos.",
+      "ko": "필리핀 소규모 비즈니스를 위한 AI 챗봇을 설치하고 운영합니다. 세팅은 5,800페소부터.",
+      "zh": "为菲律宾的小型企业搭建并运营 AI 聊天机器人。Setup 起价 5,800 比索。"
+  },
+  "svc_cta": {
+      "vi": "Xem gói và đăng ký →",
+      "en": "See packages and sign up →",
+      "ja": "プランを見て申し込む →",
+      "es": "Ver paquetes y registrarse →",
+      "fr": "Voir les offres et s'inscrire →",
+      "ko": "요금제 보기 및 가입 →",
+      "zh": "查看套餐并注册 →"
+  },
+  "soc_eyebrow": {
+      "vi": "NỘI DUNG MẠNG XÃ HỘI AI",
+      "en": "AI SOCIAL CONTENT",
+      "ja": "AIソーシャル投稿",
+      "es": "CONTENIDO SOCIAL CON IA",
+      "fr": "CONTENU SOCIAL PAR IA",
+      "ko": "AI 소셜 콘텐츠",
+      "zh": "AI 社交内容"
+  },
+  "soc_heading": {
+      "vi": "Bài đăng Facebook cho doanh nghiệp, từ 3,99 USD/tháng",
+      "en": "Facebook posts for your business, from $3.99/month",
+      "ja": "ビジネス向けFacebook投稿、月額$3.99から",
+      "es": "Publicaciones de Facebook para tu negocio, desde $3,99/mes",
+      "fr": "Publications Facebook pour votre entreprise, dès 3,99 $/mois",
+      "ko": "비즈니스를 위한 Facebook 게시물, 월 $3.99부터",
+      "zh": "为您的业务制作 Facebook 帖子，每月 $3.99 起"
+  },
+  "soc_intro": {
+      "vi": "Chọn số bài bạn cần mỗi tháng. Chúng tôi tạo ảnh và caption có AI hỗ trợ rồi đăng lên Facebook Page của bạn.",
+      "en": "Choose how many posts you need each month. We create AI-assisted images and captions and publish them to your Facebook Page.",
+      "ja": "毎月必要な投稿数を選ぶだけ。AIで画像とキャプションを作成し、あなたのFacebookページに投稿します。",
+      "es": "Elige cuántas publicaciones necesitas cada mes. Creamos imágenes y textos con ayuda de IA y los publicamos en tu página de Facebook.",
+      "fr": "Choisissez le nombre de publications par mois. Nous créons images et légendes avec l'aide de l'IA et les publions sur votre Page Facebook.",
+      "ko": "매달 필요한 게시물 수를 선택하세요. AI로 이미지와 캡션을 만들어 Facebook 페이지에 게시합니다.",
+      "zh": "选择每月所需的帖子数量。我们借助 AI 制作图片和文案，并发布到您的 Facebook 主页。"
+  },
+  "soc_desc": {
+      "vi": "4 bài $3,99 · 12 bài $11,99 · 30 bài $29,99 · 90 bài $89,99 mỗi tháng. Một Facebook Page, hủy bất cứ lúc nào.",
+      "en": "4 posts $3.99 · 12 posts $11.99 · 30 posts $29.99 · 90 posts $89.99 per month. One Facebook Page, cancel anytime.",
+      "ja": "月額 4投稿 $3.99 · 12投稿 $11.99 · 30投稿 $29.99 · 90投稿 $89.99。Facebookページ1つ、いつでも解約可。",
+      "es": "4 publicaciones $3,99 · 12 $11,99 · 30 $29,99 · 90 $89,99 al mes. Una página de Facebook, cancela cuando quieras.",
+      "fr": "4 publications 3,99 $ · 12 : 11,99 $ · 30 : 29,99 $ · 90 : 89,99 $ par mois. Une Page Facebook, résiliable à tout moment.",
+      "ko": "월 4개 $3.99 · 12개 $11.99 · 30개 $29.99 · 90개 $89.99. Facebook 페이지 1개, 언제든 해지 가능.",
+      "zh": "每月 4 条 $3.99 · 12 条 $11.99 · 30 条 $29.99 · 90 条 $89.99。一个 Facebook 主页，随时取消。"
   }
 };
 (() => {
@@ -964,6 +1108,8 @@ const LANDING_COPY = {
     document.title = copy('title');
     document.querySelector('meta[name="description"]').content = copy('intro');
     document.querySelectorAll('[data-copy]').forEach(el => { el.textContent = copy(el.dataset.copy); });
+    const socialLink = document.getElementById('social-link');
+    if (socialLink) socialLink.href = ({ vi: 'landing-social-vi.html', en: 'landing-social.html', ja: 'landing-social-ja.html', es: 'landing-social-es.html', fr: 'landing-social-fr.html', ko: 'landing-social-ko.html', zh: 'landing-social-zh.html' })[lang] || 'landing-social.html';
     document.getElementById('language').value = lang;
     document.querySelectorAll('[data-video]').forEach(el => el.setAttribute('aria-label', copy('play_video')));
     const error = document.getElementById('login-error');

@@ -885,8 +885,10 @@ function setupOrderStore(env) {
     patch: (collection, id, body) => call(`${collection}/records/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) })
   };
   const notify = async ({ tenant, orderId }) => {
-    if (!env.SETUP_ALERT_CHAT_ID || !env.TELEGRAM_BOT_TOKEN) return;
-    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.SETUP_ALERT_CHAT_ID,
+    // Same bot and chat as the landing-page lead alerts (LEADS_TELEGRAM_*), falling back to the older pair.
+    const target = leadAlertTarget(env);
+    if (!target) return;
+    await sendTelegramMessage(target.token, target.chatId,
       `Gói hỗ trợ cài đặt đã được thanh toán.\nWorkspace: ${tenant}\nĐơn: ${orderId}\nĐặt setup_status = in_progress khi bắt đầu, done khi hoàn tất (PocketBase > bot_configs).`);
   };
   return createSetupStore({ pb, notify });
