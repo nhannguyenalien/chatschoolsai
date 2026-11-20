@@ -38,6 +38,12 @@ export function reminderText(booking, lang, tzOffsetMin) {
     .replace("{time}", time).replace("{date}", date);
 }
 
+// client_meta là field JSON của PocketBase nên API trả về object; vẫn nhận chuỗi JSON cho chắc.
+export function parseMeta(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  try { const v = JSON.parse(value || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
+}
+
 export function parseExtra(raw) {
   try { const v = JSON.parse(raw || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
 }
@@ -96,8 +102,7 @@ export const bookingReminderJob = {
         }) : [];
         const plan = planChannel({ session: b.session, lastCustomerMsgAt: last?.created, nowMs: now() });
         if (plan.via) {
-          let meta = {};
-          try { meta = JSON.parse(last.client_meta || "{}"); } catch { /* client_meta không phải JSON thì bỏ qua */ }
+          const meta = parseMeta(last.client_meta);
           const pages = await pb.list("pages_config", { filter: `tenant='${q(b.tenant)}' && platform='${plan.via}' && is_active=true`, fields: "page_id,access_token", perPage: 20, maxPages: 1 });
           const page = pages.find((p) => String(p.page_id) === String(meta.page_id)) || pages[0];
           if (!page?.access_token || page.access_token === "pending") throw new Error("chưa cấu hình kênh gửi");

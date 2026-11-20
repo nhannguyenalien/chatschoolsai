@@ -22,7 +22,8 @@ export const backupJob = {
   async run({ pb, config, now = Date.now }) {
     const dir = path.join(config.dataDir, "backups");
     await mkdir(dir, { recursive: true });
-    const name = `ops-${new Date(now()).toISOString().replace(/[:.]/g, "-")}.zip`;
+    // PocketBase chỉ chấp nhận tên dạng ^[a-z0-9_-]+\.zip$ (chữ thường) nên không dùng thẳng chuỗi ISO có T/Z hoa.
+    const name = `ops-${new Date(now()).toISOString().replace(/[:.]/g, "-").toLowerCase()}.zip`;
 
     await pb.json("/api/backups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
     try {

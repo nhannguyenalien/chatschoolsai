@@ -44,7 +44,7 @@ export function createPb({ url, email, password, fetchImpl = fetch }) {
       return items;
     },
     async count(collection, filter = "") {
-      const data = await json(`/api/collections/${collection}/records?perPage=1&fields=id${filter ? `&filter=${enc(filter)}` : ""}`);
+      const data = await json(`/api/collections/${collection}/records?perPage=1${filter ? `&filter=${enc(filter)}` : ""}`);
       return data.totalItems ?? 0;
     },
   };
