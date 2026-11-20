@@ -37,14 +37,16 @@ Built by `scripts/build-social-landings.mjs` (all copy lives in that file; trans
 speaker review them before paid ads). The homepage section links to the page in the visitor's language
 (`landing.js`, `#social-link`). The page embeds the bot of tenant `schoolsai-social` (knowledge: plans, terms, FAQ,
 "not yet defined" list; prompt replies in the visitor's language, never writes URLs, never states a delivery time).
-Known weakness (open): when the social bot has "no confirmed information" (e.g. refunds, delivery time) it often
-answers an English or Indonesian visitor in Vietnamese or Indonesian (sometimes mixed). No wrong facts, wrong language
-only. `HANDOFF_INSTRUCTION` in `src/index.js` (appended to every bot's prompt) used to be written in Vietnamese; it is
-now English and language-neutral (deployed 2026-11-20, all bots). The VN/ID/PH bots stayed correct afterwards, but the
-social bot did not improve, and rewording its prompt (sentence lists, positive-only wording, no mention of Vietnamese)
-did not fix it. Price and plan questions are answered in the right language. Likely real fix, not done: have the widget
-send the page language (`data-lang`) in the chat request and let the Worker add "answer in X" to the instruction when
-the bot's `response_language` is `auto`; the page of each language already knows its language.
+Reply language: the chat widget sends the page language (`lang`: explicit `data-lang` code, or the page's `html[lang]`
+for `data-lang=auto`, omitted when unknown) and, for bots whose `response_language` is `auto`, the Worker appends a
+one-line "reply in X unless the customer clearly writes another language" hint to the customer's message
+(`src/domain/chat/pageLanguage.js`; per message on purpose, because the workspace prompt is shared by all visitors).
+Before this, the social bot answered "no confirmed information" cases (refunds, delivery time) in the wrong language
+about half of the time (the platform's `HANDOFF_INSTRUCTION`, now English and neutral, was in Vietnamese, but
+rewording the bot prompt did not fix it). After it: 11 of 13 test questions in the page language, none in a wrong
+language. The 2 other cases were visitors writing in a language different from the page (page Vietnamese + English
+question, page Indonesian + English question): the bot followed the page language, not the message. The widget also
+got Indonesian UI strings (the Indonesian pages showed the Vietnamese UI before).
 
 ## AI Social Content (global, English): `landing-social.html`
 
