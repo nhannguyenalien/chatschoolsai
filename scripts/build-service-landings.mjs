@@ -232,6 +232,46 @@ const MARKETS = {
   }
 };
 
+// Pay-first flow (2026-11-21): the buyer pays on Whop and answers the business questions in the Whop checkout
+// ("Ask questions before checkout"); the lead form below is only an optional "ask us something" form.
+// These overrides replace the consult-first copy above; the payment link per package is the main call to action.
+const PAYFIRST = {
+  vn: {
+    hero: { cta: "Chọn gói và thanh toán", cta2: "Có câu hỏi trước?" },
+    nav: { register: "Liên hệ" },
+    foot: "Thanh toán online qua Whop, tính bằng USD. Ngay trên trang thanh toán, bạn trả lời vài câu hỏi về doanh nghiệp để chúng tôi bắt đầu cài đặt. Gói tháng tính phí mỗi tháng.",
+    step0: ["Thanh toán và trả lời vài câu hỏi", "Bạn chọn gói, thanh toán qua Whop và điền thông tin doanh nghiệp ngay trên trang thanh toán. Sau đó đội ngũ liên hệ qua email để nhận bảng giá và các câu hỏi khách hay hỏi."],
+    faqPay: ["Thanh toán như thế nào?", "Chọn gói ở mục Các gói và thanh toán qua Whop (tính bằng USD, số tiền hiển thị trên trang thanh toán). Trên trang thanh toán có vài câu hỏi về doanh nghiệp; trả lời xong là đội ngũ bắt đầu."],
+    form: { kicker: "LIÊN HỆ", heading: "Có câu hỏi trước khi thanh toán?", intro: "Gửi câu hỏi của bạn, nhân viên sẽ trả lời qua email. Không bắt buộc: bạn có thể thanh toán ngay ở mục Các gói.", submitConsult: "Gửi câu hỏi", consent: "Tôi đồng ý để Schools AI lưu thông tin này và liên hệ trả lời. Xem" }
+  },
+  id: {
+    hero: { cta: "Pilih paket dan bayar", cta2: "Ada pertanyaan dulu?" },
+    nav: { register: "Kontak" },
+    foot: "Pembayaran online lewat Whop, dalam USD. Di halaman pembayaran Anda menjawab beberapa pertanyaan tentang bisnis agar kami bisa mulai menyiapkan. Paket bulanan ditagih setiap bulan.",
+    step0: ["Bayar dan jawab beberapa pertanyaan", "Pilih paket, bayar lewat Whop, dan isi data bisnis langsung di halaman pembayaran. Setelah itu tim menghubungi lewat email untuk meminta daftar harga dan pertanyaan yang sering diajukan pelanggan."],
+    faqPay: ["Bagaimana cara membayar?", "Pilih paket di bagian Paket dan bayar lewat Whop (dalam USD, jumlahnya tampil di halaman pembayaran). Di halaman pembayaran ada beberapa pertanyaan tentang bisnis; setelah dijawab, tim langsung mulai."],
+    form: { kicker: "KONTAK", heading: "Ada pertanyaan sebelum membayar?", intro: "Kirim pertanyaan Anda, staf akan membalas lewat email. Tidak wajib: Anda bisa langsung membayar di bagian Paket.", submitConsult: "Kirim pertanyaan", consent: "Saya setuju Schools AI menyimpan data ini dan menghubungi saya untuk menjawab. Lihat" }
+  },
+  ph: {
+    hero: { cta: "Choose a package and pay", cta2: "Have a question first?" },
+    nav: { register: "Contact" },
+    foot: "Online payment through Whop, in USD. On the payment page you answer a few questions about your business so we can start the setup. Monthly packages are billed every month.",
+    step0: ["Pay and answer a few questions", "Choose a package, pay through Whop and fill in your business details right on the payment page. The team then contacts you by email to get your price list and the questions customers often ask."],
+    faqPay: ["How do I pay?", "Choose a package in the Packages section and pay through Whop (in USD, the amount is shown on the payment page). The payment page has a few questions about your business; once you answer them, the team starts."],
+    form: { kicker: "CONTACT", heading: "A question before you pay?", intro: "Send your question and staff will reply by email. Optional: you can pay right away in the Packages section.", submitConsult: "Send question", consent: "I agree Schools AI may store this information and contact me to reply. See" }
+  }
+};
+for (const [key, o] of Object.entries(PAYFIRST)) {
+  const m = MARKETS[key];
+  Object.assign(m.hero, o.hero);
+  Object.assign(m.nav, o.nav);
+  Object.assign(m.form, o.form);
+  PAYCOPY[key].foot = o.foot;
+  PAYCOPY[key].faq = o.faqPay;
+  PAYCOPY[key].intro = o.form.intro;
+  m.process.steps[0] = o.step0;
+}
+
 const page = (key) => {
   const m = MARKETS[key];
   const others = Object.entries(MARKETS).filter(([k]) => k !== key);
@@ -295,8 +335,8 @@ ${Object.entries(MARKETS).map(([k, v]) => `<link rel="alternate" hreflang="${v.h
     <h1><span>${esc(m.hero.h1a)}</span> <span class="highlight">${esc(m.hero.h1b)}</span></h1>
     <p class="intro">${esc(m.hero.intro)}</p>
     <div class="hero-actions">
-      <a class="button primary" href="#register">${esc(m.hero.cta)}</a>
-      <a class="text-link" href="#packages">${esc(m.hero.cta2)} ↓</a>
+      <a class="button primary" href="#packages">${esc(m.hero.cta)}</a>
+      <a class="text-link" href="#register">${esc(m.hero.cta2)} ↓</a>
     </div>
     <p class="fine">${esc(m.hero.note)}</p>
     <ul class="svc-trust">${m.trust.map(([a, b]) => `<li><strong>${esc(a)}</strong><span>${esc(b)}</span></li>`).join("")}</ul>

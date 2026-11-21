@@ -192,6 +192,53 @@ const LANGS = {
   }
 };
 
+// Pay-first flow (2026-11-21): the buyer pays on Whop and answers the questions (business/Page name, Page link,
+// country and language) in the Whop checkout. The form on the page is only an optional "ask us a question" form.
+// Per language: [secondary CTA, foot note, process step 2, FAQ "try before paying" (q, a), form intro, last plan option].
+const PAYFIRST = {
+  en: ["Have a question first? ↓", "Payment is through Whop, in USD. The payment page asks a few questions about your business.",
+    ["Answer a few questions", "On the payment page, tell us your business or Page name, your Facebook Page link, and your country and language. We then tell you how to give us access to your Page."],
+    ["Can I try before paying?", "We do not offer free samples at the moment. You can send us a question in the form below before you pay."],
+    "Have a question before you pay? Send it and we will reply by email. Optional: you can pay right away in the Plans section above.", "Not sure, I have a question"],
+  vi: ["Có câu hỏi trước? ↓", "Thanh toán qua Whop, bằng USD. Trang thanh toán có vài câu hỏi về doanh nghiệp của bạn.",
+    ["Trả lời vài câu hỏi", "Ngay trên trang thanh toán, cho chúng tôi biết tên doanh nghiệp hoặc Page, link Facebook Page, quốc gia và ngôn ngữ. Sau đó chúng tôi hướng dẫn cách cấp quyền truy cập Page."],
+    ["Tôi có thể thử trước khi trả tiền không?", "Hiện chúng tôi chưa có bài mẫu miễn phí. Bạn có thể gửi câu hỏi qua biểu mẫu bên dưới trước khi thanh toán."],
+    "Có câu hỏi trước khi thanh toán? Hãy gửi, chúng tôi sẽ trả lời qua email. Không bắt buộc: bạn có thể thanh toán ngay ở mục Các gói phía trên.", "Chưa chắc, tôi có câu hỏi"],
+  id: ["Ada pertanyaan dulu? ↓", "Pembayaran lewat Whop, dalam USD. Halaman pembayaran menanyakan beberapa hal tentang bisnis Anda.",
+    ["Jawab beberapa pertanyaan", "Di halaman pembayaran, beri tahu nama bisnis atau Halaman, link Halaman Facebook, serta negara dan bahasa Anda. Setelah itu kami memberi tahu cara memberi akses ke Halaman Anda."],
+    ["Bisakah saya mencoba sebelum membayar?", "Saat ini kami tidak menyediakan contoh gratis. Anda bisa mengirim pertanyaan lewat formulir di bawah sebelum membayar."],
+    "Ada pertanyaan sebelum membayar? Kirim saja, kami akan membalas lewat email. Tidak wajib: Anda bisa langsung membayar di bagian Paket di atas.", "Belum yakin, saya punya pertanyaan"],
+  es: ["¿Tienes una pregunta antes? ↓", "El pago se realiza con Whop, en USD. La página de pago hace algunas preguntas sobre tu negocio.",
+    ["Responde unas preguntas", "En la página de pago, indícanos el nombre de tu negocio o página, el enlace de tu página de Facebook, y tu país e idioma. Después te explicamos cómo darnos acceso a tu página."],
+    ["¿Puedo probar antes de pagar?", "Por ahora no ofrecemos muestras gratis. Puedes enviarnos una pregunta en el formulario de abajo antes de pagar."],
+    "¿Tienes una pregunta antes de pagar? Envíala y te responderemos por correo. Opcional: puedes pagar ya mismo en la sección Planes de arriba.", "No estoy seguro, tengo una pregunta"],
+  fr: ["Une question avant ? ↓", "Paiement via Whop, en USD. La page de paiement pose quelques questions sur votre entreprise.",
+    ["Répondez à quelques questions", "Sur la page de paiement, indiquez le nom de votre entreprise ou Page, le lien de votre Page Facebook, ainsi que votre pays et votre langue. Nous vous expliquons ensuite comment nous donner accès à votre Page."],
+    ["Puis-je essayer avant de payer ?", "Nous ne proposons pas d'essai gratuit pour le moment. Vous pouvez nous poser une question dans le formulaire ci-dessous avant de payer."],
+    "Une question avant de payer ? Envoyez-la et nous répondrons par e-mail. Facultatif : vous pouvez payer tout de suite dans la section Offres ci-dessus.", "Pas sûr, j'ai une question"],
+  ja: ["先に質問がありますか？ ↓", "お支払いはWhopを通じて米ドルで行います。お支払いページでビジネスについていくつか質問があります。",
+    ["いくつかの質問に回答", "お支払いページで、事業名またはページ名、FacebookページのURL、国と言語を入力してください。その後、ページへのアクセス権の付与方法をご案内します。"],
+    ["支払い前に試せますか？", "現在、無料サンプルは提供しておりません。お支払い前に、下のフォームからご質問いただけます。"],
+    "お支払い前にご質問はありますか？ご送信いただければメールでご返信します。任意です。上のプランからすぐにお支払いいただくこともできます。", "未定、質問があります"],
+  ko: ["먼저 질문이 있나요? ↓", "결제는 Whop을 통해 USD로 진행됩니다. 결제 페이지에서 비즈니스에 대한 몇 가지 질문이 있습니다.",
+    ["몇 가지 질문에 답하기", "결제 페이지에서 비즈니스 또는 페이지 이름, Facebook 페이지 링크, 국가와 언어를 알려주세요. 이후 페이지 접근 권한을 주는 방법을 안내해 드립니다."],
+    ["결제 전에 체험해 볼 수 있나요?", "현재는 무료 샘플을 제공하지 않습니다. 결제 전에 아래 양식으로 질문을 보내실 수 있습니다."],
+    "결제 전에 질문이 있나요? 보내주시면 이메일로 답변드립니다. 선택 사항입니다. 위의 요금제에서 바로 결제하셔도 됩니다.", "아직 모르겠어요, 질문이 있어요"],
+  zh: ["先有问题？ ↓", "通过 Whop 以美元支付。付款页面会询问几个关于您业务的问题。",
+    ["回答几个问题", "在付款页面，告诉我们您的业务或主页名称、Facebook 主页链接，以及您的国家和语言。之后我们会告诉您如何授权访问主页。"],
+    ["付款前可以试用吗？", "目前我们不提供免费示例。付款前，您可以通过下方表单向我们提问。"],
+    "付款前有问题？发送给我们，我们会通过邮件回复。可选：您也可以直接在上方“套餐”部分付款。", "不确定，我有问题"]
+};
+for (const [code, p] of Object.entries(PAYFIRST)) {
+  const t = LANGS[code];
+  t.hero[5] = p[0];
+  t.foot[1] = p[1];
+  t.process[2][1] = p[2];
+  t.faq[2][2] = p[3];
+  t.form[2] = p[4];
+  t.form[5][1] = p[5];
+}
+
 const page = (code) => {
   const t = LANGS[code];
   const [kPlans, hPlans, leadPlans, postsFmt, perMonth, payFmt] = t.plans;

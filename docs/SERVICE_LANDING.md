@@ -8,6 +8,30 @@ The pages are generated from one template: edit copy or prices in `scripts/build
 `node scripts/build-service-landings.mjs` and commit the three HTML files. Prices must match the bot knowledge
 (`docs/service-training/README.md`).
 
+## Pay first, then collect information (since 2026-11-21)
+
+Both services (Setup/Managed/Growth and AI Social Content) are now **pay first**: the package/plan buttons are the main
+call to action, and the customer information is collected **inside the Whop checkout** ("Ask questions before checkout",
+set on all 7 products):
+
+| Product group | Questions asked in the Whop checkout |
+|---|---|
+| Setup, Managed, Growth | Business name; Type of business and city; Website or Facebook Page link; Country and language for your chatbot |
+| Social 4/12/30/90 | Business or Facebook Page name; Facebook Page link; Country and the language for your posts |
+
+The lead form on every page is now an optional "ask us a question" form (same endpoint, alert and storage as before).
+Copy changed in `PAYFIRST` in both build scripts: hero buttons ("Choose a package and pay" / "Have a question first?"),
+process step 1/2, payment FAQ, form heading and consent, nav "Contact". The 8 social pages say free sample posts are not
+offered at the moment (decision implied by pay-first, please confirm). Bots (4 tenants): the system prompt got rule 11
+"PAY FIRST" (overrides the older collect-contact-first rules), the main knowledge doc got the new process step 1, payment
+paragraph and trial answer, and the social doc's free-sample lines were replaced. 11 test questions after the change: no
+URLs, right language, no free consultation or sample promised.
+
+Not verified: the checkout screen itself as a buyer sees it (the owner cannot open own checkout in the dashboard
+session; open each product link in a private window once). Not defined: refund policy and delivery time (pay-first
+raises the exposure; the bots still answer "staff will confirm"). Where the answers to the checkout questions appear:
+in the Whop dashboard, on each order (Whop sends no Telegram alert, check Whop or set up a Whop webhook later).
+
 ## Payment: Whop links (current, nothing in old config touched)
 
 Each package card has a button to a plain Whop product page. Products were created on 2026-11-20 in the
