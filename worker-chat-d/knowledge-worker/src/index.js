@@ -20,6 +20,7 @@ import { fetchPaidSetupOrder, handleBGate, handleBGateWebhook, syncEntitlement }
 import { createSetupStore } from "./domain/billing/setupOrders.js";
 import { handleServiceLead, leadAlertTarget, leadAlertText } from "./domain/leads/serviceLeads.js";
 import { pageLanguageHint } from "./domain/chat/pageLanguage.js";
+import { fetchWithTimeout } from "./domain/net/backendFetch.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
 import { assertPublishingDependencies } from "./domain/publishing/dependencyGate.js";
 import { createPocketBaseClient } from "./repositories/pocketbase/client.js";
@@ -513,21 +514,6 @@ async function pingAnythingLLM(env) {
 }
 __name(pingAnythingLLM, "pingAnythingLLM");
 
-async function fetchWithTimeout(resource, options = {}) {
-  const { timeout = 45e3 } = options;
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  const upstreamSignal = options.signal;
-  const signal = upstreamSignal && typeof AbortSignal.any === "function"
-    ? AbortSignal.any([controller.signal, upstreamSignal])
-    : controller.signal;
-  try {
-    return await fetch(resource, { ...options, signal });
-  } finally {
-    clearTimeout(id);
-  }
-}
-__name(fetchWithTimeout, "fetchWithTimeout");
 var _pbToken = null;
 var _loyaltySchemaReady = false;
 var _loyaltySchemaPromise = null;
@@ -1704,7 +1690,7 @@ __name(handleAiVoiceGreeting, "handleAiVoiceGreeting");
 
 async function ensureWorkspaceExists(tenant, env) {
   try {
-    const checkRes = await fetch(
+    const checkRes = await fetchWithTimeout(
       `${env.ANYTHINGLLM_URL}api/v1/workspace/${tenant}`,
       {
         method: "GET",
@@ -7626,6 +7612,17 @@ function formatItemDetailForBot(raw) {
 }
 __name(formatItemDetailForBot, "formatItemDetailForBot");
 
+// Ghi lại lý do thật khi nhà cung cấp AI từ chối (client vẫn chỉ nhận câu lỗi chung).
+// Che API key vì thông báo lỗi 401 của OpenAI có in lại một phần key.
+async function logMarketplaceAiError(step, tenant, model, res) {
+  const detail = (await res.text().catch(() => ""))
+    .replace(/(sk-|Bearer\s+)[A-Za-z0-9._*-]+/g, "$1***")
+    .replace(/\s+/g, " ")
+    .slice(0, 600);
+  console.error(`[Marketplace] AI lỗi ${step} (tenant ${tenant}, model ${model}): HTTP ${res.status} ${detail}`);
+}
+__name(logMarketplaceAiError, "logMarketplaceAiError");
+
 async function handleApiMarketplaceChat(request, env, cors, cfg) {
   const body = await request.json().catch(() => ({}));
   const session = typeof body.session === "string" ? body.session.trim() : "";
@@ -7699,7 +7696,10 @@ async function handleApiMarketplaceChat(request, env, cors, cfg) {
       body: JSON.stringify(chatBody1),
       timeout: 3e4
     });
-    if (!res1.ok) throw new Error("AI provider unavailable");
+    if (!res1.ok) {
+      await logMarketplaceAiError("lượt 1", cfg.tenant, marketplaceChatModel, res1);
+      throw new Error("AI provider unavailable");
+    }
     const data1 = await res1.json();
     const msg1 = data1.choices?.[0]?.message || {};
     const toolCalls = msg1.tool_calls || [];
@@ -7721,7 +7721,10 @@ async function handleApiMarketplaceChat(request, env, cors, cfg) {
         body: JSON.stringify({ model: marketplaceChatModel, messages, max_tokens: 1000 }),
         timeout: 3e4
       });
-      if (!res2.ok) throw new Error("AI provider unavailable");
+      if (!res2.ok) {
+        await logMarketplaceAiError("lượt 2 (sau tool)", cfg.tenant, marketplaceChatModel, res2);
+        throw new Error("AI provider unavailable");
+      }
       const data2 = await res2.json();
       finalReply = data2.choices?.[0]?.message?.content || "Kh\xF4ng t\xECm thấy th\xF4ng tin ph\xF9 hợp.";
     }
