@@ -3,5 +3,11 @@
   Cache-Control: no-cache
 /chat-widget.js
   Cache-Control: no-cache
+# Link của nhân viên chứa mã bí mật: không cho nhúng khung, không gửi referrer, không lập chỉ mục.
+/content-staff*
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex
+  Cache-Control: no-cache
 /assets/*
   Cache-Control: public, max-age=86400

@@ -39,6 +39,7 @@ const SIDEBAR_NAV = [
       { href: 'composer.html',  icon: 'ti-edit',           labelKey: 'nav_composer' },
       { href: 'blog.html',      icon: 'ti-writing',        labelKey: 'nav_blog' },
       { href: 'calendar.html',  icon: 'ti-calendar-event', labelKey: 'nav_calendar' },
+      { href: 'content-library.html', icon: 'ti-archive', labelKey: 'nav_content_library' },
       { href: 'analytics.html', icon: 'ti-chart-bar',      labelKey: 'nav_analytics' },
       { href: 'sm-config.html', icon: 'ti-brand-facebook', labelKey: 'nav_sm_config' },
     ]

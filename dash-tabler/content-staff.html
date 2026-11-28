@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="robots" content="noindex,nofollow"/>
+  <meta name="referrer" content="no-referrer"/>
+  <title>Việc đăng bài — Schools AI</title>
+  <!-- Link của nhân viên chứa mã bí mật sau dấu #: KHÔNG thêm analytics/GTM hay script bên thứ ba vào trang này. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+  <link rel="stylesheet" href="_shared/content-library.css?v=20261127-1"/>
+  <script>const WORKER_URL = "https://apic.schoolsai.work"; // giữ giống _shared/config.js (trang này không nạp PocketBase)</script>
+  <script src="_shared/content-library.js?v=20261127-1"></script>
+</head>
+<body>
+<div class="page">
+  <div class="page-body mt-3">
+    <div class="container-lg">
+      <div class="mb-3">
+        <h2 class="page-title" id="title"></h2>
+        <div class="text-secondary mt-1" id="subtitle"></div>
+      </div>
+      <div id="problem" class="alert alert-danger d-none" role="alert"></div>
+      <div id="board"></div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const L = ContentLib.lang === 'vi'
+    ? { title: 'Việc cần đăng', hello: (n, w) => `Chào ${n} · workspace ${w}. Sao chép nội dung, tự đăng lên nền tảng, tích "Đã đăng thủ công", dán link rồi bấm Hoàn thành.`, bad: 'Link không hợp lệ hoặc đã bị thu hồi. Hãy xin chủ workspace một link mới.', loading: 'Đang tải…', refresh: 'Tải lại' }
+    : { title: 'Posts to publish', hello: (n, w) => `Hi ${n} · workspace ${w}. Copy the text, publish it yourself, tick "Posted manually", paste the link and mark it completed.`, bad: 'This link is invalid or has been revoked. Ask the workspace owner for a new one.', loading: 'Loading…', refresh: 'Reload' };
+  const token = decodeURIComponent(location.hash.slice(1));
+  const auth = `Bearer ${token}`;
+  const problem = document.getElementById('problem');
+  const subtitle = document.getElementById('subtitle');
+  document.documentElement.lang = ContentLib.lang;
+  document.title = `${L.title} — Schools AI`;
+  document.getElementById('title').textContent = L.title;
+  subtitle.textContent = L.loading;
+
+  const board = ContentLib.createBoard({
+    root: document.getElementById('board'), tabs: ['todo', 'sent'], mode: 'staff',
+    canEdit: () => true, canReview: () => false, reload: () => load(),
+    act: async (taskId, body) => (await ContentLib.api(WORKER_URL, `/api/content-staff/tasks/${encodeURIComponent(taskId)}`, { method: 'POST', body, auth })).task,
+    onItem: () => {},
+  });
+
+  let busy = false;
+  async function load() {
+    if (busy) return;
+    busy = true;
+    try {
+      const data = await ContentLib.api(WORKER_URL, '/api/content-staff', { auth });
+      problem.classList.add('d-none');
+      subtitle.textContent = L.hello(data.staff.name, data.staff.workspace);
+      board.setItems(data.items);
+    } catch (err) {
+      subtitle.textContent = '';
+      problem.textContent = err.status === 401 ? L.bad : err.message;
+      problem.classList.remove('d-none');
+      if (err.status === 401) board.setItems([]);
+    } finally { busy = false; }
+  }
+  if (token) load(); else { subtitle.textContent = ''; problem.textContent = L.bad; problem.classList.remove('d-none'); }
+  // Quay lại tab sau khi đăng bài ở nền tảng khác: lấy việc mới, các ô đang gõ vẫn giữ nguyên.
+  document.addEventListener('visibilitychange', () => { if (token && !document.hidden) load(); });
+  window.addEventListener('hashchange', () => location.reload());
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Kho nội dung — AI Admin</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+  <link rel="stylesheet" href="_shared/content-library.css?v=20261127-1"/>
+
+  <script src="https://unpkg.com/pocketbase@0.21.3/dist/pocketbase.umd.js"></script>
+  <script src="_shared/config.js"></script>
+  <script src="_shared/auth.js"></script>
+  <script src="_shared/ui.js"></script>
+  <script src="_shared/i18n.js?v=20261127-1"></script>
+  <script src="_shared/sidebar.js?v=20261127-1"></script>
+  <script src="_shared/content-library.js?v=20261127-1"></script>
+
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    :root { --tblr-font-sans-serif: 'Inter', sans-serif; }
+    body { font-family: var(--tblr-font-sans-serif); }
+    #login-modal { position:fixed;inset:0;z-index:1055;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.7);backdrop-filter:blur(8px); }
+    #login-modal.hidden { display:none!important; }
+  </style>
+  <script src="/_shared/consent.js"></script>
+</head>
+<body class="layout-fluid">
+
+<div id="login-modal" class="hidden">
+  <div class="card shadow-lg" style="width:100%;max-width:400px;border-radius:1rem;">
+    <div class="card-body text-center py-5">
+      <h2 class="h2 mb-3">AI Admin</h2>
+      <div class="mb-3 text-start"><label class="form-label">Email</label><input type="text" id="login-email" class="form-control"/></div>
+      <div class="mb-4 text-start"><label class="form-label">Mật khẩu</label><input type="password" id="login-password" class="form-control"/></div>
+      <div id="login-error" class="alert alert-danger d-none text-start p-2 mb-3"></div>
+      <button class="btn btn-primary w-100" onclick="doLogin()">Đăng nhập</button>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+  <div id="sidebar-placeholder"></div>
+  <div class="page-wrapper" data-no-i18n>
+    <div class="page-body mt-3">
+      <div class="container-xl">
+        <div class="row align-items-center g-2 mb-3">
+          <div class="col-md">
+            <h2 class="page-title" data-t="title"></h2>
+            <div class="text-secondary mt-1" data-t="subtitle"></div>
+          </div>
+          <div class="col-md-auto d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-secondary" onclick="load()"><i class="ti ti-refresh me-1"></i><span data-t="refresh"></span></button>
+            <button class="btn btn-outline-secondary" onclick="openModal('api-modal')"><i class="ti ti-api me-1"></i><span data-t="agent_api"></span></button>
+            <button class="btn btn-outline-primary d-none" id="staff-btn" onclick="openStaff()"><i class="ti ti-users me-1"></i><span data-t="staff"></span></button>
+            <button class="btn btn-primary d-none" id="new-btn" onclick="openItem()"><i class="ti ti-plus me-1"></i><span data-t="new_item"></span></button>
+          </div>
+        </div>
+        <div id="problem" class="alert alert-danger d-none" role="alert"></div>
+        <div id="board"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Thêm / sửa nội dung -->
+<div class="modal modal-blur fade" data-no-i18n id="item-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable"><form class="modal-content" id="item-form" novalidate>
+    <div class="modal-header"><h5 class="modal-title" id="item-modal-title"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="mb-3"><label class="form-label required" for="f-title" data-t="f_title"></label><input id="f-title" class="form-control" maxlength="200"></div>
+      <div class="mb-3"><label class="form-label" for="f-content" data-t="f_content"></label><textarea id="f-content" class="form-control" rows="7" maxlength="20000"></textarea></div>
+      <div class="mb-3"><label class="form-label" for="f-file" data-t="f_media"></label>
+        <input id="f-file" type="file" class="form-control" accept="image/*,video/mp4,video/webm,video/quicktime" multiple>
+        <textarea id="f-media" class="form-control mt-2" rows="2" data-tp="f_media_urls"></textarea></div>
+      <div class="mb-3" id="f-platforms-wrap"><label class="form-label required" data-t="f_platforms"></label><div id="f-platforms" class="row g-2"></div></div>
+      <div class="row g-3">
+        <div class="col-md-8"><label class="form-label" for="f-note" data-t="f_note"></label><input id="f-note" class="form-control" maxlength="2000"></div>
+        <div class="col-md-4"><label class="form-label" for="f-due" data-t="f_due"></label><input id="f-due" type="datetime-local" class="form-control"></div>
+      </div>
+      <div id="item-error" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal" data-t="cancel"></button><button type="submit" class="btn btn-primary" id="item-save" data-t="save"></button></div>
+  </form></div>
+</div>
+
+<!-- Thêm nơi đăng -->
+<div class="modal modal-blur fade" data-no-i18n id="target-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="target-form">
+    <div class="modal-header"><h5 class="modal-title" data-t="add_target"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="mb-3"><label class="form-label" for="t-platform" data-t="platform"></label><select id="t-platform" class="form-select"></select></div>
+      <div><label class="form-label" for="t-target" data-t="target"></label><input id="t-target" class="form-control" maxlength="300" data-tp="target_ph"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal" data-t="cancel"></button><button type="submit" class="btn btn-primary" data-t="add"></button></div>
+  </form></div>
+</div>
+
+<!-- Link nhân viên -->
+<div class="modal modal-blur fade" data-no-i18n id="staff-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" data-t="staff"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <p class="text-secondary" data-t="staff_help"></p>
+      <form class="input-group mb-3" id="staff-form"><input id="s-name" class="form-control" maxlength="60" data-tp="staff_name"><button class="btn btn-primary" type="submit" data-t="staff_create"></button></form>
+      <div id="staff-link" class="alert alert-success d-none">
+        <div class="mb-2"><b id="staff-link-name"></b> — <span data-t="staff_once"></span></div>
+        <div class="input-group"><input id="staff-link-url" class="form-control font-monospace" readonly><button type="button" class="btn btn-success" onclick="ContentLib.copyText(document.getElementById('staff-link-url').value)"><i class="ti ti-copy"></i></button></div>
+      </div>
+      <div id="staff-list" class="list-group list-group-flush"></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- API cho agent -->
+<div class="modal modal-blur fade" data-no-i18n id="api-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" data-t="agent_api"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <p class="text-secondary" data-t="api_help"></p>
+      <pre id="api-sample" class="mb-2"></pre>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="ContentLib.copyText(document.getElementById('api-sample').textContent)"><i class="ti ti-copy me-1"></i><span data-t="copy_sample"></span></button>
+      <a class="btn btn-sm btn-link" href="config.html" data-t="get_key"></a>
+    </div>
+  </div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+const T = ContentLib.lang === 'vi' ? {
+  title: 'Kho nội dung', subtitle: 'Agent hoặc nhân viên lưu bài ở đây. Nền tảng chưa tự đăng được thì đăng tay, dán link, chủ vào kiểm tra.',
+  refresh: 'Tải lại', agent_api: 'API cho agent', staff: 'Nhân viên', new_item: 'Thêm nội dung', edit_item: 'Sửa nội dung',
+  f_title: 'Tiêu đề', f_content: 'Nội dung bài đăng', f_media: 'Ảnh / video', f_media_urls: 'Hoặc dán link https của ảnh/video, mỗi dòng một link',
+  f_platforms: 'Cần đăng ở đâu', f_note: 'Hướng dẫn cho người đăng', f_due: 'Hạn đăng', cancel: 'Huỷ', save: 'Lưu', add: 'Thêm', saving: 'Đang lưu…', uploading: 'Đang tải file lên…',
+  add_target: 'Thêm nơi đăng', platform: 'Nền tảng', target: 'Nơi đăng cụ thể', target_ph: 'Tên hoặc link Page / group / tài khoản (không bắt buộc)',
+  staff_help: 'Mỗi nhân viên có một link riêng, mở là làm được, không cần tài khoản. Qua link đó họ chỉ xem được việc cần đăng, đánh dấu đã đăng và dán link; không duyệt, không sửa, không vào được phần khác. Ai có link đều dùng được, nên chỉ gửi cho đúng người và thu hồi khi không dùng nữa.',
+  staff_name: 'Tên nhân viên', staff_create: 'Tạo link', staff_once: 'link chỉ hiện một lần, hãy sao chép và gửi ngay.', staff_none: 'Chưa có link nhân viên nào.',
+  last_used: 'Dùng gần nhất', never: 'chưa dùng', revoke: 'Thu hồi', revoke_confirm: 'Bấm lần nữa để thu hồi',
+  api_help: 'Agent dùng API key của workspace (Cài đặt Bot) để lưu bài vào kho, rồi đọc lại trạng thái và link đã đăng. Gửi lại cùng external_id không tạo bài trùng. Agent không duyệt được.',
+  copy_sample: 'Sao chép mẫu', get_key: 'Lấy API key', viewer: 'Bạn chỉ có quyền xem workspace này.',
+} : {
+  title: 'Content library', subtitle: 'Agents or staff save posts here. When a platform cannot be posted automatically, publish by hand, paste the link, and the owner checks it.',
+  refresh: 'Reload', agent_api: 'Agent API', staff: 'Staff', new_item: 'Add content', edit_item: 'Edit content',
+  f_title: 'Title', f_content: 'Post text', f_media: 'Images / videos', f_media_urls: 'Or paste https links to images/videos, one per line',
+  f_platforms: 'Where to publish', f_note: 'Instructions for the publisher', f_due: 'Due', cancel: 'Cancel', save: 'Save', add: 'Add', saving: 'Saving…', uploading: 'Uploading files…',
+  add_target: 'Add destination', platform: 'Platform', target: 'Destination', target_ph: 'Name or link of the Page / group / account (optional)',
+  staff_help: 'Each staff member gets a private link and needs no account. Through it they only see posts to publish, mark them posted and paste the link; they cannot approve, edit or open anything else. Anyone holding the link can use it, so send it to the right person and revoke it when no longer needed.',
+  staff_name: 'Staff name', staff_create: 'Create link', staff_once: 'the link is shown only once, copy and send it now.', staff_none: 'No staff links yet.',
+  last_used: 'Last used', never: 'never', revoke: 'Revoke', revoke_confirm: 'Click again to revoke',
+  api_help: 'Agents use the workspace API key (Bot settings) to save posts, then read back statuses and posted links. Sending the same external_id again creates no duplicate. Agents cannot approve.',
+  copy_sample: 'Copy sample', get_key: 'Get API key', viewer: 'You can only view this workspace.',
+};
+document.title = `${T.title} — AI Admin`;
+document.documentElement.dataset.titleVi = document.title;
+window.addEventListener('languagechange', (event) => { if (event.detail?.lang) location.reload(); });
+document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = T[el.dataset.t]; });
+document.querySelectorAll('[data-tp]').forEach((el) => { el.placeholder = T[el.dataset.tp]; el.setAttribute('aria-label', T[el.dataset.tp]); });
+
+const $ = (id) => document.getElementById(id);
+const esc = ContentLib.esc;
+let role = '', platforms = [], editing = '', targetItem = '', armedStaff = '', staffRows = [];
+
+const modalFor = (id) => bootstrap.Modal.getOrCreateInstance($(id));
+const openModal = (id) => modalFor(id).show();
+const library = (path = '', init = {}) => {
+  const [route, query] = path.split('?');
+  return ContentLib.api(WORKER_URL, `/api/account/content-library${route}?tenant=${encodeURIComponent(window.TENANT)}${query ? `&${query}` : ''}`, { ...init, auth: PB.authStore.token });
+};
+const canEdit = () => ['owner', 'admin', 'editor'].includes(role);
+const canReview = () => ['owner', 'admin'].includes(role);
+
+const board = ContentLib.createBoard({
+  root: $('board'), tabs: ['todo', 'done', 'approved', 'all'], mode: 'owner', canEdit, canReview, reload: () => load(),
+  act: async (taskId, body) => (await library(`/tasks/${encodeURIComponent(taskId)}`, { method: 'POST', body })).task,
+  onItem: async (action, itemId, taskId) => {
+    if (action === 'edit') return openItem(board.item(itemId));
+    if (action === 'add-task') { targetItem = itemId; $('t-target').value = ''; return openModal('target-modal'); }
+    try {
+      if (action === 'delete') await library(`/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+      if (action === 'remove-task') await library(`/tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+      await load();
+    } catch (err) { ContentLib.toast(err.message, true); }
+  },
+});
+
+async function load() {
+  try {
+    const data = await library();
+    role = data.role; platforms = data.platforms;
+    $('new-btn').classList.toggle('d-none', !canEdit());
+    $('staff-btn').classList.toggle('d-none', !canReview());
+    $('problem').classList.toggle('d-none', role !== 'viewer');
+    if (role === 'viewer') $('problem').textContent = T.viewer;
+    board.setItems(data.items);
+  } catch (err) {
+    $('problem').textContent = err.message;
+    $('problem').classList.remove('d-none');
+  }
+}
+
+const platformOptions = () => platforms.map((p) => `<option value="${esc(p)}">${esc(ContentLib.platformName(p))}</option>`).join('');
+const pad = (n) => String(n).padStart(2, '0');
+const localInput = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+function openItem(item) {
+  editing = item?.id || '';
+  $('item-form').reset();
+  $('item-modal-title').textContent = editing ? T.edit_item : T.new_item;
+  $('item-error').classList.add('d-none');
+  $('f-title').value = item?.title || '';
+  $('f-content').value = item?.content || '';
+  $('f-media').value = (item?.media || []).map((m) => m.url).join('\n');
+  $('f-note').value = item?.note || '';
+  $('f-due').value = localInput(item?.due_at);
+  // Nơi đăng chọn khi tạo; sau đó thêm/bỏ từng nơi ngay trên thẻ nội dung.
+  $('f-platforms-wrap').classList.toggle('d-none', Boolean(editing));
+  $('f-platforms').innerHTML = platforms.map((p) => `<div class="col-md-6">
+    <label class="form-check mb-1"><input class="form-check-input" type="checkbox" value="${esc(p)}"><span class="form-check-label">${esc(ContentLib.platformName(p))}</span></label>
+    <input class="form-control form-control-sm d-none" maxlength="300" data-target="${esc(p)}" placeholder="${esc(T.target_ph)}" aria-label="${esc(`${T.target}: ${ContentLib.platformName(p)}`)}"></div>`).join('');
+  openModal('item-modal');
+}
+$('f-platforms').addEventListener('change', (event) => {
+  if (event.target.type === 'checkbox') $('f-platforms').querySelector(`[data-target="${event.target.value}"]`).classList.toggle('d-none', !event.target.checked);
+});
+
+async function uploadFile(file) {
+  const form = new FormData();
+  form.append('tenant', window.TENANT);
+  form.append('file', file);
+  const response = await fetch(`${WORKER_URL}/api/account/media`, { method: 'POST', headers: { Authorization: PB.authStore.token }, body: form });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`${file.name}: ${data.error?.message || data.error || `HTTP ${response.status}`}`);
+  return { url: data.media.url, type: data.media.type };
+}
+
+$('item-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = $('item-save');
+  const error = $('item-error');
+  error.classList.add('d-none');
+  button.disabled = true;
+  try {
+    const media = $('f-media').value.split('\n').map((url) => url.trim()).filter(Boolean).map((url) => ({ url }));
+    const files = [...$('f-file').files];
+    if (files.length) button.textContent = T.uploading;
+    for (const file of files) media.push(await uploadFile(file));
+    // Giữ link đã tải lên trong ô để lần bấm Lưu sau (nếu lỗi) không tải lại.
+    $('f-media').value = media.map((m) => m.url).join('\n');
+    $('f-file').value = '';
+    button.textContent = T.saving;
+    const body = {
+      title: $('f-title').value, content: $('f-content').value, media, note: $('f-note').value,
+      due_at: $('f-due').value ? new Date($('f-due').value).toISOString() : '',
+    };
+    if (!editing) body.platforms = [...$('f-platforms').querySelectorAll('input[type=checkbox]:checked')]
+      .map((box) => ({ platform: box.value, target: $('f-platforms').querySelector(`[data-target="${box.value}"]`).value }));
+    await library(editing ? `/items/${encodeURIComponent(editing)}` : '', { method: editing ? 'PATCH' : 'POST', body });
+    modalFor('item-modal').hide();
+    ContentLib.toast(ContentLib.tr('saved'));
+    await load();
+  } catch (err) {
+    error.textContent = err.message;
+    error.classList.remove('d-none');
+    error.scrollIntoView({ block: 'nearest' });
+  } finally {
+    button.disabled = false;
+    button.textContent = T.save;
+  }
+});
+
+$('target-modal').addEventListener('show.bs.modal', () => { $('t-platform').innerHTML = platformOptions(); });
+$('target-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await library(`/items/${encodeURIComponent(targetItem)}/tasks`, { method: 'POST', body: { platform: $('t-platform').value, target: $('t-target').value } });
+    modalFor('target-modal').hide();
+    await load();
+  } catch (err) { ContentLib.toast(err.message, true); }
+});
+
+function renderStaff() {
+  $('staff-list').innerHTML = staffRows.length ? staffRows.map((s) => `<div class="list-group-item d-flex align-items-center gap-2">
+      <div class="me-auto"><b>${esc(s.name)}</b><div class="text-secondary small">${esc(T.last_used)}: ${s.last_used_at ? esc(new Date(s.last_used_at).toLocaleString()) : esc(T.never)}</div></div>
+      <button type="button" class="btn btn-sm ${armedStaff === s.id ? 'btn-danger' : 'btn-outline-danger'}" data-revoke="${esc(s.id)}">${esc(armedStaff === s.id ? T.revoke_confirm : T.revoke)}</button></div>`).join('')
+    : `<div class="text-secondary">${esc(T.staff_none)}</div>`;
+}
+async function loadStaff() {
+  try { staffRows = (await library('/staff')).staff; renderStaff(); } catch (err) { ContentLib.toast(err.message, true); }
+}
+function openStaff() {
+  armedStaff = '';
+  $('staff-link').classList.add('d-none');
+  $('staff-link-url').value = '';
+  openModal('staff-modal');
+  loadStaff();
+}
+$('staff-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  if (button) button.disabled = true;
+  try {
+    const { staff, token } = await library('/staff', { method: 'POST', body: { name: $('s-name').value } });
+    const url = new URL('content-staff.html', location.href);
+    url.hash = token;
+    $('staff-link-name').textContent = staff.name;
+    $('staff-link-url').value = url.href;
+    $('staff-link').classList.remove('d-none');
+    $('s-name').value = '';
+    await loadStaff();
+  } catch (err) { ContentLib.toast(err.message, true); }
+  finally { if (button) button.disabled = false; }
+});
+$('staff-list').addEventListener('click', async (event) => {
+  const id = event.target.closest('[data-revoke]')?.dataset.revoke;
+  if (!id) return;
+  if (armedStaff !== id) { armedStaff = id; return renderStaff(); }
+  armedStaff = '';
+  try { await library(`/staff/${encodeURIComponent(id)}`, { method: 'DELETE' }); $('staff-link').classList.add('d-none'); await loadStaff(); }
+  catch (err) { ContentLib.toast(err.message, true); }
+});
+
+$('api-sample').textContent = `# 1) (tuỳ chọn) tải file lên, lấy media.url
+curl -X POST ${WORKER_URL}/api/v1/content-library/media \\
+  -H "Authorization: Bearer $API_KEY" -F "file=@anh.png;type=image/png"
+
+# 2) lưu bài vào kho
+curl -X POST ${WORKER_URL}/api/v1/content-library \\
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \\
+  -d '{"agent":"writer","external_id":"2026-11-27-01","title":"Bài tối thứ Sáu",
+       "content":"Nội dung bài…","media":[{"url":"https://…/anh.png"}],
+       "platforms":[{"platform":"facebook_group","target":"https://facebook.com/groups/…"},{"platform":"threads"}]}'
+
+# 3) xem bài chờ chủ kiểm tra (todo | done | approved | redo)
+curl "${WORKER_URL}/api/v1/content-library?status=redo" -H "Authorization: Bearer $API_KEY"
+
+# 4) agent tự đăng được thì báo link
+curl -X POST ${WORKER_URL}/api/v1/content-library/tasks/TASK_ID \\
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \\
+  -d '{"action":"done","post_url":"https://…"}'`;
+
+(async () => {
+  await requireAuth();
+  const user = window.AUTH_USER;
+  if (!user || !window.TENANT) return;
+  $('login-modal').classList.add('hidden');
+  renderSidebar(user);
+  await load();
+})();
+document.addEventListener('visibilitychange', () => { if (window.TENANT && !document.hidden) load(); });
+
+async function doLogin() {
+  try {
+    await PB.collection('tenants').authWithPassword($('login-email').value.trim(), $('login-password').value);
+    location.reload();
+  } catch (e) { const b = $('login-error'); b.textContent = e.message || 'Sai tài khoản hoặc mật khẩu'; b.classList.remove('d-none'); }
+}
+</script>
+</body>
+</html>

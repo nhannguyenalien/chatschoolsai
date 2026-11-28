@@ -93,6 +93,10 @@ Cổng dành cho khách của bạn (đăng nhập bằng cổng khách), giúp 
 
 Thanh bên dưới cùng: đổi **ngôn ngữ**, đăng xuất. Đổi workspace bằng danh sách "Workspace đang dùng" ở đầu thanh bên.
 
+### Kho nội dung
+
+Mạng xã hội → **Kho nội dung**: agent hoặc bạn lưu bài (chữ, ảnh, video) kèm nơi cần đăng. Người đăng sao chép nội dung, tự đăng, tích **Đã đăng thủ công**, dán link rồi bấm **Hoàn thành**. Chủ workspace mở tab **Chờ kiểm tra** để **Duyệt** hoặc **Yêu cầu làm lại**. Nút **Nhân viên** tạo link riêng cho nhân viên, không cần tài khoản.
+
 ## 5. Kênh kết nối
 
 | Kênh | Cách dùng |

@@ -64,6 +64,9 @@ import { API_DOCS_HTML } from "./docs.js";
 import { CONTENT_PLANNING_COLLECTIONS, CONTENT_PLANNING_COLLECTION_EXTENSIONS } from "../../../scripts/pb-content-planning-schema.mjs";
 import { LOYALTY_COLLECTIONS } from "../../../scripts/pb-loyalty-schema.mjs";
 import { BOOKING_COLLECTIONS } from "../../../scripts/pb-booking-schema.mjs";
+import { CONTENT_LIBRARY_COLLECTIONS } from "../../../scripts/pb-content-library-schema.mjs";
+import { handleAccountContentLibrary, handleAgentContentLibrary, handleStaffContentLibrary } from "./api/contentLibrary.js";
+import { resolveStaff } from "./workflows/contentLibrary.js";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -386,6 +389,13 @@ var index_default = {
       }
       if (url.pathname === "/api/account/pages-config" && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
         return await handleAccountPagesConfig(request, env2, cors, url);
+      }
+      const accountLibraryMatch = url.pathname.match(/^\/api\/account\/content-library(\/[A-Za-z0-9\/]*)?$/);
+      if (accountLibraryMatch) return await routeAccountContentLibrary(request, env2, cors, url, accountLibraryMatch[1] || "");
+      const staffLibraryMatch = url.pathname.match(/^\/api\/content-staff(\/[A-Za-z0-9\/]*)?$/);
+      if (staffLibraryMatch) {
+        const limited = enforceRateLimit(request, "content-staff", 60);
+        return limited || await routeStaffContentLibrary(request, env2, cors, staffLibraryMatch[1] || "");
       }
       const accountDataMatch = url.pathname.match(/^\/api\/account\/data\/([a-z_]+)(?:\/([A-Za-z0-9]{1,40}))?$/);
       if (accountDataMatch && ["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
@@ -9088,6 +9098,78 @@ async function ensureLoyaltySchema(env, pbToken) {
 }
 __name(ensureLoyaltySchema, "ensureLoyaltySchema");
 
+// ================= [KHO NỘI DUNG: agent lưu bài, nhân viên đăng thủ công, chủ kiểm tra] =================
+var _contentLibrarySchemaPromise = null;
+// Trả về null nếu chưa tạo được collection (PocketBase lỗi) — lần gọi sau thử lại.
+async function contentLibraryClient(env, pbToken) {
+  _contentLibrarySchemaPromise ||= syncCollections(env, pbToken, CONTENT_LIBRARY_COLLECTIONS);
+  try {
+    await _contentLibrarySchemaPromise;
+  } catch (err) {
+    _contentLibrarySchemaPromise = null;
+    console.error("[ContentLibrary] Không chuẩn bị được collection:", err);
+    return null;
+  }
+  return createPocketBaseClient({ baseUrl: env.PB_URL, token: pbToken, fetchImpl: fetchWithTimeout });
+}
+__name(contentLibraryClient, "contentLibraryClient");
+
+async function routeAccountContentLibrary(request, env, cors, url, path) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const tenant = String(url.searchParams.get("tenant") || "");
+  const access = await resolveMediaTenantAccess(request, env, tenant);
+  if (access.error) return json({ error: access.error }, access.status);
+  // Tài khoản gốc của workspace là chủ; workspace khác lấy vai trò từ tenant_memberships.
+  let role = "owner";
+  if (tenant !== access.account.tenant) {
+    const filter = `account='${escFilterValue(access.account.id)}' && tenant='${escFilterValue(tenant)}' && status='active'`;
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/tenant_memberships/records?perPage=1&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: access.token } });
+    if (!res.ok) return json({ error: "Membership unavailable" }, 503);
+    role = (await res.json()).items?.[0]?.role || "viewer";
+  }
+  const client = await contentLibraryClient(env, access.token);
+  if (!client) return json({ error: "Kho nội dung chưa sẵn sàng." }, 503);
+  const actor = { role, id: `account:${access.account.id}`, name: String(access.account.name || access.account.email || "Chủ workspace").slice(0, 60) };
+  return await handleAccountContentLibrary(request, path, cors, { client, tenant, actor });
+}
+__name(routeAccountContentLibrary, "routeAccountContentLibrary");
+
+async function routeStaffContentLibrary(request, env, cors, path) {
+  const json = (data, status = 200) => Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
+  const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return json({ error: "Link không hợp lệ.", code: "BAD_LINK" }, 401);
+  const client = await contentLibraryClient(env, await getPbToken(env));
+  if (!client) return json({ error: "Kho nội dung chưa sẵn sàng." }, 503);
+  let staff;
+  try {
+    staff = await resolveStaff(client, token);
+  } catch (err) {
+    console.error("[ContentLibrary] Không kiểm tra được link nhân viên:", err);
+    return json({ error: "Kho nội dung tạm thời không truy cập được." }, 503);
+  }
+  if (!staff) return json({ error: "Link không hợp lệ hoặc đã bị thu hồi.", code: "BAD_LINK" }, 401);
+  return await handleStaffContentLibrary(request, path, cors, { client, staff });
+}
+__name(routeStaffContentLibrary, "routeStaffContentLibrary");
+
+// Agent tải file ảnh/video lên rồi dùng url trả về trong media[] của nội dung.
+async function handleApiContentLibraryMedia(request, env, cors, cfg, pbToken) {
+  let form;
+  try { form = await request.formData(); } catch { return Response.json({ error: "Invalid form data" }, { status: 400, headers: cors }); }
+  const file = form.get("file");
+  if (!file || typeof file === "string") return Response.json({ error: "Thiếu file" }, { status: 400, headers: cors });
+  try {
+    const stored = await storeTenantMedia(env, pbToken, cfg.tenant, {
+      bytes: new Uint8Array(await file.arrayBuffer()), contentType: file.type,
+      label: String(form.get("label") || file.name || ""), source: "upload"
+    });
+    return Response.json({ success: true, media: stored }, { status: 201, headers: cors });
+  } catch (err) {
+    return mediaErrorResponse(err, cors);
+  }
+}
+__name(handleApiContentLibraryMedia, "handleApiContentLibraryMedia");
+
 // ================= [ĐẶT LỊCH: setup theo mẫu ngành + lịch ICS] =================
 async function bookingFeedUrl(env, origin, tenant) {
   return `${origin}/api/v1/booking/calendar.ics?tenant=${encodeURIComponent(tenant)}&token=${await feedToken(tenant, env.ADMIN_SECRET)}`;
@@ -9309,6 +9391,13 @@ async function handleApiV1(request, url, env, cors, ctx) {
     }
   }
 
+  if (url.pathname === "/api/v1/content-library/media" && request.method === "POST") return await handleApiContentLibraryMedia(request, env, cors, cfg, pbToken);
+  const agentLibraryMatch = url.pathname.match(/^\/api\/v1\/content-library(\/[A-Za-z0-9\/]*)?$/);
+  if (agentLibraryMatch) {
+    const client = await contentLibraryClient(env, pbToken);
+    if (!client) return Response.json({ error: "Kho nội dung chưa sẵn sàng." }, { status: 503, headers: cors });
+    return await handleAgentContentLibrary(request, agentLibraryMatch[1] || "", url, cors, { client, tenant: cfg.tenant });
+  }
   if (url.pathname === "/api/v1/posts" && request.method === "GET") return await handleApiListPosts(request, env, cors, cfg);
   if (url.pathname === "/api/v1/posts" && request.method === "POST") return await handleApiCreatePost(request, env, cors, cfg, ctx);
   if (url.pathname === "/api/v1/bots" && request.method === "POST") return await handleApiCreateBot(request, env, cors, cfg);

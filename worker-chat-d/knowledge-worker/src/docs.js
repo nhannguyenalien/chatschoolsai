@@ -430,6 +430,7 @@ export const API_DOCS_HTML = String.raw`
     <div class="group-title" data-i18n="nav_g_loyalty">Loyalty &amp; Content Planning</div>
     <li><a href="#loyalty"><span class="m badge GET">···</span> /loyalty/*</a></li>
     <li><a href="#content-planning"><span class="m badge GET">···</span> /content-planning/*</a></li>
+    <li><a href="#content-library"><span class="m badge GET">···</span> /content-library</a></li>
 
     <div class="group-title" data-i18n="nav_g_other">Khác</div>
     <li><a href="#errors" data-i18n="nav_errors">Mã lỗi chung</a></li>
@@ -1089,6 +1090,20 @@ export const API_DOCS_HTML = String.raw`
       <tr><td><span class="badge POST">POST</span></td><td class="name">/content-planning/items/:id/reject</td></tr>
     </table>
     <p class="note" data-i18n-html="sec_cp_note">Nhóm này chủ yếu phục vụ dashboard nội bộ (composer.html) — hệ thống ngoài thường chỉ cần nhóm "Chat &amp; khách hàng" và "Loyalty" ở trên. Chưa có nút "Thử API" cho nhóm này.</p>
+  </section>
+
+  <!-- ===================== CONTENT LIBRARY ===================== -->
+  <section class="resource" id="content-library">
+    <h2>Kho nội dung <span class="mono" style="font-weight:400;color:var(--fg-muted);font-size:0.8em;">/api/v1/content-library</span></h2>
+    <p class="desc">Agent lưu bài vào kho; nhân viên đăng thủ công (hoặc agent tự đăng) rồi gửi link; chủ duyệt trên dashboard. API key không duyệt được bài.</p>
+    <table class="field-table">
+      <tr><th>Method</th><th>Path</th><th>Dùng để</th></tr>
+      <tr><td><span class="badge POST">POST</span></td><td class="name">/content-library</td><td><code>title</code>, <code>content</code> và/hoặc <code>media[{url}]</code> (https), <code>platforms[{platform,target}]</code>; tuỳ chọn <code>agent</code>, <code>note</code>, <code>due_at</code>, <code>external_id</code> (gửi lại không tạo trùng)</td></tr>
+      <tr><td><span class="badge GET">GET</span></td><td class="name">/content-library?status=todo|done|approved|redo</td><td>đọc nội dung, trạng thái, link đã đăng, lý do bị trả lại</td></tr>
+      <tr><td><span class="badge POST">POST</span></td><td class="name">/content-library/media</td><td>multipart field <code>file</code> (ảnh tối đa 15 MB, video tối đa 200 MB, còn tuỳ giới hạn request của máy chủ) → <code>media.url</code></td></tr>
+      <tr><td><span class="badge POST">POST</span></td><td class="name">/content-library/tasks/:id</td><td><code>{"action":"done","post_url":"https://…"}</code> hoặc <code>{"action":"undo"}</code> (chỉ việc do agent đánh dấu)</td></tr>
+    </table>
+    <p class="note">platform: <code>facebook_page, facebook_group, instagram, threads, linkedin, pinterest, tiktok, youtube, x, zalo, website, other</code>.</p>
   </section>
 
   <section id="errors" class="resource">
