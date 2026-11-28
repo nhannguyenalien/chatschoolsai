@@ -19,6 +19,7 @@ import { COST_TABLE, costKindForPath, docEmbedUnits, voiceUnits } from "./domain
 import { fetchPaidSetupOrder, handleBGate, handleBGateWebhook, syncEntitlement } from "./domain/billing/bgate.js";
 import { createSetupStore } from "./domain/billing/setupOrders.js";
 import { handleServiceLead, leadAlertTarget, leadAlertText } from "./domain/leads/serviceLeads.js";
+import { handleOwnerAlert } from "./domain/leads/ownerAlerts.js";
 import { pageLanguageHint } from "./domain/chat/pageLanguage.js";
 import { fetchWithTimeout } from "./domain/net/backendFetch.js";
 import { createContentPlanningApi } from "./api/contentPlanning.js";
@@ -1188,6 +1189,35 @@ async function notifyBookingOwner(env, pbToken, tenant, text) {
   if (accountId) await saveMasterMessage(env, pbToken, { id: accountId }, "assistant", text);
 }
 __name(notifyBookingOwner, "notifyBookingOwner");
+
+// Website của tenant gọi vào khi có khách gửi form: báo Telegram của chủ, không gửi được thì ghi vào AI Agent tổng.
+async function handleApiOwnerAlert(request, env, cors, cfg, pbToken) {
+  const limited = enforceRateLimit(request, `owner-alert:${cfg.tenant}`, 30);
+  if (limited) return limited;
+  const get = async (collection, filter, fields) => {
+    const res = await fetchWithTimeout(`${env.PB_URL}/api/collections/${collection}/records?perPage=1&fields=${fields}&filter=${encodeURIComponent(filter)}`, { headers: { Authorization: pbToken } });
+    return res.ok ? (await res.json()).items?.[0] : null;
+  };
+  return await handleOwnerAlert(request, cors, cfg.tenant, {
+    chatId: async () => cfg.owner_telegram_chat_id,
+    // sendTelegramMessage bỏ qua phản hồi lỗi; ở đây cần biết Telegram có nhận không để còn chuyển hướng.
+    sendTelegram: async (chatId, text) => {
+      if (!env.TELEGRAM_BOT_TOKEN) return false;
+      const res = await fetchWithTimeout(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }), timeout: 8e3 });
+      if (!res.ok) console.error("[OwnerAlert] Telegram trả về", res.status);
+      return res.ok;
+    },
+    saveToDashboard: async (tenant, text) => {
+      const t = escFilterValue(tenant);
+      const accountId = (await get("tenant_memberships", `tenant='${t}' && status='active' && role='owner'`, "account"))?.account
+        || (await get("tenants", `tenant='${t}'`, "id"))?.id;
+      if (!accountId) return false;
+      await createPbRecord(env, "agent_chat_messages", { tenant: masterThreadKey({ id: accountId }), role: "assistant", content: text }, pbToken);
+      return true;
+    }
+  });
+}
+__name(handleApiOwnerAlert, "handleApiOwnerAlert");
 
 // Tra dữ liệu thật của tenant (MCP server + các tool GET tenant tự khai báo trong agent_tools, vd WooCommerce Store API)
 // rồi trả về khối context để nhét vào câu hỏi gửi AnythingLLM. Lỗi thì bỏ qua, chat vẫn chạy.
@@ -9447,6 +9477,7 @@ async function handleApiV1(request, url, env, cors, ctx) {
     return await callInternalHandlerWithForcedTenant(request, env, cors, cfg.tenant, handleAiVoiceTurn);
   }
   if (url.pathname === "/api/v1/agent-logs" && request.method === "GET") return await handleApiAgentLogs(request, env, cors, cfg);
+  if (url.pathname === "/api/v1/owner-alert" && request.method === "POST") return await handleApiOwnerAlert(request, env, cors, cfg, pbToken);
 
   if (url.pathname === "/api/v1/config" && request.method === "GET") return await handleApiGetConfig(env, cors, cfg);
   if (url.pathname === "/api/v1/config" && request.method === "PATCH") return await handleApiUpdateConfig(request, env, cors, cfg);
